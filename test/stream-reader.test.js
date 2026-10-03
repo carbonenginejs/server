@@ -155,13 +155,15 @@ test("fixed mini replacement removes in reverse per-kind order before adding new
 {
     const source = add(new Park()); minis(source, 100);
     const park = new Park(), existing = add(park); minis(existing); minis(existing, 20);
-    const expected = [], observed = [];
+    const expected = [], observed = [], originals = new Map();
     for (const [method, list] of [["RemoveBall", existing.mMiniBalls], ["RemoveCapsule", existing.mMiniCapsules], ["RemoveOrientedBox", existing.mMiniBoxes]])
     {
         for (let i = list.GetSize() - 1; i >= 0; --i) expected.push([method, list.GetAt(i).id]);
-        const original = park[method]; park[method] = function(id) { observed.push([method, id]); return original.call(this, id); };
+        const original = Park.prototype[method]; originals.set(method, original);
+        Park.prototype[method] = function(id) { observed.push([method, id]); return original.call(this, id); };
     }
-    park.ReadFullStateFromStream(packet(source), 2);
+    try { park.ReadFullStateFromStream(packet(source), 2); }
+    finally { for (const [method, original] of originals) Park.prototype[method] = original; }
     assert.deepEqual(observed, expected);
 });
 

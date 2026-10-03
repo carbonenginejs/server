@@ -21,6 +21,7 @@ Summary: Current APIs, source correspondence and remaining port work.
 - [Spatial queries and distances](destiny-queries.md)
 - [Relative motion and accuracy](destiny-relative-motion.md)
 - [Native state streams](destiny-streams.md)
+- [Client history and replay](destiny-client-ticker.md)
 - [Collision history records](destiny-collision-records.md)
 - [Spatial partition](../destiny/partition/README.md)
 - [Bubble lifecycle and activity](destiny-bubbles.md)

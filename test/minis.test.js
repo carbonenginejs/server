@@ -334,13 +334,15 @@ test("fixed delayed-parent removal clears descriptors immediately and removes ch
     attachAll(ball); attachAll(ball);
     const expected = [ball.miniBalls[1].id, ball.miniBalls[0].id, ball.miniCapsules[1].id,
         ball.miniCapsules[0].id, ball.miniBoxes[1].id, ball.miniBoxes[0].id], removed = [];
+    const originals = new Map();
     for (const name of ["RemoveBall", "RemoveCapsule", "RemoveOrientedBox"])
     {
-        const original = park[name].bind(park);
-        park[name] = (id, delay = 0) =>
-        { if (id !== ball.id) { assert.equal(delay, 0); removed.push(id); } return original(id, delay); };
+        const original = Park.prototype[name]; originals.set(name, original);
+        Park.prototype[name] = function(id, delay = 0)
+        { if (id !== ball.id) { assert.equal(delay, 0); removed.push(id); } return original.call(this, id, delay); };
     }
-    park.RemoveBall(ball.id, 5);
+    try { park.RemoveBall(ball.id, 5); }
+    finally { for (const [name, original] of originals) Park.prototype[name] = original; }
     assert.deepEqual(removed, expected);
     assert.deepEqual([ball.miniBalls.length, ball.miniCapsules.length, ball.miniBoxes.length], [0, 0, 0]);
     assert.equal(park.GetBall(ball.id), ball);

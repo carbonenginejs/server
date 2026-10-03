@@ -698,3 +698,28 @@ PI literal 3.141592654 (Thunkers.cpp:10,2379-2461), including its slightly wider
 spherical-shortcut threshold. Regression tests distinguish both behaviors.
 Runtime remains untouched; transport, client snapshots/replay and interfaces
 remain separate outstanding obligations.
+
+## Client ticker and nonvirtual binding checkpoint
+
+The [client ticker](destiny-client-ticker.md) ports all production methods in
+the donor client BaseTicker/Ticker and merge helper, plus the application callback
+contracts. Its native input and snapshots use the existing simulation and stream
+ports. Blue marshal.Load is an explicit external dependency, not a new encoding.
+Forty tests bring the suite to 809, including all 21 native client tests.
+
+The new integration exposed a prior JS dispatch difference: native C++ calls
+between exposed Ballpark methods are nonvirtual, while this.Method() could
+re-enter a game override. Seventy-eight call sites now use the owner prototype,
+including Python bindings, creation/restoration and movement/removal chains.
+Existing behavioral spies were moved to the owner methods with finally cleanup;
+their assertions remain. New override regressions exercise incoming FollowBall,
+Stop, CloakBall, creation and rewind. The native Blue-name table excludes internal
+or inherited Object methods and retains explicit Py admission checks.
+
+Source evidence: destiny/src/Ballpark.h:295-299; destiny/src/Ballpark.cpp:3929;
+destiny/src/Thunkers.cpp:244-269,1846-1865;
+destiny/src/Ballpark_Blue.cpp:180-188,292-753. Donor remains 114e89f; this is a
+port correction rather than changed upstream behavior. PyOS/game callbacks
+remain dynamic. Native snapshots retain their partial-restore and pruning
+quirks; full native interface parity, remaining binding admission, server
+batching and actual marshal wire compatibility are not claimed.

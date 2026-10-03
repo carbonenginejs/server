@@ -91,8 +91,8 @@ _ReadFullStateBody to distinguish the two signatures.
 
 The full-state wrapper clears only free/proximity registries and
 bubbleInteractives when partial is zero; absent aggregate balls remain. The
-client ticker supplies ClearAll separately when replacing a scene; that ticker
-is not yet ported. Packet type does not determine partial behavior. The signed
+client ticker supplies ClearAll separately when replacing a scene; see
+[client history and replay](destiny-client-ticker.md). Packet type does not determine partial behavior. The signed
 int32 partial argument accepts Number, BigInt and Boolean values. Adapter
 validation happens before registry mutation in place of native QueryInterface.
 

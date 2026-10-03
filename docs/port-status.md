@@ -7,7 +7,7 @@ Summary: Current implementation and the families still required for completion.
 
 The target is the whole public Destiny donor, not only features used by a racing
 demo. Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
-The current server suite has 769 passing CPU tests against runtime alpha.9.
+The current server suite has 809 passing CPU tests against runtime alpha.9.
 
 | Family | Current status |
 |---|---|
@@ -25,9 +25,9 @@ The current server suite has 769 passing CPU tests against runtime alpha.9.
 | Formations | Loading, 16-bit reservations, leader assignment, native follow transitions and rotated steering implemented; both donor trajectories pass |
 | Orientation and movement modes | Legacy/dynamic steering/evolution/sampling, impact rotation and oriented creation implemented; warp and missile paths implemented; mushroom growth/expiry, troll petrification, rigid/boid/field controls and passive native mode dispatch implemented; native mode stream payloads implemented |
 | Visibility, range/volume queries, sensors and relative motion | Periodic sensors, destination notifications, target tracking, cloak/uncloak, sphere visibility, range/triangle/cone/capsule queries, full-map scan, distances, relative motion and accuracy implemented |
-| ClientBall interpolation, snapshots and binary streams | Number/BigInt curves, relative motion, deltas and ego reference implemented; native state-packet writing/restoration and seekable byte adapter implemented; snapshots and interfaces pending |
+| ClientBall interpolation, snapshots and binary streams | Number/BigInt curves, relative motion, deltas and ego reference implemented; native state-packet writing/restoration and client snapshot history implemented; remaining native interfaces pending |
 | Server tickers, bubble updates and recipient batching | Pending |
-| Client history merging, wait rules, restore and replay | Pending |
+| Client history merging, wait rules, restore and replay | Python client BaseTicker/Ticker, callback contracts and merge helper implemented; native quirks preserved; PackagedAction requires a host-supplied Blue marshal decoder |
 | Settings and settings utility functions | Native globals, configuration snapshots, bindings and aliases implemented |
 | Signal, remaining timing and Python wrapper utilities | Pending; native-long counter bounds/wrapping are not yet modeled |
 | Native support containers, comparers, Random and full constants | Three sorted-set comparers, DSTCONSTANTS, DESTINYPACKETS and BALLFLAGS implemented; other support families pending |

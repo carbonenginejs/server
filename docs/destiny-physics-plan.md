@@ -162,8 +162,8 @@ and native timestamps, with checked safe Number inputs and native local-ID
 allocation. The same object is addressed by `1` and `1n`; simulation counters
 and Actions stamps remain Numbers. Later interpolation must convert only bounded
 timestamp differences to Number for integration, never absolute timestamps.
-Native state streams and settings are now implemented. Client snapshots/replay
-and the remaining interface/lifecycle obligations are pending.
+Native state streams, settings and client snapshots/replay are now implemented.
+Remaining interface/lifecycle and server replication obligations are pending.
 
 Exit checks: current trajectories still pass; property changes update caches;
 creation/replacement/removal preserves links; missing objects and callback-driven
@@ -331,8 +331,10 @@ resulting positions and rotations.
 Port available full-state and ball-stream formats when needed to prove restart
 equivalence, using existing organization binary I/O facilities where appropriate.
 [State writing/restoration](destiny-streams.md), the seekable byte adapter and
-native AddBall replacement correction are implemented. Client snapshots and
-integrated restart/replay remain open.
+native AddBall replacement correction are implemented. [Client snapshots and
+replay](destiny-client-ticker.md) now implement the donor ticker, including its
+partial-restore limitations; one delayed ordinary-motion replay integration
+passes. Server batching and broader restart/replay scenarios remain open.
 Review `python/destiny/net` for action timing and replica sequencing. Provide an
 in-process replay harness; this does not require live network transport or EVE
 protocol compatibility. Native snapshots may omit future-affecting transient

@@ -208,8 +208,8 @@ test("GotoThrust missile bypass and zero-length-underflow normalization match na
 test("launch snapshots survive nested setter callbacks and reread target lookup", () =>
 {
     const { park, target, owner, missile } = setup();
-    const oldPosition = park.SetBallPosition; let replaced = null;
-    park.SetBallPosition = function(id, x, y, z)
+    const oldPosition = Park.prototype.SetBallPosition; let replaced = null;
+    Park.prototype.SetBallPosition = function(id, x, y, z)
     {
         oldPosition.call(this, id, x, y, z);
         owner.mNewPos.fill(999); owner.mNewVel.fill(999);
@@ -217,7 +217,8 @@ test("launch snapshots survive nested setter callbacks and reread target lookup"
         this._balls.delete(target.id);
         replaced = space(this, target.id, 500);
     };
-    park.LaunchMissile(missile.id, target.id, owner.id, 1, 0);
+    try { park.LaunchMissile(missile.id, target.id, owner.id, 1, 0); }
+    finally { Park.prototype.SetBallPosition = oldPosition; }
     assert.deepEqual([missile.x, missile.y, missile.z], [0, 0, 0]);
     assert.deepEqual([missile.vx, missile.vy, missile.vz], [1, 0, 0]);
     assert.equal(missile.mFollowPtr, replaced);

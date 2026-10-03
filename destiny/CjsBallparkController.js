@@ -28,11 +28,11 @@ const ORBITAL_PRECESSION = 0.001;
 // Source: destiny/src/Settings.h
 // Source: destiny/src/Thunkers.cpp
 /**
- * Temporary, single-region Ballpark movement subset with native clock phases.
+ * Headless Ballpark port with native clock phases and spatial partitions.
  * The cached evolution step defaults to one second. Native global settings select
  * legacy/new orbit. Spatial membership and bubble activity are maintained;
  * legacy/iterative collision response and dynamic orientation are available;
- * proximity scanning is headless; wire replication remains unported.
+ * proximity scanning and native state streams are available; server batching remains pending.
  */
 @meta.define({ className: "CjsBallparkController", modelledOn: "Ballpark" })
 @meta.blue.inherit(IBlueEvents)
@@ -135,6 +135,17 @@ export class CjsBallparkController
     }
 
     /**
+     * Exposes the native Python evolution entry, which always samples time zero.
+     * Adaptation: JS accepts the ignored argument tuple directly; owner dispatch
+     * preserves the nonvirtual call and does not substitute the host clock.
+     * Source: destiny/src/Thunkers.cpp:1244-1251.
+     * @param {...unknown} args Ignored, including any supplied timestamp.
+     * @returns {void} Evolves one native step with zero ticks as its sample time.
+     */
+    @meta.adapted
+    PyEvolve(...args) { CjsBallparkController.prototype.Evolve.call(this, 0n); }
+
+    /**
      * Registers for native Destiny::Tick delivery, once per Start/Pause cycle.
      * Adaptation: the injected Blue host replaces native BeOS; no timer is owned here.
      *
@@ -175,6 +186,7 @@ export class CjsBallparkController
      * clock overflow and catch-up counts outside native int32 are rejected.
      * Native profiling remains unported.
      *
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} realTime Host real clock in 100ns units; unused by the donor.
      * @param {bigint|number} simTime Host simulation clock in 100ns units.
      * @param {*} cookie Registration cookie; unused by the donor.
@@ -197,7 +209,7 @@ export class CjsBallparkController
         }
         if (this.mFirstTime)
         {
-            this.Evolve(simTime);
+            CjsBallparkController.prototype.Evolve.call(this, simTime);
             lastDelta = 0n;
             this.mFirstTime = false;
         }
@@ -210,7 +222,7 @@ export class CjsBallparkController
             {
                 if (this._pyOS && !this._pyOS.SendEvent(this, "Destiny::DoPreTick",
                     "DoPreTick", null, "(i)", this.currentTime)) this._pyOS.PyError();
-                this.Evolve(simTime - lastDelta);
+                CjsBallparkController.prototype.Evolve.call(this, simTime - lastDelta);
                 if (this._pyOS && !this._pyOS.SendEvent(this, "Destiny::DoPostTick",
                     "DoPostTick", null, "(i)", this.currentTime)) this._pyOS.PyError();
                 lastDelta = CjsDestinyBall._toInt64(lastDelta - CjsBallparkController._tickTime(this.tickInterval));
@@ -259,6 +271,25 @@ export class CjsBallparkController
     }
 
     _balls = new Map();
+
+    /**
+     * Exposes the native Blue ball dictionary.
+     * Adaptation: a live Map replaces the Python dictionary; its keys are BigInt IDs.
+     * Source: destiny/src/Ballpark_Blue.cpp:180-188.
+     * @returns {Map<bigint,CjsDestinyBall>} Current aggregate ball map.
+     */
+    @meta.adapted
+    get balls() { return this._balls; }
+
+    /**
+     * Replaces the Blue dictionary reference without rebuilding spatial/free maps.
+     * Adaptation: callers supply a Map in place of the native Python object.
+     * Source: destiny/src/Ballpark_Blue.cpp:180-188.
+     * @param {Map<bigint,CjsDestinyBall>} value Replacement aggregate map.
+     * @returns {void} Other native registries remain independent.
+     */
+    @meta.adapted
+    set balls(value) { this._balls = value; }
     mPartition = new CjsDestinyPartition();
     mProbe = 0n;
     mBubbleId = 0;
@@ -887,6 +918,7 @@ export class CjsBallparkController
      * Adaptation: uses the checked JS creation inputs; snapping is independent
      * of the global dynamical-orientation setting, as in the native wrapper.
      * Source: destiny/src/Ballpark.cpp:3467-3496.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} objectId Signed-int64 identity or allocation sentinel; Number inputs must be safe integers.
      * @param {number} mass Mass in kilograms.
      * @param {number} radius Radius in meters.
@@ -910,7 +942,7 @@ export class CjsBallparkController
     AddOldStyleOrientedBall(objectId, mass, radius, maxVel, isFree, isGlobal, isMassive,
         isInteractive, isSpaceJunk, x, y, z, vx, vy, vz, agility, speedFraction)
     {
-        const ball = this.AddBall(objectId, mass, radius, maxVel, isFree, isGlobal, isMassive,
+        const ball = CjsBallparkController.prototype.AddBall.call(this, objectId, mass, radius, maxVel, isFree, isGlobal, isMassive,
             isInteractive, isSpaceJunk, x, y, z, vx, vy, vz, agility, speedFraction);
         if (ball.isFree) ball.CalculateYawPitchRoll(true);
         return ball;
@@ -921,6 +953,7 @@ export class CjsBallparkController
      * Adaptation: native float inputs use factory-owned float32 storage. The
      * old rotation backstep reverses Carbon quaternion operands for gl-matrix.
      * Source: destiny/src/Ballpark.cpp:3503-3553; MapOfBalls.h:25-40.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} objectId Signed-int64 identity or allocation sentinel; Number inputs must be safe integers.
      * @param {number} mass Mass in kilograms.
      * @param {number} radius Radius in meters.
@@ -958,7 +991,7 @@ export class CjsBallparkController
         // the ORIGINAL ID again. MapOfBalls lookup does not insert a null entry.
         const theID = this.GetIDForCollisionObject(objectId);
         const isNewBall = !this.GetBall(theID);
-        const ball = this.AddBall(objectId, mass, radius, maxVel, isFree, isGlobal, isMassive,
+        const ball = CjsBallparkController.prototype.AddBall.call(this, objectId, mass, radius, maxVel, isFree, isGlobal, isMassive,
             isInteractive, isSpaceJunk, x, y, z, vx, vy, vz, agility, speedFraction);
         quat.set(ball.mNewRot, rx, ry, rz, rw);
         vec3.set(ball.mNewAngVel, wx, wy, wz);
@@ -984,6 +1017,7 @@ export class CjsBallparkController
      * Adaptation: positional JS arguments replace the Python tuple; the selected
      * wrapper checks its exact arity before spreading the bounded argument list.
      * Source: destiny/src/Thunkers.cpp:150-159.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {...unknown} args Seventeen legacy arguments, or nineteen dynamic arguments.
      * @returns {CjsDestinyBall} Created or updated ball.
      */
@@ -992,8 +1026,8 @@ export class CjsBallparkController
     {
         const count = g_useDynamicalOrientation ? 19 : 17;
         if (args.length !== count) throw new TypeError(`PyAddBall requires ${count} arguments`);
-        return g_useDynamicalOrientation ? this.PyAddDynamicallyOrientedBall(...args)
-            : this.PyAddOldStyleOrientedBall(...args);
+        return g_useDynamicalOrientation ? CjsBallparkController.prototype.PyAddDynamicallyOrientedBall.call(this, ...args)
+            : CjsBallparkController.prototype.PyAddOldStyleOrientedBall.call(this, ...args);
     }
 
     /**
@@ -1001,6 +1035,7 @@ export class CjsBallparkController
      * Adaptation: JS positional values replace tuple parsing and Error replaces
      * Python RuntimeError. Scalar validation remains in the core creation path.
      * Source: destiny/src/Thunkers.cpp:113-145.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {...unknown} args The seventeen AddOldStyleOrientedBall arguments, in the same order.
      * @returns {CjsDestinyBall} Created or updated ball after its legacy snap.
      */
@@ -1009,7 +1044,7 @@ export class CjsBallparkController
     {
         if (args.length !== 17) throw new TypeError("PyAddOldStyleOrientedBall requires 17 arguments");
         if (this.inEvolve) throw new Error("Can not add ball during Evolve().");
-        return this.AddOldStyleOrientedBall(...args);
+        return CjsBallparkController.prototype.AddOldStyleOrientedBall.call(this, ...args);
     }
 
     /**
@@ -1017,6 +1052,7 @@ export class CjsBallparkController
      * Adaptation: JS positional values replace tuple parsing and Error replaces
      * Python RuntimeError. Scalar validation remains in the core creation path.
      * Source: destiny/src/Thunkers.cpp:51-106.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {...unknown} args The seventeen legacy creation arguments, followed by maxAngularSpeed and angularAgility.
      * @returns {CjsDestinyBall} Created or updated ball after its unconditional dynamic snap.
      */
@@ -1028,7 +1064,7 @@ export class CjsBallparkController
         const [objectId, mass, radius, maxVel, isFree, isGlobal, isMassive,
             isInteractive, isSpaceJunk, x, y, z, vx, vy, vz, agility, speedFraction,
             maxAngularSpeed, angularAgility] = args;
-        const ball = this.AddDynamicallyOrientedBall(objectId, mass, radius, maxVel, maxAngularSpeed,
+        const ball = CjsBallparkController.prototype.AddDynamicallyOrientedBall.call(this, objectId, mass, radius, maxVel, maxAngularSpeed,
             isFree, isGlobal, isMassive, isInteractive, isSpaceJunk, x, y, z, vx, vy, vz,
             0, 0, 0, 1, 0, 0, 0, agility, angularAgility, speedFraction);
         ball.SnapOrientation();
@@ -2024,6 +2060,7 @@ export class CjsBallparkController
      * are diagnosed and removed. Detached missiles become non-massive GOTO balls.
      * Source: destiny/src/Ballpark.cpp:5416-5472.
      *
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {CjsDestinyBall|null} ball Target whose incoming follower links are detached.
      * @returns {void} No return value.
      */
@@ -2044,9 +2081,9 @@ export class CjsBallparkController
                 || (follower.isInteractive && follower.mode === Mode.DSTBALL_ORBIT))
             {
                 if (follower.mode === Mode.DSTBALL_MISSILE) follower.isMassive = false;
-                this.GotoDirection(follower, follower.mNewVel);
+                CjsBallparkController.prototype.GotoDirection.call(this, follower, follower.mNewVel);
             }
-            else this.Stop(follower);
+            else CjsBallparkController.prototype.Stop.call(this, follower);
         }
     }
 
@@ -2057,6 +2094,7 @@ export class CjsBallparkController
      * fixed-parent mini colliders are removed before delay handling. Collision caches are erased only
      * while iterative collisions are enabled, preserving the native settings quirk.
      *
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} [delay=0] Tick delay before buffered cleanup.
      * @returns {void} No return value.
@@ -2067,14 +2105,14 @@ export class CjsBallparkController
     {
         const ball = this.GetBall(id);
         if (!ball) return;
-        this.Stop(ball);
+        CjsBallparkController.prototype.Stop.call(this, ball);
         this.StopAllFollowers(ball);
         ball.isMoribund = true;
         // Source: destiny/src/Ballpark.cpp:5496-5528. Fixed-parent children ignore its delay.
         let size = ball.mMiniBalls.GetSize();
         if (size > 0 && !ball.isFree)
         {
-            for (let i = size - 1; i >= 0; --i) this.RemoveBall(ball.mMiniBalls.GetAt(i).mId);
+            for (let i = size - 1; i >= 0; --i) CjsBallparkController.prototype.RemoveBall.call(this, ball.mMiniBalls.GetAt(i).mId);
             ball.mMiniBalls.Remove(-1);
         }
         size = ball.mMiniCapsules.GetSize();
@@ -2190,6 +2228,7 @@ export class CjsBallparkController
      * among equally eligible buffered balls follows insertion order. Invalid queue
      * records are discarded without native logging.
      *
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @returns {void} No return value.
      */
     @meta.adapted
@@ -2212,7 +2251,7 @@ export class CjsBallparkController
         }
         for (const ball of toDelete)
         {
-            if (ball && ball.isMoribund) this.RemoveBall(ball.id);
+            if (ball && ball.isMoribund) CjsBallparkController.prototype.RemoveBall.call(this, ball.id);
             this.moribundBalls.delete(ball);
         }
     }
@@ -2262,6 +2301,7 @@ export class CjsBallparkController
      * its float growth skips sample commit. Trolls petrify after every ball commits.
      * Iterative collision trajectories are solved between behavior and integration.
      *
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} [timestamp=0n] New ball timestamp in 100ns units; zero preserves ball timestamps.
      * @throws {RangeError} If a mobile mass/agility is invalid.
      * @throws {Error} If an active ball uses an unknown mode value.
@@ -2397,7 +2437,7 @@ export class CjsBallparkController
                         ball.mRadius = f32(ball.mFollowRange * f32(Math.pow(fraction, 0.25)));
                         this.InsertBallInBoxes(ball);
                     }
-                    else this.RemoveBall(ball.mId);
+                    else CjsBallparkController.prototype.RemoveBall.call(this, ball.mId);
                     continue;
                 }
                 for (let q = 0; q < 3; ++q)
@@ -3357,6 +3397,7 @@ export class CjsBallparkController
      * defaults are retained and invalid int32 factors throw. DataView preserves
      * the native double-to-int64 bit reinterpretation in mFollowId. PyOS is injected.
      * Source: destiny/src/Ballpark.cpp:4072-4137; destiny/src/Thunkers.cpp:360-382.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Ball identity.
      * @param {number} x Absolute destination X.
      * @param {number} y Absolute destination Y.
@@ -3380,13 +3421,13 @@ export class CjsBallparkController
         if (dx * dx + dy * dy + dz * dz < 1e10)
         {
             const vec3d_0 = vec3d.alloc();
-            try { vec3.set(vec3d_0, x, y, z); this.GotoPoint(ball, vec3d_0); }
+            try { vec3.set(vec3d_0, x, y, z); CjsBallparkController.prototype.GotoPoint.call(this, ball, vec3d_0); }
             finally { vec3d.unalloc(vec3d_0); }
             if (this._pyOS && !this._pyOS.PostEvent(this, "Destiny::OnExitWarp", "OnExitWarp", "Li", ball.mId, 1)) this._pyOS.PyError();
             return;
         }
         if (ball.IsWarpish() && x === ball.mGoto[0] && y === ball.mGoto[1] && z === ball.mGoto[2]) return;
-        this.Stop(ball);
+        CjsBallparkController.prototype.Stop.call(this, ball);
         vec3.set(ball.mGoto, x, y, z);
         ball.mEffectStamp = -1;
         ball.mFollowRange = 0;
@@ -3459,6 +3500,7 @@ export class CjsBallparkController
      * replaces stack constants and is released before callbacks. Scalars survive
      * reentry. PyOS/logging are explicit JS boundaries; no native profiling runs.
      * Source: destiny/src/Ballpark.cpp:4263-4362.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {CjsDestinyBall} ball Warp state and destination owner.
      * @param {Float64Array|number[]} p In/out position used to derive warp direction.
      * @param {Float64Array|number[]} v In/out velocity; faster acceleration input is retained.
@@ -3519,7 +3561,7 @@ export class CjsBallparkController
             if (!this.isMaster && this._pyOS && !this._pyOS.PostEvent(this, "Destiny::OnDeactivatingWarp", "OnDeactivatingWarp", "Li", ball.mId, this.currentTime)) this._pyOS.PyError();
             ball.isMassive = true;
             ball.mSensor.active = true;
-            this.Stop(ball);
+            CjsBallparkController.prototype.Stop.call(this, ball);
         }
         return distance;
     }
@@ -3529,6 +3571,7 @@ export class CjsBallparkController
      * Adaptation: typed JS arguments replace the Python wrapper; scalar normalization
      * preserves double arithmetic and injected PyOS owns activation notifications.
      * Source: destiny/src/Ballpark.cpp:4370-4410; destiny/src/Thunkers.cpp:389-410.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Ball identity, resolved again after WarpTo callbacks.
      * @param {number} x Absolute destination X.
      * @param {number} y Absolute destination Y.
@@ -3540,7 +3583,7 @@ export class CjsBallparkController
     @meta.adapted
     EntityWarpIn(id, x, y, z, warpFactor)
     {
-        this.WarpTo(id, x, y, z, 0, warpFactor);
+        CjsBallparkController.prototype.WarpTo.call(this, id, x, y, z, 0, warpFactor);
         const ball = this.GetBall(id);
         if (!ball || ball.mMode === Mode.DSTBALL_GOTO) return;
         this.RealWarp(ball);
@@ -3629,6 +3672,7 @@ export class CjsBallparkController
      * owns stop candidates across callbacks. Negative native vector indices throw
      * on access rather than reading invalid memory. The reversed shrink-reset loop stays.
      * Source: destiny/src/Ballpark.cpp:6673-6727; destiny/src/Thunkers.cpp:1899-1917.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Leader identity.
      * @param {number} formationID Signed-char formation index; -1 disables leadership.
      * @returns {void} Does not reserve slots or update followers when reusing an ID.
@@ -3659,7 +3703,7 @@ export class CjsBallparkController
                         if (follower.mMode !== Mode.DSTBALL_FORMATION) continue;
                         if (follower.mEffectStamp > newLength - 1) stopCandidates.push(follower);
                     }
-                    for (const follower of stopCandidates) this.Stop(follower);
+                    for (const follower of stopCandidates) CjsBallparkController.prototype.Stop.call(this, follower);
                     for (let i = this.mFormations[ball.mFormationID].length; i < newLength; ++i)
                     {
                         if (i >= 16) throw new RangeError("Formation bitset index is out of range");
@@ -3676,6 +3720,7 @@ export class CjsBallparkController
      * Adaptation: signed-char slot narrowing and JS references replace native
      * char/pointers. Native negative slots are retained until their later invalid access.
      * Source: destiny/src/Ballpark.cpp:3951-4001; destiny/src/Thunkers.cpp:1098-1118.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Follower identity.
      * @param {bigint|number} targetId Leader identity.
      * @param {number} slot Native formation slot, normally returned by ReserveFormationSlot.
@@ -3693,7 +3738,7 @@ export class CjsBallparkController
         const target = this.GetBall(targetId);
         if (!target || target.mFormationID < 0 || target.mFormationID > this.mFormations.length - 1) return;
         if (slot > this.mFormations[target.mFormationID].length - 1) return;
-        this.Stop(ball);
+        CjsBallparkController.prototype.Stop.call(this, ball);
         if (ball.mNewBubble !== target.mNewBubble || target.isCloaked) return;
         ball.mFollowId = targetId;
         ball.mFollowPtr = target;
@@ -3706,6 +3751,7 @@ export class CjsBallparkController
      * Applies Python's negative-target restriction before native following.
      * Adaptation: typed JS arguments replace tuple parsing and RangeError replaces BeOS error state.
      * Source: destiny/src/Thunkers.cpp:244-269.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Follower identity.
      * @param {bigint|number} targetId Nonnegative target identity.
      * @param {number} [range=1] Native float surface separation.
@@ -3716,13 +3762,14 @@ export class CjsBallparkController
     {
         targetId = CjsDestinyBall._toInt64(targetId);
         if (targetId < 0n) throw new RangeError("Cannot follow a negative ball ID");
-        this.FollowBall(id, targetId, range);
+        CjsBallparkController.prototype.FollowBall.call(this, id, targetId, range);
     }
 
     /**
      * Applies Python's negative-target restriction before native orbiting.
      * Adaptation: typed JS arguments replace tuple parsing and RangeError replaces BeOS error state.
      * Source: destiny/src/Thunkers.cpp:330-355.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Orbiter identity.
      * @param {bigint|number} targetId Nonnegative target identity.
      * @param {number} [range=1] Native float surface separation.
@@ -3733,7 +3780,7 @@ export class CjsBallparkController
     {
         targetId = CjsDestinyBall._toInt64(targetId);
         if (targetId < 0n) throw new RangeError("Cannot orbit a negative ball ID");
-        this.Orbit(id, targetId, range);
+        CjsBallparkController.prototype.Orbit.call(this, id, targetId, range);
     }
 
     /**
@@ -3742,6 +3789,7 @@ export class CjsBallparkController
      * the scalar wrapper borrows f64 storage across callbacks and returns it on throws.
      * Source: destiny/src/Ballpark.cpp:4513-4548.
      *
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number|CjsDestinyBall} id Signed-int64 identity or native Ball reference.
      * @param {number|Float64Array|number[]} x Position X, or the reference overload's target vector.
      * @param {number} [y] Position Y in the scalar overload.
@@ -3760,14 +3808,14 @@ export class CjsBallparkController
             try
             {
                 vec3.set(vec3d_0, x, y, z);
-                this.GotoPoint(ball, vec3d_0);
+                CjsBallparkController.prototype.GotoPoint.call(this, ball, vec3d_0);
             }
             finally { vec3d.unalloc(vec3d_0); }
             return;
         }
         const ball = id, point = x;
         if (!Number.isFinite(point[0]) || !Number.isFinite(point[1]) || !Number.isFinite(point[2])) return;
-        this.Stop(ball);
+        CjsBallparkController.prototype.Stop.call(this, ball);
         vec3.copy(ball.mGoto, point);
         if (ball.speedFraction === 0) ball.speedFraction = 1;
         ball.SetMode(Mode.DSTBALL_GOTO);
@@ -3779,6 +3827,7 @@ export class CjsBallparkController
      * components copy by value before callbacks, matching native Vector3d.
      * Source: destiny/src/Ballpark.cpp:4471-4505; destiny/src/Vector3d.h:62-72.
      *
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number|CjsDestinyBall|null} id Signed-int64 identity or native Ball reference.
      * @param {number|Float64Array|number[]} x Direction X or the reference overload's vector.
      * @param {number} [y] Direction Y in the scalar overload.
@@ -3800,7 +3849,7 @@ export class CjsBallparkController
         try
         {
             vec3.set(vec3d_0, ball.x + x * 1e17, ball.y + y * 1e17, ball.z + z * 1e17);
-            this.GotoPoint(ball, vec3d_0);
+            CjsBallparkController.prototype.GotoPoint.call(this, ball, vec3d_0);
         }
         finally { vec3d.unalloc(vec3d_0); }
     }
@@ -3811,6 +3860,7 @@ export class CjsBallparkController
      * objects; range narrows to float32. Core creation's documented JS input and
      * replacement differences also apply. NaN range/duration retain native guards.
      * Source: destiny/src/Ballpark.cpp:3719-3789.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} ownerId Exact signed owner identity, without absolute lookup.
      * @param {number} range Final radius parameter, rejected only when nonpositive.
      * @param {number} time Growth duration in seconds, rejected only when nonpositive.
@@ -3827,9 +3877,9 @@ export class CjsBallparkController
         if (!owner) { console.warn("Non existing parent for mushroom. Canceled."); return; }
         const x = owner.mNewPos[0], y = owner.mNewPos[1], z = owner.mNewPos[2];
         const mushroom = g_useDynamicalOrientation
-            ? this.AddDynamicallyOrientedBall(0n, f32(1e20), 0, 0, 0, false, false, true, false, false,
+            ? CjsBallparkController.prototype.AddDynamicallyOrientedBall.call(this, 0n, f32(1e20), 0, 0, 0, false, false, true, false, false,
                 x, y, z, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1)
-            : this.AddOldStyleOrientedBall(0n, f32(1e20), 0, 0, false, false, true, false, false,
+            : CjsBallparkController.prototype.AddOldStyleOrientedBall.call(this, 0n, f32(1e20), 0, 0, false, false, true, false, false,
                 x, y, z, 0, 0, 0, 1, 1);
         mushroom.mFollowRange = range;
         mushroom.mGoto[0] = time;
@@ -3842,6 +3892,7 @@ export class CjsBallparkController
      * Binds the three required mushroom arguments without an evolution guard.
      * Adaptation: positional JS arguments replace Python tuple parsing.
      * Source: destiny/src/Thunkers.cpp:306-325.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} ownerId Existing signed owner identity.
      * @param {number} range Float32 radius parameter.
      * @param {number} time Double duration in seconds.
@@ -3851,7 +3902,7 @@ export class CjsBallparkController
     PyAddMushroom(ownerId, range, time)
     {
         if (arguments.length !== 3) throw new TypeError("PyAddMushroom requires 3 arguments");
-        this.AddMushroom(ownerId, range, time);
+        CjsBallparkController.prototype.AddMushroom.call(this, ownerId, range, time);
     }
 
     /**
@@ -3860,6 +3911,7 @@ export class CjsBallparkController
      * replace pointers/unordered sets, and scalar locals preserve Vector3d values.
      * Minimum int64 owner negation throws instead of native signed overflow.
      * Source: destiny/src/Ballpark.cpp:3798-3872.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Existing missile identity.
      * @param {bigint|number} targetId Target identity; negative is allowed in this core.
      * @param {bigint|number} ownerId Signed owner; negative selects defender collision behavior.
@@ -3874,7 +3926,7 @@ export class CjsBallparkController
         const ball = this.GetBall(id), target = this.GetBall(targetId);
         if (!ball || !target || target.isMoribund) return;
         if (!owner) console.warn("Non existing missile owner. Tolerated.");
-        this.Stop(ball);
+        CjsBallparkController.prototype.Stop.call(this, ball);
         if (ball.mNewBubble !== target.mNewBubble || target.isCloaked) return;
         ball.mFollowId = targetId; ball.mFollowPtr = target;
         ball.mFollowRange = -f32(f32(ball.mRadius) + f32(target.mRadius));
@@ -3893,6 +3945,7 @@ export class CjsBallparkController
      * Applies the Python-only negative-target restriction before missile pursuit.
      * Adaptation: JS arguments and RangeError replace Python parsing/error state.
      * Source: destiny/src/Thunkers.cpp:275-299.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Existing missile identity.
      * @param {bigint|number} targetId Nonnegative target identity.
      * @param {bigint|number} ownerId Signed owner identity.
@@ -3904,7 +3957,7 @@ export class CjsBallparkController
         if (arguments.length !== 3) throw new TypeError("PyMissileFollow requires 3 arguments");
         id = CjsDestinyBall._toInt64(id); targetId = CjsDestinyBall._toInt64(targetId); ownerId = CjsDestinyBall._toInt64(ownerId);
         if (targetId < 0n) throw new RangeError("Can not MissileFollow a negative ballID");
-        this.MissileFollow(id, targetId, ownerId);
+        CjsBallparkController.prototype.MissileFollow.call(this, id, targetId, ownerId);
     }
 
     /**
@@ -3913,6 +3966,7 @@ export class CjsBallparkController
      * flags. Scalar snapshots and a pooled float32 direction survive callbacks;
      * finally releases the direction on error. Checked IDs reject native overflow.
      * Source: destiny/src/Thunkers.cpp:857-946.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Existing source ball identity; never allocated here.
      * @param {bigint|number} targetId Nonnegative target identity.
      * @param {bigint|number} ownerId Signed launcher identity, looked up by absolute value.
@@ -3963,21 +4017,22 @@ export class CjsBallparkController
             const speed = 150 < maxVelocity ? maxVelocity : 150;
             vx = x + speed * dx; vy = y + speed * dy; vz = z + speed * dz;
         }
-        if (massive) this.SetBallMassive(id, true);
-        this.SetBallPosition(id, px, py, pz);
-        this.SetBallVelocity(id, vx, vy, vz);
+        if (massive) CjsBallparkController.prototype.SetBallMassive.call(this, id, true);
+        CjsBallparkController.prototype.SetBallPosition.call(this, id, px, py, pz);
+        CjsBallparkController.prototype.SetBallVelocity.call(this, id, vx, vy, vz);
         if (target && target.isCloaked) return;
         if (!target)
         {
-            if (maxVelocity > 0) this.GotoDirection(id, vx, vy, vz);
+            if (maxVelocity > 0) CjsBallparkController.prototype.GotoDirection.call(this, id, vx, vy, vz);
         }
-        else this.MissileFollow(id, targetId, ownerId);
+        else CjsBallparkController.prototype.MissileFollow.call(this, id, targetId, ownerId);
     }
 
     /**
      * Exposes Carbon's Blue LaunchMissile name on the Python-shaped implementation.
      * Adaptation: an explicit delegate replaces the native Blue method alias.
      * Source: destiny/src/Ballpark_Blue.cpp:695-700.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {...unknown} args The five required PyLaunchMissile arguments.
      * @returns {void} Launches the existing source without creating a ball.
      */
@@ -3986,7 +4041,7 @@ export class CjsBallparkController
     LaunchMissile(...args)
     {
         if (args.length !== 5) throw new TypeError("LaunchMissile requires 5 arguments");
-        this.PyLaunchMissile(...args);
+        CjsBallparkController.prototype.PyLaunchMissile.call(this, ...args);
     }
 
     /**
@@ -3996,6 +4051,7 @@ export class CjsBallparkController
      * allows negative IDs; PyFollowBall applies the separate Python restriction.
      * Source: destiny/src/Ballpark.cpp:3878-3945; destiny/src/Thunkers.cpp:244-269.
      *
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {bigint|number} targetId Signed-int64 target identity; Number inputs must be safe integers.
      * @param {number} [range] Surface separation in meters.
@@ -4013,7 +4069,7 @@ export class CjsBallparkController
         if (ball.id === targetId) return;
         const target = this.GetBall(targetId);
         if (!target || target.isMoribund || ball.mNewBubble !== target.mNewBubble || target.isCloaked) return;
-        this.Stop(ball);
+        CjsBallparkController.prototype.Stop.call(this, ball);
         ball.followId = target.id;
         ball._followPtr = target;
         ball.followRange = range;
@@ -4029,6 +4085,7 @@ export class CjsBallparkController
      * applies the Python negative-target-ID restriction.
      * Source: destiny/src/Ballpark.cpp:4006-4071; destiny/src/Thunkers.cpp:330-355.
      *
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {bigint|number} targetId Signed-int64 target identity; Number inputs must be safe integers.
      * @param {number} [range] Surface separation in meters.
@@ -4046,7 +4103,7 @@ export class CjsBallparkController
         if (ball.id === targetId) return;
         const target = this.GetBall(targetId);
         if (!target || target.isMoribund || ball.mNewBubble !== target.mNewBubble || target.isCloaked) return;
-        this.Stop(ball);
+        CjsBallparkController.prototype.Stop.call(this, ball);
         ball.followId = target.id;
         ball._followPtr = target;
         ball.followRange = range;
@@ -4101,6 +4158,7 @@ export class CjsBallparkController
      * Stops the old command and selects rigid mode without changing free membership.
      * Adaptation: checked BigInt identity and JS references replace native map access.
      * Source: destiny/src/Ballpark.cpp:6278-6289.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Ball identity.
      * @returns {void} Missing balls are ignored.
      */
@@ -4110,7 +4168,7 @@ export class CjsBallparkController
     {
         const ball = this.GetBall(id);
         if (!ball) return;
-        this.Stop(ball);
+        CjsBallparkController.prototype.Stop.call(this, ball);
         ball.SetMode(Mode.DSTBALL_RIGID);
     }
 
@@ -4119,6 +4177,7 @@ export class CjsBallparkController
      * Adaptation: JS checked integers reject native signed overflow; callbacks
      * retain native Stop/free/interactive/stamp/mode ordering.
      * Source: destiny/src/Ballpark.cpp:6290-6313.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Ball identity.
      * @param {number} delay Signed-int32 tick count, clamped to at least one.
      * @returns {void} Existing velocity survives entry into troll mode.
@@ -4132,9 +4191,9 @@ export class CjsBallparkController
         const ball = this.GetBall(id);
         if (!ball) return;
         delay = Math.max(1, delay);
-        this.Stop(ball);
-        this.SetBallFree(id, true);
-        this.SetBallInteractive(id, true);
+        CjsBallparkController.prototype.Stop.call(this, ball);
+        CjsBallparkController.prototype.SetBallFree.call(this, id, true);
+        CjsBallparkController.prototype.SetBallInteractive.call(this, id, true);
         const stamp = this.currentTime + delay;
         if (!Number.isInteger(stamp) || stamp < -2147483648 || stamp > 2147483647)
             throw new RangeError("Troll deadline exceeds native signed-int32 arithmetic");
@@ -4162,6 +4221,7 @@ export class CjsBallparkController
      * and child-shape attachment. Native RIGID wins over the header's STOP claim.
      * Native quirk: child insertion during Evolve skips aggregate map registration.
      * Source: destiny/src/Ballpark.cpp:6327-6337; destiny/src/Ballpark.h:670-676.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {CjsDestinyBall} ball Previously queued troll reference.
      * @returns {void} Readiness failure leaves the ball unchanged.
      */
@@ -4169,8 +4229,8 @@ export class CjsBallparkController
     PetrifyTroll(ball)
     {
         if (!this.TrollReady(ball)) return;
-        this.SetBallFree(ball.mId, false);
-        this.SetBallInteractive(ball.mId, false);
+        CjsBallparkController.prototype.SetBallFree.call(this, ball.mId, false);
+        CjsBallparkController.prototype.SetBallInteractive.call(this, ball.mId, false);
         ball.SetMode(Mode.DSTBALL_RIGID);
     }
 
@@ -4179,6 +4239,7 @@ export class CjsBallparkController
      * Adaptation: checked BigInt/int32 inputs replace native scalar arguments;
      * direct backing-field writes avoid JS property notification recursion.
      * Source: destiny/src/Ballpark.cpp:4852-4880.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Ball identity.
      * @param {bigint|number} harmonic Native signed-int64 harmonic value.
      * @param {number} corporationID Native signed-int32 corporation value.
@@ -4199,14 +4260,15 @@ export class CjsBallparkController
         ball.mHarmonic = harmonic;
         ball.mCorporationID = corporationID;
         ball.mAllianceID = allianceID;
-        if (field) { this.Stop(ball); ball.SetMode(Mode.DSTBALL_FIELD); }
-        else if (ball.mMode === Mode.DSTBALL_FIELD) this.Stop(ball);
+        if (field) { CjsBallparkController.prototype.Stop.call(this, ball); ball.SetMode(Mode.DSTBALL_FIELD); }
+        else if (ball.mMode === Mode.DSTBALL_FIELD) CjsBallparkController.prototype.Stop.call(this, ball);
     }
 
     /**
      * Binds the required rigid command argument before calling the native core.
      * Adaptation: positional JS arguments replace Python tuple parsing.
      * Source: destiny/src/Thunkers.cpp:510-524.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Ball identity.
      * @returns {void} Delegates to SetBallRigid.
      */
@@ -4214,13 +4276,14 @@ export class CjsBallparkController
     PySetBallRigid(id)
     {
         if (arguments.length !== 1) throw new TypeError("PySetBallRigid requires 1 argument");
-        this.SetBallRigid(id);
+        CjsBallparkController.prototype.SetBallRigid.call(this, id);
     }
 
     /**
      * Binds the required troll identity and delay before calling the native core.
      * Adaptation: positional JS arguments replace Python tuple parsing.
      * Source: destiny/src/Thunkers.cpp:530-547.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Ball identity.
      * @param {number} delay Signed-int32 tick delay.
      * @returns {void} Delegates to SetBallTroll.
@@ -4229,13 +4292,14 @@ export class CjsBallparkController
     PySetBallTroll(id, delay)
     {
         if (arguments.length !== 2) throw new TypeError("PySetBallTroll requires 2 arguments");
-        this.SetBallTroll(id, delay);
+        CjsBallparkController.prototype.SetBallTroll.call(this, id, delay);
     }
 
     /**
      * Binds harmonic fields and converts the Python integer field flag to bool.
      * Adaptation: JS arguments, checked values and exceptions replace tuple parsing.
      * Source: destiny/src/Thunkers.cpp:952-975.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Ball identity.
      * @param {bigint|number} harmonic Signed-int64 harmonic.
      * @param {number} corporationID Signed-int32 corporation.
@@ -4250,13 +4314,14 @@ export class CjsBallparkController
         if (typeof field === "boolean") field = Number(field);
         if (!Number.isInteger(field) || field < -2147483648 || field > 2147483647)
             throw new RangeError("Field flag must fit native int32");
-        this.SetBallHarmonic(id, harmonic, corporationID, allianceID, field !== 0);
+        CjsBallparkController.prototype.SetBallHarmonic.call(this, id, harmonic, corporationID, allianceID, field !== 0);
     }
 
     /**
      * Selects passive boid mode or stops the ball, matching the Python-only donor.
      * Adaptation: JS positional arguments and checked integers replace tuple parsing.
      * Source: destiny/src/Thunkers.cpp:1003-1026.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Ball identity.
      * @param {number|boolean} turnOn Nonzero selects BOID without stopping first.
      * @returns {void} Missing balls are ignored.
@@ -4269,13 +4334,14 @@ export class CjsBallparkController
         if (!Number.isInteger(turnOn) || turnOn < -2147483648 || turnOn > 2147483647)
             throw new RangeError("Boid flag must fit native int32");
         const ball = this.GetBall(id);
-        if (ball) { if (turnOn) ball.SetMode(Mode.DSTBALL_BOID); else this.Stop(ball); }
+        if (ball) { if (turnOn) ball.SetMode(Mode.DSTBALL_BOID); else CjsBallparkController.prototype.Stop.call(this, ball); }
     }
 
     /**
      * Exposes the Blue name for the Python-only boid command.
      * Adaptation: explicit delegation replaces Carbon's method alias.
      * Source: destiny/src/Ballpark_Blue.cpp:599-604.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {...unknown} args Two required PySetBoid arguments.
      * @returns {void} Delegates without inventing flocking behavior.
      */
@@ -4284,7 +4350,7 @@ export class CjsBallparkController
     SetBoid(...args)
     {
         if (args.length !== 2) throw new TypeError("SetBoid requires 2 arguments");
-        this.PySetBoid(...args);
+        CjsBallparkController.prototype.PySetBoid.call(this, ...args);
     }
 
     /**
@@ -4554,6 +4620,7 @@ export class CjsBallparkController
      * Binds Python sensor defaults and discards the Ball core's rejection code.
      * Adaptation: explicit JS arity/integer checks replace native tuple parsing.
      * Source: destiny/src/Thunkers.cpp:1284-1307.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Sensor identity.
      * @param {number} range Float32 sensor range.
      * @param {number} [period=2] Period in seconds.
@@ -4571,13 +4638,14 @@ export class CjsBallparkController
         if (!Number.isInteger(shuffle) || shuffle < -2147483648 || shuffle > 2147483647
             || !Number.isInteger(onlyInteractives) || onlyInteractives < 0 || onlyInteractives > 255)
             throw new RangeError("Sensor flags exceed native integer storage");
-        this.AddProximitySensor(id, range, period, shuffle, onlyInteractives !== 0);
+        CjsBallparkController.prototype.AddProximitySensor.call(this, id, range, period, shuffle, onlyInteractives !== 0);
     }
 
     /**
      * Binds the single required sensor-removal identity.
      * Adaptation: JS arity checking replaces Python tuple parsing.
      * Source: destiny/src/Thunkers.cpp:1312-1327.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Sensor identity.
      * @returns {void} Delegates to RemoveProximitySensor.
      */
@@ -4585,13 +4653,14 @@ export class CjsBallparkController
     PyRemoveProximitySensor(id)
     {
         if (arguments.length !== 1) throw new TypeError("PyRemoveProximitySensor requires 1 argument");
-        this.RemoveProximitySensor(id);
+        CjsBallparkController.prototype.RemoveProximitySensor.call(this, id);
     }
 
     /**
      * Binds the required notification identity and double range.
      * Adaptation: JS arity checking replaces Python tuple parsing.
      * Source: destiny/src/Thunkers.cpp:732-748.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Ball identity.
      * @param {number} range Destination range.
      * @returns {void} Delegates to SetNotificationRange.
@@ -4600,13 +4669,14 @@ export class CjsBallparkController
     PySetNotificationRange(id, range)
     {
         if (arguments.length !== 2) throw new TypeError("PySetNotificationRange requires 2 arguments");
-        this.SetNotificationRange(id, range);
+        CjsBallparkController.prototype.SetNotificationRange.call(this, id, range);
     }
 
     /**
      * Binds the two tracking identities and required double range.
      * Adaptation: checked JS IDs and arity replace Python tuple parsing.
      * Source: destiny/src/Thunkers.cpp:754-770.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Source identity.
      * @param {bigint|number} targetId Target identity.
      * @param {number} range Tracking range.
@@ -4617,7 +4687,7 @@ export class CjsBallparkController
     {
         if (arguments.length !== 3) throw new TypeError("PySetTargetTracking requires 3 arguments");
         id = CjsDestinyBall._toInt64(id); targetId = CjsDestinyBall._toInt64(targetId);
-        this.SetTargetTracking(id, targetId, range);
+        CjsBallparkController.prototype.SetTargetTracking.call(this, id, targetId, range);
     }
 
     /**
@@ -4627,6 +4697,7 @@ export class CjsBallparkController
      * admission still rejects nonfinite physical fields. Unknown modes retain
      * creation/field mutations and return null, as the donor does.
      * Source: destiny/src/Thunkers.cpp:2897-3177; destiny/src/Ballpark.h:1138.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {CjsDestinyStream} stream Native-layout byte cursor, without packet header.
      * @param {number} partial Only one consumes minis without changing descriptors.
      * @returns {CjsDestinyBall|null} Restored ball, or null at EOF/unsupported mode.
@@ -4661,14 +4732,14 @@ export class CjsBallparkController
         const massive = Boolean(flags & BALLFLAGS.DSTBALL_ISMASSIVE), interactive = Boolean(flags & BALLFLAGS.DSTBALL_ISINTERACTIVE);
         const junk = Boolean(flags & BALLFLAGS.DSTBALL_ISSPACEJUNK);
         const ball = g_useDynamicalOrientation
-            ? this.AddDynamicallyOrientedBall(id, mass, radius, maxVel, maxAngVel, free, global, massive, interactive, junk,
+            ? CjsBallparkController.prototype.AddDynamicallyOrientedBall.call(this, id, mass, radius, maxVel, maxAngVel, free, global, massive, interactive, junk,
                 x, y, z, vx, vy, vz, rx, ry, rz, rw, wx, wy, wz, agility, rotAgility, speedFraction)
-            : this.AddOldStyleOrientedBall(id, mass, radius, maxVel, free, global, massive, interactive, junk,
+            : CjsBallparkController.prototype.AddOldStyleOrientedBall.call(this, id, mass, radius, maxVel, free, global, massive, interactive, junk,
                 x, y, z, vx, vy, vz, agility, speedFraction);
         ball.mFormationID = (stream.ReadUint8() << 24) >> 24;
         if (partial !== 1 && !free)
         {
-            for (let i = ball.mMiniBalls.GetSize() - 1; i >= 0; --i) this.RemoveBall(ball.mMiniBalls.GetAt(i).mId);
+            for (let i = ball.mMiniBalls.GetSize() - 1; i >= 0; --i) CjsBallparkController.prototype.RemoveBall.call(this, ball.mMiniBalls.GetAt(i).mId);
             ball.mMiniBalls.Remove(-1);
             for (let i = ball.mMiniCapsules.GetSize() - 1; i >= 0; --i) this.RemoveCapsule(ball.mMiniCapsules.GetAt(i).mId);
             ball.mMiniCapsules.Remove(-1);
@@ -4772,6 +4843,7 @@ export class CjsBallparkController
      * from its same-named Blue alias. An owned array replaces VectorOfBalls;
      * errors retain prior mutations instead of claiming native short-read behavior.
      * Source: destiny/src/Thunkers.cpp:2463-2509; destiny/src/Ballpark.h:1137.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {CjsDestinyStream} stream Positioned immediately after packet type.
      * @param {number} partial Native partial argument, passed unchanged to records.
      * @returns {boolean} False on completion, matching the native error-condition result.
@@ -4781,7 +4853,7 @@ export class CjsBallparkController
     {
         this.currentTime = stream.ReadInt32();
         const loaded = [];
-        for (let ball = this.ReadBallFromStream(stream, partial); ball; ball = this.ReadBallFromStream(stream, partial))
+        for (let ball = CjsBallparkController.prototype.ReadBallFromStream.call(this, stream, partial); ball; ball = CjsBallparkController.prototype.ReadBallFromStream.call(this, stream, partial))
             loaded.push(ball);
         for (const ball of loaded)
         {
@@ -4801,6 +4873,7 @@ export class CjsBallparkController
      * The adapter interface is checked before registry mutation in place of QueryInterface.
      * The JS ordered free-ID index clears with its corresponding native free map.
      * Source: destiny/src/Thunkers.cpp:2083-2142.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {CjsDestinyStream} stream Source rewound before parsing.
      * @param {number|bigint|boolean} [partial=0] Zero clears selected registries; only one skips mini changes.
      * @returns {void} Leaves the stream at its consumed position and retains partial mutations on error.
@@ -4827,7 +4900,7 @@ export class CjsBallparkController
             const packet = stream.ReadUint8();
             if (packet !== DESTINYPACKETS.DESTINY_FULLSTATE && packet !== DESTINYPACKETS.DESTINY_BALLS)
                 throw new RangeError("Unknown Destiny packet type");
-            if (this._ReadFullStateBody(stream, partial)) throw new Error("Some error reading Destiny packet");
+            if (CjsBallparkController.prototype._ReadFullStateBody.call(this, stream, partial)) throw new Error("Some error reading Destiny packet");
         }
     }
 
@@ -4836,6 +4909,7 @@ export class CjsBallparkController
      * Adaptation: bounded argument delegation selects the Python-shaped wrapper;
      * the colliding C++ body name is retained in _ReadFullStateBody's source mapping.
      * Source: destiny/src/Ballpark_Blue.cpp:507-514.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {...unknown} args Source stream and optional partial argument.
      * @returns {void} Restores stream records through the native wrapper flow.
      */
@@ -4844,7 +4918,7 @@ export class CjsBallparkController
     ReadFullStateFromStream(...args)
     {
         if (args.length < 1 || args.length > 2) throw new TypeError("ReadFullStateFromStream requires 1 or 2 arguments");
-        this.PyReadFullStateFromStream(...args);
+        CjsBallparkController.prototype.PyReadFullStateFromStream.call(this, ...args);
     }
 
     /**
@@ -5002,6 +5076,7 @@ export class CjsBallparkController
      * Exposes the native Blue full-state writer name.
      * Adaptation: bounded JS delegation replaces method registration.
      * Source: destiny/src/Ballpark_Blue.cpp:492-499.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {...unknown} args Stream and optional source identity.
      * @returns {void} Writes through the native-shaped wrapper.
      */
@@ -5010,7 +5085,7 @@ export class CjsBallparkController
     WriteFullStateToStream(...args)
     {
         if (args.length < 1 || args.length > 2) throw new TypeError("WriteFullStateToStream requires 1 or 2 arguments");
-        this.PyWriteFullStateToStream(...args);
+        CjsBallparkController.prototype.PyWriteFullStateToStream.call(this, ...args);
     }
 
     /**
@@ -5047,6 +5122,7 @@ export class CjsBallparkController
      * Exposes the native Blue selected-ball writer name.
      * Adaptation: direct JS delegation replaces Blue method registration.
      * Source: destiny/src/Ballpark_Blue.cpp:500-506.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {Array} ballList Candidate identities.
      * @param {CjsDestinyStream} stream Destination stream.
      * @returns {void} Writes through the native-shaped wrapper.
@@ -5056,7 +5132,7 @@ export class CjsBallparkController
     WriteBallsToStream(ballList, stream)
     {
         if (arguments.length !== 2) throw new TypeError("WriteBallsToStream requires 2 arguments");
-        this.PyWriteBallsToStream(ballList, stream);
+        CjsBallparkController.prototype.PyWriteBallsToStream.call(this, ballList, stream);
     }
 
     /**
@@ -5066,6 +5142,7 @@ export class CjsBallparkController
      * Scalar doubles replace local vectors. Native negative roundoff is not clamped.
      * Source: destiny/src/Ballpark.cpp:5156-5217; destiny/src/Ballpark.h:777-790;
      * destiny/src/Ballpark_Blue.cpp:549-555.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} srcId Source identity.
      * @param {bigint|number} dstId Target identity.
      * @param {object|number|boolean|bigint} optimalRange Range reference, or scalar Blue argument.
@@ -5081,7 +5158,7 @@ export class CjsBallparkController
     {
         if (arguments.length !== 7) throw new TypeError("GetAccuracy requires 7 arguments");
         if (typeof optimalRange !== "object" && typeof trackingSpeed !== "object")
-            return this.PyGetAccuracy(srcId, dstId, optimalRange, falloff, trackingSpeed, signatureRadius, optimalSignatureRadius);
+            return CjsBallparkController.prototype.PyGetAccuracy.call(this, srcId, dstId, optimalRange, falloff, trackingSpeed, signatureRadius, optimalSignatureRadius);
         if (!optimalRange || !trackingSpeed || typeof optimalRange !== "object" || typeof trackingSpeed !== "object")
             throw new TypeError("GetAccuracy requires two numeric arguments or two value references");
         srcId = CjsDestinyBall._toInt64(srcId); dstId = CjsDestinyBall._toInt64(dstId);
@@ -5113,6 +5190,7 @@ export class CjsBallparkController
      * Boolean/BigInt scalar inputs follow Python numeric-to-double conversion;
      * arbitrary Python numeric objects have no JavaScript binding equivalent here.
      * Source: destiny/src/Thunkers.cpp:2044-2076.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} srcId Source identity.
      * @param {bigint|number} dstId Target identity.
      * @param {number|boolean|bigint} optimalRange Input optimal range.
@@ -5132,7 +5210,7 @@ export class CjsBallparkController
         signatureRadius = CjsBallparkController._accuracyDouble(signatureRadius);
         optimalSignatureRadius = CjsBallparkController._accuracyDouble(optimalSignatureRadius);
         const range = { value: optimalRange }, tracking = { value: trackingSpeed };
-        const accuracy = this.GetAccuracy(srcId, dstId, range, falloff, tracking, signatureRadius, optimalSignatureRadius);
+        const accuracy = CjsBallparkController.prototype.GetAccuracy.call(this, srcId, dstId, range, falloff, tracking, signatureRadius, optimalSignatureRadius);
         return [accuracy, range.value, tracking.value];
     }
 
@@ -5257,32 +5335,35 @@ export class CjsBallparkController
      * Exposes the native IDs-only range wrapper.
      * Adaptation: bounded JS arguments replace a Python tuple.
      * Source: destiny/src/Thunkers.cpp:1329-1335.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {...unknown} args Ball/range or coordinate/range arguments.
      * @returns {bigint[]} Matching identities in bubble order.
      */
     @meta.adapted
-    PyGetBallIdsInRange(...args) { return this.GetBallIdsInRange(args, false); }
+    PyGetBallIdsInRange(...args) { return CjsBallparkController.prototype.GetBallIdsInRange.call(this, args, false); }
 
     /**
      * Exposes the native range wrapper returning squared center distances.
      * Adaptation: JS arrays replace Python lists and nested tuples.
      * Source: destiny/src/Thunkers.cpp:1337-1342.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {...unknown} args Ball/range or coordinate/range arguments.
      * @returns {Array} [distanceSquared, ID] pairs in bubble order.
      */
     @meta.adapted
-    PyGetBallIdsAndDistInRange(...args) { return this.GetBallIdsInRange(args, true); }
+    PyGetBallIdsAndDistInRange(...args) { return CjsBallparkController.prototype.GetBallIdsInRange.call(this, args, true); }
 
     /**
      * Exposes the Blue alias of the distance-bearing range wrapper.
      * Adaptation: direct delegation replaces native Blue method registration.
      * Source: destiny/src/Ballpark_Blue.cpp:583-588.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {...unknown} args Ball/range or coordinate/range arguments.
      * @returns {Array} [distanceSquared, ID] pairs.
      */
     @meta.blue.method
     @meta.adapted
-    GetBallIdsAndDistInRange(...args) { return this.GetBallIdsInRange(args, true); }
+    GetBallIdsAndDistInRange(...args) { return CjsBallparkController.prototype.GetBallIdsInRange.call(this, args, true); }
 
     /**
      * Finds bubble balls within an inflated triangle anchored at the source center.
@@ -5427,6 +5508,7 @@ export class CjsBallparkController
      * Exposes the native Blue center-distance alias.
      * Adaptation: JS delegation replaces Blue registration.
      * Source: destiny/src/Ballpark_Blue.cpp:611-616.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {...unknown} args Exactly two ball identities.
      * @returns {number|null} Center distance or missing sentinel.
      */
@@ -5435,13 +5517,14 @@ export class CjsBallparkController
     GetCenterDist(...args)
     {
         if (args.length !== 2) throw new TypeError("GetCenterDist requires 2 arguments");
-        return this.PyGetCenterDist(...args);
+        return CjsBallparkController.prototype.PyGetCenterDist.call(this, ...args);
     }
 
     /**
      * Returns physical center distance minus each radius, allowing negative overlap.
      * Adaptation: JS values/null replace Python tuple parsing and None.
      * Source: destiny/src/Thunkers.cpp:1798-1820.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} first First identity.
      * @param {bigint|number} second Second identity.
      * @returns {number|null} Unclamped surface distance or missing sentinel.
@@ -5450,7 +5533,7 @@ export class CjsBallparkController
     PyGetSurfaceDist(first, second)
     {
         if (arguments.length !== 2) throw new TypeError("PyGetSurfaceDist requires 2 arguments");
-        const distance = this.PyGetCenterDist(first, second);
+        const distance = CjsBallparkController.prototype.PyGetCenterDist.call(this, first, second);
         return distance === null ? null : distance - this.GetBall(first).mRadius - this.GetBall(second).mRadius;
     }
 
@@ -5458,6 +5541,7 @@ export class CjsBallparkController
      * Exposes the native Blue surface-distance alias.
      * Adaptation: JS delegation replaces Blue registration.
      * Source: destiny/src/Ballpark_Blue.cpp:605-610.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {...unknown} args Exactly two ball identities.
      * @returns {number|null} Unclamped surface distance or missing sentinel.
      */
@@ -5466,7 +5550,7 @@ export class CjsBallparkController
     GetSurfaceDist(...args)
     {
         if (args.length !== 2) throw new TypeError("GetSurfaceDist requires 2 arguments");
-        return this.PyGetSurfaceDist(...args);
+        return CjsBallparkController.prototype.PyGetSurfaceDist.call(this, ...args);
     }
 
     /**
@@ -5510,6 +5594,7 @@ export class CjsBallparkController
      * Exposes the native Blue ScanCone alias.
      * Adaptation: bounded scalar arguments delegate to the Python-shaped wrapper.
      * Source: destiny/src/Ballpark_Blue.cpp:617-622.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {...unknown} args Source ID, full angle, range and direction components.
      * @returns {bigint[]|null} Center-query result, independent of bubble membership.
      */
@@ -5518,7 +5603,7 @@ export class CjsBallparkController
     ScanCone(...args)
     {
         if (args.length !== 6) throw new TypeError("ScanCone requires 6 arguments");
-        return this.PyScanCone(...args);
+        return CjsBallparkController.prototype.PyScanCone.call(this, ...args);
     }
 
     /**
@@ -5619,6 +5704,7 @@ export class CjsBallparkController
      * Adaptation: explicit JS arity/unsigned-byte checks replace Python b parsing;
      * the core then narrows that byte to native signed char before its mode guard.
      * Source: destiny/src/Thunkers.cpp:1846-1865.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Ball identity.
      * @param {number|boolean} cloakMode Required unsigned byte, not an optional default.
      * @param {number} [range=2000] Sensor range in meters.
@@ -5632,13 +5718,14 @@ export class CjsBallparkController
         if (typeof cloakMode === "boolean") cloakMode = Number(cloakMode);
         if (!Number.isInteger(cloakMode) || cloakMode < 0 || cloakMode > 255)
             throw new RangeError("Cloak mode must fit an unsigned byte");
-        this.CloakBall(id, cloakMode, range);
+        CjsBallparkController.prototype.CloakBall.call(this, id, cloakMode, range);
     }
 
     /**
      * Binds the single required uncloak identity.
      * Adaptation: JS arity and checked IDs replace Python tuple parsing.
      * Source: destiny/src/Thunkers.cpp:1870-1886.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Ball identity.
      * @returns {void} Delegates native uncloak side effects.
      */
@@ -5646,7 +5733,7 @@ export class CjsBallparkController
     PyUncloakBall(id)
     {
         if (arguments.length !== 1) throw new TypeError("PyUncloakBall requires 1 argument");
-        this.UncloakBall(id);
+        CjsBallparkController.prototype.UncloakBall.call(this, id);
     }
 
     /**
@@ -5695,6 +5782,7 @@ export class CjsBallparkController
      * Binds both visibility identities and preserves the native signed return value.
      * Adaptation: checked BigInt IDs and JS arity replace Python tuple parsing.
      * Source: destiny/src/Thunkers.cpp:1824-1840.
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} srcId Source identity.
      * @param {bigint|number} dstId Destination identity.
      * @returns {bigint} Native visibility result, including error and clear sentinels.
@@ -5704,7 +5792,7 @@ export class CjsBallparkController
     {
         if (arguments.length !== 2) throw new TypeError("PyCheckVisibility requires 2 arguments");
         srcId = CjsDestinyBall._toInt64(srcId); dstId = CjsDestinyBall._toInt64(dstId);
-        return this.CheckVisibility(srcId, dstId);
+        return CjsBallparkController.prototype.CheckVisibility.call(this, srcId, dstId);
     }
 
     /**
@@ -5810,6 +5898,7 @@ export class CjsBallparkController
      * Adaptation: JS ordered collections replace native maps and pointer ownership;
      * checked BigInt timestamp subtraction rejects signed overflow before changing the flag.
      *
+     * Owner-prototype calls retain nonvirtual C++ dispatch across application overrides.
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {boolean} isFree Whether the ball can move.
      * @returns {void} No return value.
@@ -5832,8 +5921,8 @@ export class CjsBallparkController
         }
         else
         {
-            this.Stop(ball);
-            this.SetBallVelocity(id, 0, 0, 0);
+            CjsBallparkController.prototype.Stop.call(this, ball);
+            CjsBallparkController.prototype.SetBallVelocity.call(this, id, 0, 0, 0);
             this._removeFreeBall(ball.mId);
             this.InsertBallInBoxes(ball);
             ball._lastGx = ball._lastGy = ball._lastGz = 0;
@@ -6297,6 +6386,44 @@ export class CjsBallparkController
     }
 
     static collisionFrames = [];
+
+    /**
+     * Native Blue exposure names mapped to their current JS binding methods.
+     * This replaces _parent_ method lookup for network tickers without schema APIs.
+     * Missing methods remain named and fail at dispatch until their ports land;
+     * core-name entries retain their documented combined binding adaptations.
+     * Source: destiny/src/Ballpark_Blue.cpp:292-753.
+     */
+    static blueMethods = {
+        __init__: "Py__init__", AddBall: "PyAddBall", FollowBall: "PyFollowBall",
+        MissileFollow: "PyMissileFollow", WarpTo: "WarpTo", GotoPoint: "GotoPoint",
+        GotoDirection: "GotoDirection", Orbit: "PyOrbit", Stop: "Stop", RemoveBall: "RemoveBall",
+        GetBallIdsInRangeOfTriangle: "GetBallIdsInRangeOfTriangle", GetBallIdsInCapsule: "GetBallIdsInCapsule",
+        GetBallIdsInCone: "GetBallIdsInCone", ClearAll: "ClearAll", SetBallMass: "SetBallMass",
+        SetBallAgility: "SetBallAgility", SetBallRadius: "SetBallRadius", SetMaxSpeed: "SetMaxSpeed",
+        SetBallGlobal: "PySetBallGlobal", SetBallMassive: "SetBallMassive", SetBallInteractive: "SetBallInteractive",
+        SetBallFree: "SetBallFree", SetBallVelocity: "SetBallVelocity", SetMaxAngularSpeed: "SetMaxAngularSpeed",
+        SetBallAngularVelocity: "SetBallAngularVelocity", SetBallRotation: "SetBallRotation",
+        SetBallAngularAgility: "SetBallAngularAgility", SetSpeedFraction: "SetSpeedFraction",
+        SetNotificationRange: "PySetNotificationRange", SetTargetTracking: "PySetTargetTracking",
+        SetBallPosition: "SetBallPosition", SetBallHarmonic: "PySetBallHarmonic", InitializeBubbles: "InitializeBubbles",
+        WriteFullStateToStream: "PyWriteFullStateToStream", WriteBallsToStream: "PyWriteBallsToStream",
+        ReadFullStateFromStream: "PyReadFullStateFromStream", AddProximitySensor: "PyAddProximitySensor",
+        AddMushroom: "PyAddMushroom", RemoveProximitySensor: "PyRemoveProximitySensor", CheckVisibility: "PyCheckVisibility",
+        CloakBall: "PyCloakBall", UncloakBall: "PyUncloakBall", GetAccuracy: "PyGetAccuracy",
+        Start: "Start", Pause: "Pause", Evolve: "PyEvolve", GetBallIdsInRange: "PyGetBallIdsInRange",
+        GetBallIdsAndDistInRange: "PyGetBallIdsAndDistInRange", CopyBubbles: "CopyBubbles",
+        AdditionsAndDeletions: "PyAdditionsAndDeletions", SetBoid: "PySetBoid", GetSurfaceDist: "PyGetSurfaceDist",
+        GetCenterDist: "PyGetCenterDist", ScanCone: "PyScanCone", GetBallBox: "PyGetBallBox",
+        GetStaticCollidableBox: "GetStaticCollidableBox", GetRemoteFollowers: "PyGetRemoteFollowers",
+        GetFollowers: "PyGetFollowers", GetActiveBoxes: "PyGetActiveBoxes", SetBoxObject: "PySetBoxObject",
+        GetBoxObject: "PyGetBoxObject", GetBubbleAtCoordinates: "GetBubbleAtCoordinates", GetBoxCenter: "PyGetBoxCenter",
+        SetBallTroll: "PySetBallTroll", SetBallRigid: "PySetBallRigid", GetCurrentEgoPos: "PyGetCurrentEgoPos",
+        LaunchMissile: "PyLaunchMissile", SetBallFormation: "SetBallFormation", FormationFollow: "FormationFollow",
+        LoadFormations: "LoadFormations", SetBallNotInParkCallback: "SetBallNotInParkCallback",
+        EntityWarpIn: "EntityWarpIn", AdjustTimes: "AdjustTimes", GetBallBoxKeys: "PyGetBallBoxKeys",
+        GetBoxChildren: "PyGetBoxChildren", GetBoxKey: "PyGetBoxKey"
+    };
 
     static warpConstants = [];
 

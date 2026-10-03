@@ -123,8 +123,9 @@ Python creation dispatch is exposed separately through `PyAddBall`.
 [Missile launch, pursuit and collision events](docs/destiny-missiles.md) are implemented.
 [Mushroom growth, troll petrification and field controls](docs/destiny-special-modes.md)
 complete the native movement-mode dispatch.
-Visibility,
-replication, combat, and drone command policy are not implemented. Unsupported
+[Visibility](docs/destiny-visibility.md), native state streams and
+[client history/replay](docs/destiny-client-ticker.md) are implemented.
+Server replication batching, combat and drone command policy remain unfinished. Unsupported
 mode values throw before advancing the tick.
 
 IDs use signed-int64 BigInts, with safe Number inputs accepted. Mobile balls require positive finite mass and

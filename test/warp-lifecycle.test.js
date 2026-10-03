@@ -161,8 +161,10 @@ test("explicit dynamic Python wrapper rearranges native arguments and snaps fixe
     const park = new Park(), input = args(1); input[4] = false;
     let received = null, snapped = 0;
     const result = { SnapOrientation() { snapped++; } };
-    park.AddDynamicallyOrientedBall = (...values) => { received = values; return result; };
-    assert.equal(park.PyAddDynamicallyOrientedBall(...input, 2, 3), result);
+    const original = Park.prototype.AddDynamicallyOrientedBall;
+    Park.prototype.AddDynamicallyOrientedBall = (...values) => { received = values; return result; };
+    try { assert.equal(park.PyAddDynamicallyOrientedBall(...input, 2, 3), result); }
+    finally { Park.prototype.AddDynamicallyOrientedBall = original; }
     assert.equal(received.length, 26); assert.equal(received[4], 2); assert.equal(received[5], false);
     assert.deepEqual(received.slice(16, 23), [0, 0, 0, 1, 0, 0, 0]);
     assert.deepEqual(received.slice(23), [1, 3, 1]); assert.equal(snapped, 1);

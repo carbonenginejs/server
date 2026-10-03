@@ -100,13 +100,14 @@ test("cloak stops incoming followers after sensor setup while retaining its own 
     park.MissileFollow(missile.id, target.id, follower.id); missile.vx = 1;
     park.Orbit(orbiter.id, target.id, 5); orbiter.isInteractive = true; orbiter.vy = 1;
     park.GotoPoint(target.id, 100, 0, 0);
-    const stop = park.Stop;
-    park.Stop = function(ball)
+    const stop = Park.prototype.Stop;
+    Park.prototype.Stop = function(ball)
     {
         snapshots.push([target.mSensor.active, target.isCloaked, target.isMassive]);
         return stop.call(this, ball);
     };
-    park.CloakBall(target.id, 1, 5);
+    try { park.CloakBall(target.id, 1, 5); }
+    finally { Park.prototype.Stop = stop; }
     assert.ok(snapshots.length > 0);
     assert.ok(snapshots.every(row => row[0] && row[1] === 0 && row[2]));
     assert.equal(follower.mode, Mode.DSTBALL_STOP);
