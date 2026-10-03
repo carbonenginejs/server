@@ -141,7 +141,7 @@ export function Quadratic(out, a, b, c)
     {
         if (b === 0) return false;
         out.v1 = out.v2 = -c / b;
-        // Source bug, Collision.cpp:137-164: no return here in Carbon. Keep the
+        // Source bug, Collision.cpp:137-159: no return here in Carbon. Keep the
         // resulting nonfinite roots; a corrected solver would be a separate decision.
     }
     let det = b * b - 4 * a * c;

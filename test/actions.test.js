@@ -8,7 +8,7 @@ const ID = 1000000000001;
 const TARGET = 1000000000002;
 
 // Expected event tuples copied from CCP's test_actions.py, not derived by the port.
-// Source: destiny/python/destiny/test/net/server/test_actions.py:86-382.
+// Source: destiny/python/destiny/test/net/server/test_actions.py:86-386.
 const cases = [
     ["go_to_point", [ID, 100, 200, 300], ["GotoPoint", [ID, 100, 200, 300]]],
     ["go_to_direction", [ID, 100, 200, 300], ["GotoDirection", [ID, 100, 200, 300]]],
@@ -41,7 +41,7 @@ for (const [method, args, expected] of cases)
 
 test("Carbon Actions adjacent dedupe preserves intervening commands and tick stamps", () =>
 {
-    // Source: test_actions.py:93-132; _actions.py:60-64.
+    // Source: test_actions.py:92-125; _actions.py:60-64.
     const actions = new Actions(new CjsBallparkController());
     actions.go_to_point(ID, 100, 200, 300);
     actions.go_to_point(ID, 100, 200, 300);
@@ -95,7 +95,7 @@ function movingPark()
 
 test("pending values use last queued command, native empty result and live fallback", () =>
 {
-    // Source: _actions.py:744-766; test_actions.py:497-557.
+    // Source: _actions.py:744-766; test_actions.py:497-525,542-555.
     const park = movingPark();
     const actions = new Actions(park);
     assert.equal(actions.has_pending_set_free(ID), 0);
@@ -120,7 +120,7 @@ test("pending values use last queued command, native empty result and live fallb
 
 test("queued movement applied before Evolve matches direct commands and delays reentrant input", () =>
 {
-    // Native phase order: server/_baseticker.py:23-31, _ticker.py:69-88,120-137;
+    // Native phase order: server/_baseticker.py:23-32, _ticker.py:61-79,106-122;
     // Ballpark.cpp:290-299 sends DoPreTick before Evolve.
     const queued = movingPark();
     const direct = movingPark();

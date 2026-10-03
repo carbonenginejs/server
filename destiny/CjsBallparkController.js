@@ -278,7 +278,7 @@ export class CjsBallparkController
      * Source legacy orbit, including ID-dependent plane and seven-decimal
      * truncation. Adaptation: scalar mLastG output; a coincident, zero-radius
      * orbit has zero thrust instead of the donor's undefined 0/0 tangent
-     * (bug in Ballpark.cpp:1291-1295).
+     * (bug in Ballpark.cpp:1287-1294).
      *
      * @param {CjsDestinyBall} ball Ball whose existing state is read or updated.
      * @param {number} currentTime Native integer tick counter.

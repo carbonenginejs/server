@@ -14,7 +14,7 @@ Implement the donor algorithms first; distinguish absent client data from an
 absent algorithm, and keep approximations visible.
 
 The plan is pinned to Destiny revision
-`ef738406b61ad06bae2f402857e464735ab106a2`. It covers the reviewed public source,
+`114e89fa584f0e1a81eb0a679aabf41af8870072`. It covers the reviewed public source,
 not an assertion of current Frontier server behavior. Source references below
 are relative to the `carbonengine/destiny` repository. The starting implementation
 and its recorded adaptations are described in [destiny-parity.md](destiny-parity.md).
@@ -157,7 +157,10 @@ orientation, shape dimensions, replacement and removal alter membership; do not 
 every shape combination participates in both solvers.
 
 Port Partitionable/Partition/Box membership, inflated swept bounds and candidate
-enumeration. Add bubble initialization, merging/conflict resolution, transitions,
+enumeration. Use the explicit KeyHash in `src/Partition.h:104-123` from the current
+baseline, not the removed implicit linear hash. Preserve key equality/clamping and
+include `tests/TestPartition.cpp:5-13`; native unordered traversal is not a stable
+ordering contract. Add bubble initialization, merging/conflict resolution, transitions,
 interactive counts and keep-alive behavior. Keep partitioning and bubble activity
 distinct: one reduces spatial searches; the other also affects simulation activity
 and visibility/interest semantics.

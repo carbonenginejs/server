@@ -6,7 +6,7 @@ Audience: Port maintainers
 Summary: Current implementation and the families still required for completion.
 
 The target is the whole public Destiny donor, not only features used by a racing
-demo. Source baseline: `ef738406b61ad06bae2f402857e464735ab106a2`.
+demo. Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
 The current server suite has 89 passing CPU tests against runtime alpha.9.
 
 | Family | Current status |
@@ -16,7 +16,7 @@ The current server suite has 89 passing CPU tests against runtime alpha.9.
 | AABB/Planed/Triangle/Collision | Numeric primitives implemented; 44 native fixtures and seven additional cases |
 | Clock/host boundary | Pending; current time field still acts as a tick counter and must be separated from native timestamps |
 | BoxShape/RectangleShape, capsules/boxes and mini-shapes | Pending |
-| Partition/Partitionable/Box, bubbles and activity | Pending |
+| Partition/Partitionable/Box, bubbles and activity | Pending; use the new KeyHash donor at Partition.h:104-123 |
 | Legacy and iterative collision response | Pending |
 | Orientation, new orbit, warp, missiles, formations and remaining modes | Pending |
 | Visibility, range/volume queries, sensors and relative motion | Pending |

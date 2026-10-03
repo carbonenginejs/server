@@ -8,7 +8,7 @@ Summary: Maps current movement, action and numeric geometry behavior to the dono
 ## Source and ownership
 
 Reviewed the local `carbonengine/destiny` donor at
-`ef738406b61ad06bae2f402857e464735ab106a2`. No donor fetch or changes were performed.
+`114e89fa584f0e1a81eb0a679aabf41af8870072`. This review did not fetch or modify the donor.
 The public source lives at <https://github.com/carbonengine/destiny>.
 
 The user-approved temporary server experiment owns `CjsDestinyBall` and
@@ -22,15 +22,15 @@ has been introduced. Nothing was promoted from generated source or regenerated.
 | --- | --- |
 | `src/Ball.h`, `Ball.cpp`, `Ball_Blue.cpp` | Movement state and public scalar position/velocity. |
 | `src/IDstConstants.h:11` | Full `DSTBALLMODE` member vocabulary and numeric values. |
-| `src/Ballpark.cpp:85` | Default one-second tick and friction coefficient `1e6`. |
+| `src/Ballpark.cpp:86-100` | Default one-second tick and friction coefficient `1e6`. |
 | `src/Ballpark.cpp:421,751,789` | Evaluate forces before integration; exact drag equations. |
 | `src/Ballpark.cpp:956,1073,1246,1339,1398` | Goto, follow, old orbit, stop and homing thrust. |
-| `src/Ballpark.cpp:3302,3879,4007,4470,4511,4556` | Ball creation and movement commands. |
-| `src/Ballpark.cpp:4651–5024` | Relevant property setters and cached drag. |
+| `src/Ballpark.cpp:3303,3879,4007,4471,4511,4556` | Ball creation and movement commands. |
+| `src/Ballpark.cpp:4652–5024` | Relevant property setters and cached drag. |
 | `src/Ballpark.cpp:5471,5896` | Removal and clearing responsibilities. |
 | `src/Settings.h:11–13` | Dynamical orientation and new orbit default to disabled. |
-| `src/Thunkers.cpp:244,330` | Follow/orbit default range of one. |
-| `python/destiny/test/helpers.py:207` | Fixture mass, agility, radius, speed and throttle. |
+| `src/Thunkers.cpp:244-253,330-339` | Follow/orbit default range of one. |
+| `python/destiny/test/helpers.py:207-229` | Fixture mass, agility, radius, speed and throttle. |
 
 ## Adaptations and constraints
 
@@ -55,7 +55,7 @@ has been introduced. Nothing was promoted from generated source or regenerated.
 - Re-adding a follower explicitly detaches its previous target. Re-adding a target
   retains its object identity and valid incoming follower references.
 - The legacy orbit zero-distance, zero-total-radius tangent computes `0/0` in the
-  donor (`Ballpark.cpp:1291–1295`). This port skips that undefined tangent and applies
+  donor (`Ballpark.cpp:1287–1294`). This port skips that undefined tangent and applies
   zero thrust. This deliberate correction is covered by a regression test.
 - Native stopping's extra Y-axis damping (`Ballpark.cpp:1339–1345`) is retained, as
   are orbit's seven-decimal truncation and goto's inertial overshoot. This is the
@@ -72,8 +72,9 @@ native counter and dictionary access at explicitly annotated sites. See
 
 The new tests translate donor `test_actions.py` fixtures and cover stamp/order
 semantics, adjacent tuple deduplication, local position metadata, pending state,
-and queued-versus-direct movement application. The full server suite now has
-38 passing tests, including the original 17 movement/schema tests.
+and queued-versus-direct movement application. The action checkpoint had 38
+passing tests, including the original 17 movement
+metadata/trajectory tests; the current suite has 89 passing tests.
 
 ## Validation and remaining work
 
@@ -99,3 +100,39 @@ The 44 tests from `TestAABB.cpp`, `TestPlane.cpp`, `TestTriangle.cpp` and
 Seven additional cases cover aliasing, partial output writes, large coordinates,
 swept spheres and source quirks. There are 89 passing tests in the current suite.
 See [geometry](destiny-geometry.md) for the exact value/reference adaptations.
+
+## Donor update reviewed 2026-10-04
+
+The baseline advanced from `ef738406b61ad06bae2f402857e464735ab106a2` to
+`114e89fa584f0e1a81eb0a679aabf41af8870072` (26 commits). All Destiny
+file/line citations in this package were re-opened against the new tree. A few
+pre-existing overlong or imprecise ranges were corrected; none was caused by
+upstream movement of the implemented methods. File-head source paths remain valid.
+
+No upstream behavior change affects the implemented movement, Actions or numeric
+geometry subsets. The Python tree and four translated geometry test files are
+unchanged. Ballpark, Ball Blue exposure, settings and wrappers only received
+include-name casing corrections; the ported formulas/defaults are unchanged.
+The recorded orbit, stopping and numeric geometry quirks still exist.
+
+The one source algorithm change is in the unported spatial partition:
+`src/Partition.h:104-123` introduces `KeyHash`, combining hashes of ix, iy,
+iz and n in order, replacing the implicit linear Key-to-size_t hash. Key
+clamping, equality and ordering remain unchanged (`src/Partition.h:70-101`).
+The final added regression is `tests/TestPartition.cpp:5-13`, distinguishing
+keys (1,0,0,16) and (0,2,0,16). Their old collision did not make them equal or
+lose map entries. Bucket distribution and native unordered traversal can change;
+`src/Partition.cpp:490-518` exposes such traversal through GetActiveBoxes.
+This is pending work for the partition port, not a change to current JS behavior.
+Hash integers depend on size_t width and the native standard library and are not
+portable wire values. JS signed 32-bit shift operators are not a direct translation.
+
+Other changes concern native build/CI, registry/toolchain setup and dependency
+minimums (carbon-blue 5.1.2 to 6.2.0; carbon-core 2.6.0 to 3.1.0). They do not
+alter this package's runtime dependency. Native binaries and dependency internals
+were not rebuilt or behaviorally qualified in this review.
+
+Validation after the baseline update: all 89 server tests pass against runtime
+alpha.9, source JSDoc has no gaps, and documentation/package-content checks pass.
+The six stored movement trajectories also match current donor literals exactly
+(68 points, 204 scalar values); this is a literal comparison, not native execution.

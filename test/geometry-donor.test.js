@@ -8,7 +8,8 @@ import {
 
 // Numeric inputs and expected values transcribed from the donor C++ tests.
 // JavaScript outputs replace C++ return-by-value and reference arguments.
-// Source revision: ef738406b61ad06bae2f402857e464735ab106a2.
+// Transcribed from ef738406b61ad06bae2f402857e464735ab106a2; unchanged and rechecked at
+// Source revision: 114e89fa584f0e1a81eb0a679aabf41af8870072.
 // See NOTICE for the source license. Expected results never call the implementation.
 
 // Source: destiny/tests/TestAABB.cpp:5

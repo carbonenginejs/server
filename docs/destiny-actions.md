@@ -8,7 +8,7 @@ Summary: Queue Carbon-shaped movement actions for application at a simulation ti
 Import `Actions` from `@carbonenginejs/server/destiny/net/server` after building
 the server package. It ports the supported movement subset of
 `destiny/python/destiny/net/server/_actions.py` at donor revision
-`ef738406b61ad06bae2f402857e464735ab106a2`. Native Python method names are retained;
+`114e89fa584f0e1a81eb0a679aabf41af8870072`. Native Python method names are retained;
 event names retain the ballpark's native PascalCase names.
 
 ## Current contract

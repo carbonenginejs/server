@@ -56,7 +56,7 @@ test("native stationary sphere-segment surface quirk remains observable", () =>
 
 test("native quadratic roots and linear fall-through bug are retained", () =>
 {
-    // Source: Collision.cpp:137-164. Independent roots of x*x-3*x+2 are 1,2.
+    // Source: Collision.cpp:137-159. Independent roots of x*x-3*x+2 are 1,2.
     const roots = { v1: 8, v2: 9 };
     assert.equal(Quadratic(roots, 1, -3, 2), true);
     assert.deepEqual(roots, { v1: 2, v2: 1 });
@@ -93,7 +93,7 @@ test("geometry retains small separations at large coordinates and constructor va
 
 test("native triangle excluded edge and absent coplanarity check remain explicit", () =>
 {
-    // Source: Triangle.cpp:80-101 uses u+v<1 and does not compare plane distance.
+    // Source: Triangle.cpp:80-99 uses u+v<1 and does not compare plane distance.
     const triangle = new CjsDestinyTriangle([0, 0, 0], [2, 0, 0], [0, 2, 0]);
     assert.equal(triangle.ContainsPoint([1, 1, 0]), false);
     assert.equal(triangle.ContainsPoint([0.5, 0.5, 100]), true);
