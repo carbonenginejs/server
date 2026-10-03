@@ -7,7 +7,7 @@ Summary: Current implementation and the families still required for completion.
 
 The target is the whole public Destiny donor, not only features used by a racing
 demo. Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
-The current server suite has 595 passing CPU tests against runtime alpha.9.
+The current server suite has 626 passing CPU tests against runtime alpha.9.
 
 | Family | Current status |
 |---|---|
@@ -24,7 +24,7 @@ The current server suite has 595 passing CPU tests against runtime alpha.9.
 | New orbit | Both orientation paths implemented; all four native scenarios pass; physical-heading fallback implemented |
 | Formations | Loading, 16-bit reservations, leader assignment, native follow transitions and rotated steering implemented; both donor trajectories pass |
 | Orientation and movement modes | Legacy/dynamic steering/evolution/sampling, impact rotation and oriented creation implemented; warp and missile paths implemented; mushroom growth/expiry, troll petrification, rigid/boid/field controls and passive native mode dispatch implemented; mode stream/export semantics pending |
-| Visibility, range/volume queries, sensors and relative motion | ProximitySensor record and warp activity transitions implemented; scanning, notifications and other queries pending |
+| Visibility, range/volume queries, sensors and relative motion | Periodic sensors, destination notifications, target tracking events and tick/cleanup integration implemented; cloak commands, visibility, volume queries and relative-motion calculations pending |
 | ClientBall interpolation, snapshots and binary streams | Number/BigInt tick position, velocity, acceleration, legacy/impact/dynamic rotation, deltas and ego reference implemented; interface registration, relative motion, snapshots and streams pending |
 | Server tickers, bubble updates and recipient batching | Pending |
 | Client history merging, wait rules, restore and replay | Pending |

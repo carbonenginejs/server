@@ -2,7 +2,7 @@ import { meta } from "@carbonenginejs/runtime/schema";
 import { MapOfLongLongs } from "./MapOfLongLongs.js";
 
 // Source: destiny/src/Ball.h:31-40
-/** Native sensor state; owning Ballpark scanning and notification remain separate obligations. */
+/** Stores periodic sensor timing and contacts; Ball scans and Ballpark schedules checks. */
 @meta.define({ className: "ProximitySensor", modelledOn: "ProximitySensor" })
 export class ProximitySensor
 {

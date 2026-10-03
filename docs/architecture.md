@@ -37,9 +37,9 @@ remains unfinished port work.
 
 The movement park now consumes an injected Blue tick host and optional native-shaped
 PyOS event bridge. It owns counter/timestamp separation and native tick/cleanup
-ordering; the host owns clock sampling and event-handler failures. Full replication
-and remaining proximity behavior remain outside the implemented
-boundary. Replica ClientBall curves share the host/scene tick epoch;
+ordering; the host owns clock sampling and event-handler failures. Proximity
+events run after movement commits and troll petrification; full replication
+remains unfinished. Replica ClientBall curves share the host/scene tick epoch;
 [their sampling contract](destiny-client-curves.md) documents Number conversion,
 reference caching and legacy orientation.
 

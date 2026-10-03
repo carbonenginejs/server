@@ -91,5 +91,5 @@ Tests translate the mushroom trajectory and special setter fixtures, then check
 phase ordering, nested callbacks, Mini insertion, integer overflow and action
 ordering. Signed arithmetic overflow throws instead of assigning meaning to
 native undefined overflow. No native executable oracle ran. Stream persistence,
-troll transition-list suppression during network export, proximity scanning and
+troll transition-list suppression during network export and
 the broader AddBall replacement/notification audit remain separate unfinished work.

@@ -85,8 +85,10 @@ tests cover wide signed IDs, live changes and lifecycle cleanup. The complete
 suite has 321 tests, including subsequent ownership and legacy collision fixtures.
 These are donor/source-derived JS checks, not native-executable bubble evidence.
 
-Conflict resolution, proximity notifications,
-AdditionsAndDeletions, transition batches and server/client tickers remain open.
+Proximity notifications now use bubble activity and the native final populated
+scan in dead bubbles; see [proximity integration](destiny-proximity.md).
+Conflict resolution, AdditionsAndDeletions, transition batches and server/client
+tickers remain open.
 The native conflict-resolution call in OnTick is commented out; the port does
 not invent an automatic replacement. Legacy/iterative collision response and static ownership work; [Mini ownership](destiny-minis.md) is now implemented.
 

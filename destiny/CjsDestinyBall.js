@@ -36,6 +36,18 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
 {
     mSensor = new ProximitySensor();
 
+    mHasProximity = false;
+
+    mNotificationRange = 0;
+
+    mWithinRange = false;
+
+    mTrackingPtr = null;
+
+    mTrackingRange = 0;
+
+    mWithinTrackingRange = false;
+
     mMiniBalls = new BlueList(CjsDestinyMiniBall);
 
     mMiniCapsules = new BlueList(CjsDestinyMiniCapsule);
@@ -1821,6 +1833,231 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     }
 
     /**
+     * Activates a periodic sensor, retaining elapsed time unless shuffled.
+     * Adaptation: Python defaults are accepted by the JS core; a Destiny-local
+     * floatrand adapter replaces the process CRT RNG. Native status codes remain.
+     * Source: destiny/src/Ball.cpp:244-261; Ball.h:31-40.
+     * @param {number} range Float32 surface range; radius plus range must not be negative.
+     * @param {number} [period=2] Period in seconds.
+     * @param {number|boolean} [shuffle=0] Nonzero randomizes initial elapsed time.
+     * @param {boolean} [onlyInteractives=false] Restrict candidates to interactive balls.
+     * @returns {number} Zero on activation, minus one on rejected combined radius.
+     */
+    @meta.adapted
+    AddProximitySensor(range, period = 2, shuffle = 0, onlyInteractives = false)
+    {
+        range = f32(range);
+        if (f32(this.mRadius + range) < 0) return -1;
+        this.mSensor.balls.clear();
+        this.mSensor.range = range;
+        this.mSensor.period = period;
+        this.mSensor.active = true;
+        this.mSensor.onlyInteractives = Boolean(onlyInteractives);
+        if (shuffle) this.mSensor.elapsed = CjsDestinyBall.floatrand(0, period);
+        this.UpdateProximityStatus();
+        return 0;
+    }
+
+    /**
+     * Registers any active proximity function without replacing an existing ID entry.
+     * Adaptation: JS Map preserves insertion order instead of native unordered order.
+     * A detached call throws at park access, matching the absence of a native guard.
+     * Source: destiny/src/Ball.cpp:266-277.
+     * @returns {void} Updates mHasProximity and the owning park's registration.
+     */
+    @meta.adapted
+    UpdateProximityStatus()
+    {
+        if (this.mTrackingRange !== 0 || this.mNotificationRange !== 0 || this.mSensor.active)
+        {
+            this.mHasProximity = true;
+            if (!this.mPark.mProximityBalls.has(this.mId)) this.mPark.mProximityBalls.set(this.mId, this);
+        }
+        else
+        {
+            this.mHasProximity = false;
+            this.mPark.mProximityBalls.delete(this.mId);
+        }
+    }
+
+    /**
+     * Disables the sensor without clearing its timing or remembered contacts.
+     * Source: destiny/src/Ball.cpp:284-288.
+     * @returns {void} Other proximity functions can keep the ball registered.
+     */
+    @meta.implemented
+    RemoveProximitySensor()
+    {
+        this.mSensor.active = false;
+        this.UpdateProximityStatus();
+    }
+
+    /**
+     * Checks destination notification, target tracking and the active sensor in order.
+     * Adaptation: retained JS references replace native pointer lifetimes; detached
+     * entry invokes the existing host callback. The entry host survives callback
+     * detachment, as native global PyOS does. There is no mid-callback recheck.
+     * Source: destiny/src/Ball.cpp:494-517.
+     * @returns {void} Moribund entry skips every proximity function.
+     */
+    @meta.adapted
+    CheckForProximity()
+    {
+        if (!this.mPark) { this.RegisterBallNotInPark(); return; }
+        if (this.isMoribund) return;
+        const pyOS = this.mPark._pyOS;
+        this.CheckForProximity_NotificationRange(pyOS);
+        this.CheckForProximity_TargetTracking(pyOS);
+        if (this.mSensor.active) this.CheckForProximity_Sensor();
+    }
+
+    /**
+     * Emits transitions across the native strict destination/follow-range boundaries.
+     * Adaptation: scalar double locals replace vectors and injected PyOS replaces
+     * global dispatch. Zero notification range retains the previous within flag.
+     * Source: destiny/src/Ball.cpp:520-594.
+     * @param {object|null} [pyOS] Entry host retained across callback detachment.
+     * @returns {void} Commits mWithinRange before sending DoRange.
+     */
+    @meta.adapted
+    CheckForProximity_NotificationRange(pyOS = this.mPark && this.mPark._pyOS)
+    {
+        if (this.mNotificationRange === 0) return;
+        let inside = false;
+        if (this.mMode === CjsDestinyBall.DSTBALLMODE.DSTBALL_GOTO)
+        {
+            const x = this.mNewPos[0] - this.mGoto[0], y = this.mNewPos[1] - this.mGoto[1], z = this.mNewPos[2] - this.mGoto[2];
+            const limit = this.mNotificationRange + this.mRadius;
+            inside = x * x + y * y + z * z < limit * limit;
+        }
+        else if (this.mMode === CjsDestinyBall.DSTBALLMODE.DSTBALL_FOLLOW
+            || this.mMode === CjsDestinyBall.DSTBALLMODE.DSTBALL_MISSILE
+            || this.mMode === CjsDestinyBall.DSTBALLMODE.DSTBALL_ORBIT)
+        {
+            const other = this.mFollowPtr;
+            const x = this.mNewPos[0] - other.mNewPos[0], y = this.mNewPos[1] - other.mNewPos[1], z = this.mNewPos[2] - other.mNewPos[2];
+            const length2 = x * x + y * y + z * z;
+            const high = other.mRadius + this.mFollowRange + this.mNotificationRange + this.mRadius;
+            let low = high - 2 * this.mNotificationRange;
+            if (low < 0) low = 0;
+            inside = length2 < high * high && length2 > low * low;
+        }
+        if (inside === this.mWithinRange) return;
+        this.mWithinRange = inside;
+        if (pyOS && !pyOS.SendEvent(this, "Destiny::Ball::DoRange", "DoRange", null, "(i)", Number(this.mWithinRange))) pyOS.PyError();
+    }
+
+    /**
+     * Emits strict target-distance transitions using only this ball's radius.
+     * Adaptation: scalar double arithmetic and injected PyOS replace native values.
+     * Disabled tracking retains its prior within flag and captured target pointer.
+     * Source: destiny/src/Ball.cpp:595-640.
+     * @param {object|null} [pyOS] Entry host retained across callback detachment.
+     * @returns {void} Commits mWithinTrackingRange before DoTargetTracking.
+     */
+    @meta.adapted
+    CheckForProximity_TargetTracking(pyOS = this.mPark && this.mPark._pyOS)
+    {
+        if (!(this.mTrackingRange >= 0.00001) || !this.mTrackingPtr) return;
+        const other = this.mTrackingPtr;
+        const x = this.mNewPos[0] - other.mNewPos[0], y = this.mNewPos[1] - other.mNewPos[1], z = this.mNewPos[2] - other.mNewPos[2];
+        const limit = this.mTrackingRange + this.mRadius;
+        const inside = x * x + y * y + z * z < limit * limit;
+        if (inside === this.mWithinTrackingRange) return;
+        this.mWithinTrackingRange = inside;
+        if (pyOS && !pyOS.SendEvent(this, "Destiny::Ball::DoTargetTracking", "DoTargetTracking", null, "(i)", Number(inside))) pyOS.PyError();
+    }
+
+    /**
+     * Scans candidates with a temporarily enlarged radius, then emits enter/leave events.
+     * Adaptation: owned arrays survive callback reentry; Map/Set replace unordered
+     * native containers. Scalar velocity snapshots and finally restore temporary
+     * state after JS exceptions using the captured park. The host is captured for
+     * this scan, replacing native global PyOS. Static candidates are not consumed.
+     * Source: destiny/src/Ball.cpp:642-775.
+     * @returns {void} Drops elapsed overshoot and restores geometry before events.
+     */
+    @meta.adapted
+    CheckForProximity_Sensor()
+    {
+        const park = this.mPark, pyOS = park._pyOS;
+        this.mSensor.elapsed += park.dt;
+        if (this.mSensor.elapsed < this.mSensor.period) return;
+        this.mSensor.elapsed = 0;
+        const radius = this.mRadius, vx = this.mNewVel[0], vy = this.mNewVel[1], vz = this.mNewVel[2];
+        const uni = [], uniStat = [];
+        vec3.zero(this.mNewVel);
+        try
+        {
+            park.SetBallRadius(this, f32(this.mRadius + this.mSensor.range));
+            park.mPartition.GetProximityCandidates(this, uni, uniStat, park.isMaster);
+        }
+        finally
+        {
+            vec3.set(this.mNewVel, vx, vy, vz);
+            park.SetBallRadius(this, radius);
+        }
+        if (this.mSensor.balls.size > 0)
+        {
+            const nearby = new Set();
+            for (const ball of uni) nearby.add(ball.mId);
+            for (const id of this.mSensor.balls.keys())
+            {
+                if (id === this.mId || nearby.has(id)) continue;
+                this.mSensor.balls.delete(id);
+                if (pyOS && !pyOS.SendEvent(this, "Destiny::Ball::DoProximity", "DoProximity", null, "Li", id, 0)) pyOS.PyError();
+                if (!this.mSensor.active) break;
+            }
+        }
+        // Native quirk: a vanished-contact callback can disable the sensor, but
+        // one candidate is still processed before the loop's trailing active check.
+        for (const ball of uni)
+        {
+            if (this.isMoribund) break;
+            if (ball.mId === this.mId || ball.isMoribund) continue;
+            const present = this.mSensor.balls.has(ball.mId);
+            const x = this.mNewPos[0] - ball.mNewPos[0], y = this.mNewPos[1] - ball.mNewPos[1], z = this.mNewPos[2] - ball.mNewPos[2];
+            const range = f32(f32(this.mSensor.range + ball.mRadius) + this.mRadius);
+            if (x * x + y * y + z * z > range * range)
+            {
+                if (present)
+                {
+                    this.mSensor.balls.delete(ball.mId);
+                    if (pyOS && !pyOS.SendEvent(this, "Destiny::Ball::DoProximity", "DoProximity", null, "Li", ball.mId, 0)) pyOS.PyError();
+                }
+            }
+            else if (!present)
+            {
+                this.mSensor.balls.insert(ball.mId, 0n);
+                if (pyOS && !pyOS.SendEvent(this, "Destiny::Ball::DoProximity", "DoProximity", null, "Li", ball.mId, 1)) pyOS.PyError();
+            }
+            if (!this.mSensor.active) break;
+        }
+    }
+
+    /**
+     * Binds optional Python sensor arguments and discards the native status code.
+     * Adaptation: JS defaults and explicit arity/byte checks replace tuple parsing.
+     * Source: destiny/src/Ball.cpp:2243-2263.
+     * @param {number} range Float32 sensor range.
+     * @param {number} [period=2] Period in seconds.
+     * @param {number|boolean} [shuffle=0] Signed-int32 shuffle flag.
+     * @param {number|boolean} [onlyInteractives=0] Unsigned-byte filter flag.
+     * @returns {void} Native rejection is not returned by the Python binding.
+     */
+    @meta.adapted
+    PyAddProximitySensor(range, period = 2, shuffle = 0, onlyInteractives = 0)
+    {
+        if (arguments.length < 1 || arguments.length > 4) throw new TypeError("PyAddProximitySensor requires 1 to 4 arguments");
+        if (typeof shuffle === "boolean") shuffle = Number(shuffle);
+        if (typeof onlyInteractives === "boolean") onlyInteractives = Number(onlyInteractives);
+        if (!Number.isInteger(shuffle) || shuffle < -2147483648 || shuffle > 2147483647
+            || !Number.isInteger(onlyInteractives) || onlyInteractives < 0 || onlyInteractives > 255)
+            throw new RangeError("Sensor flags exceed native integer storage");
+        this.AddProximitySensor(range, period, shuffle, onlyInteractives !== 0);
+    }
+
+    /**
      * Dispatches the initial number of queued collisions without clearing the list.
      * Adaptation: the attached park's injected PyOS replaces global native dispatch;
      * detached balls have no bridge. Collider IDs and force are read again for each
@@ -2029,6 +2266,19 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
         }
         this.mMode = mode;
     }
+
+    /**
+     * Supplies the native sensor-shuffle helper with a JavaScript random fraction.
+     * Adaptation: Math.random replaces platform CRT rand/RAND_MAX; sequences and
+     * the upper-endpoint distribution differ. Replace this helper in deterministic
+     * host tests rather than treating it as Destiny's unrelated Random class.
+     * Source: destiny/src/Ball.cpp:19-22.
+     * @param {number} a Lower interpolation endpoint.
+     * @param {number} b Upper interpolation endpoint.
+     * @returns {number} Interpolated value with the original arithmetic order.
+     */
+    @meta.adapted
+    static floatrand(a, b) { return a + Math.random() * (b - a); }
 
     /**
      * Converts a native signed-int64 primitive without losing identity or time precision.

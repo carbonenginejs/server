@@ -42,15 +42,16 @@ with the native fractional integrator. Ballpark ownership and legacy collision
 scheduling now work. Iterative discovery, scheduling, impulses and conditional
 cache cleanup, [Mini ownership](destiny-minis.md) and [warp integration](destiny-warp.md)
 are implemented. [Special-mode lifecycle and collision quirks](destiny-special-modes.md)
-are now covered; proximity and replication integration remain open.
+are now covered. [Proximity events](destiny-proximity.md) run in native tick order;
+replication integration remains open.
 
 Partition, Box, Key/KeyHash, all three sorted-set comparers and the
 Partitionable/StaticCollidable membership bases now work independently. Forty
 tests verify this kernel. Ball now shares native storage and implements its full
 neighborhood insertion method, with sixteen further tests for membership and
 cleanup. Automatic Ballpark insertion, initialization, delta tracking, subscriptions
-and activity are now implemented. Conflict resolution,
-proximity and replication consumers still require integration.
+and activity are now implemented. Proximity consumes this state; conflict
+resolution and replication consumers still require integration.
 
 ## What can run without the client
 
@@ -295,10 +296,11 @@ cloaking/global/interactive filters and center-versus-surface semantics. Add the
 native sphere-only visibility function; retain its actual implementation return
 codes rather than relying on conflicting comments.
 
-Add relative-motion calculations and `GetAccuracy`, including native wrapper
-output values. Add notification ranges, target tracking and periodic sensors,
-their entered/exited sets, and collision/bubble/cleanup event delivery. Supply
-repeatable scheduling inputs where source sensor behavior shuffles work. Complete
+Notification ranges, target tracking events and periodic sensors now work,
+including entered/exited sets, dead-bubble handling and callback cleanup.
+Sensor shuffle uses the replaceable Ball.floatrand adapter; it does not reproduce
+the native CRT random sequence. Add relative-motion calculations and GetAccuracy,
+including native wrapper output values. Complete
 cloak/uncloak and other setters' side effects instead of only storing flags.
 
 Exit checks: visibility, getter/setter and callback donor tests; an independent

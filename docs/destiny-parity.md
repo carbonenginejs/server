@@ -556,7 +556,7 @@ No native executable, transport or gameplay damage implementation is claimed.
 troll entry/readiness/petrification, rigid/boid commands and harmonic affiliation.
 The full thirteen-value enum reaches its native steering or passive branch.
 Unknown values retain explicit JS rejection; mobile mass/agility validation remains.
-Network export, persistence and proximity handling are still unfinished.
+Network export and persistence remain unfinished; proximity handling is covered below.
 
 Growth uses float32 fraction, power and radius stages, runs after timestamps and
 skips motion/orientation sample commit. The old radius survives expiry. Troll
@@ -582,3 +582,20 @@ sample retention, delayed freezing, nested evolution, callback rescheduling,
 Mini creation, harmonic notifications, action ordering and checked overflow.
 Donor remains 114e89f; no changed upstream behavior or native executable oracle
 is claimed. Existing AddBall replacement adaptations remain a separate audit.
+
+## Proximity event integration
+
+[Proximity integration](destiny-proximity.md) connects periodic Ball sensors,
+destination notifications and target tracking to the park's post-movement phase.
+The native callback fixtures and source-derived cases cover strict versus inclusive
+boundaries, float32 threshold evaluation, stale registrations, dead bubbles,
+recursive scans, detachment and dispatch failures. Thirty-one tests bring the
+suite to 626. The donor remains 114e89f; no upstream behavior changed.
+
+Owned candidate arrays and scalar velocity snapshots survive callbacks; finally
+restores temporary radius/velocity after JavaScript failures. Entry event hosts
+survive notification callback detachment. Map insertion order replaces native
+unordered traversal, and Math.random replaces the CRT shuffle sequence.
+SetBallRadius now accepts the native pointer overload and rejects only negative
+radii, removing the earlier JS finite-value guard. Cloak commands and spatial
+query/relative-motion families remain unfinished; no native executable oracle ran.

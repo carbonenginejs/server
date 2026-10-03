@@ -30,7 +30,7 @@ const ORBITAL_PRECESSION = 0.001;
  * The cached evolution step defaults to one second. Native global settings select
  * legacy/new orbit. Spatial membership and bubble activity are maintained;
  * legacy/iterative collision response and dynamic orientation are available;
- * wire replication and proximity scanning remain unported.
+ * proximity scanning is headless; wire replication remains unported.
  */
 @meta.define({ className: "CjsBallparkController", modelledOn: "Ballpark" })
 @meta.blue.inherit(IBlueEvents)
@@ -52,6 +52,7 @@ export class CjsBallparkController
     mLastDelta = vec3d.create();
     mSomeWeirdHackToFixSomething = 1;
     mCollisionLocations = new Map();
+    mProximityBalls = new Map();
     mPotentialCollisionBalls = new Map();
     mPotentialCollidables = new Map();
     mRollSpeedAcceleration = -3;
@@ -2098,6 +2099,7 @@ export class CjsBallparkController
         ball.mNewBubble = -1;
         this.AddToBubble(ball);
         if (ball.isFree) this._removeFreeBall(ball.mId);
+        if (ball.mHasProximity) this.mProximityBalls.delete(ball.mId);
         if (ball.isGlobal) this.mGlobals.delete(ball.mId);
         this._balls.delete(ball.id);
         if (this.mEgo === ball.id)
@@ -2144,6 +2146,7 @@ export class CjsBallparkController
         this.mOrientedBoxes.clear();
         // Native ClearAll retains both shape queues and only detaches aggregate entries.
         this.mFreeBalls.clear();
+        this.mProximityBalls.clear();
         this._freeBallIds.length = 0;
         this.ClearBubbles();
         this.moribundBalls.clear();
@@ -2237,8 +2240,8 @@ export class CjsBallparkController
     /**
      * Advances one cached simulation step and increments currentTime, not time.
      * Forces are evaluated before positions. Adaptation: the default timestamp of
-     * zero follows the Python Evolve wrapper; proximity
-     * notifications remain unported. Invalid mobile mass and unsupported modes fail
+     * zero follows the Python Evolve wrapper. Proximity follows troll petrification.
+     * Invalid mobile mass and unsupported modes fail
      * before changing the tick, rather than silently simulating another behavior.
      * JS exceptions release inEvolve with finally so callbacks cannot strand cleanup.
      * Timestamp conversion and signed-int64 initialization overflow are checked before movement.
@@ -2444,6 +2447,7 @@ export class CjsBallparkController
             // Source: destiny/src/Ballpark.cpp:641-648. Recheck readiness after
             // all commits because callbacks can change a queued troll's mode/deadline.
             for (const ball of trolls) this.PetrifyTroll(ball);
+            this.HandleProximities();
             this.currentTime++;
         }
         finally
@@ -4433,21 +4437,204 @@ export class CjsBallparkController
     }
 
     /**
-     * Adaptation: finite native f32 input guard before native spatial reinsertion.
-     *
-     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
-     * @param {number} radius Radius in meters.
-     * @returns {void} No return value.
+     * Sets native float radius and reinserts either an ID lookup or a Ball reference.
+     * Adaptation: argument shape selects the native overload; reference calls work
+     * for balls absent from the aggregate map. Only negative radii are rejected.
+     * Source: destiny/src/Ballpark.cpp:4673-4696.
+     * @param {bigint|number|CjsDestinyBall|null} id Identity or direct Ball reference.
+     * @param {number} radius Radius in meters, narrowed to float32.
+     * @returns {void} Mutates the native backing field before insertion callbacks.
      */
     @meta.blue.method
     @meta.adapted
     SetBallRadius(id, radius)
     {
-        const ball = this.GetBall(id);
-        radius = Math.fround(radius);
-        if (!ball || !Number.isFinite(radius) || radius < 0) return;
-        ball.radius = radius;
+        const ball = typeof id === "object" ? id : this.GetBall(id);
+        radius = f32(radius);
+        if (!ball || radius < 0) return;
+        ball.mRadius = radius;
         this.InsertBallInBoxes(ball);
+    }
+
+    /**
+     * Sets a double destination-notification range and resets its within flag.
+     * Adaptation: direct JS arguments and checked IDs replace native binding values.
+     * Source: destiny/src/Ballpark.cpp:5026-5041.
+     * @param {bigint|number} id Ball identity.
+     * @param {number} notificationRange Range in meters; only negative values are ignored.
+     * @returns {void} Registration updates before the within flag is reset.
+     */
+    @meta.blue.method
+    @meta.adapted
+    SetNotificationRange(id, notificationRange)
+    {
+        const ball = this.GetBall(id);
+        if (!ball || notificationRange < 0) return;
+        ball.mNotificationRange = notificationRange;
+        ball.UpdateProximityStatus();
+        ball.mWithinRange = false;
+    }
+
+    /**
+     * Tracks a target pointer independently of follower commands and target radius.
+     * Adaptation: JS references and checked BigInt IDs replace native pointers.
+     * Native quirk: cancellation retains registration and the prior within flag.
+     * Source: destiny/src/Ballpark.cpp:5043-5068.
+     * @param {bigint|number} id Source identity.
+     * @param {bigint|number} targetId Target identity; zero cancels tracking.
+     * @param {number} trackingRange Double range; nonpositive cancels tracking.
+     * @returns {void} A missing target leaves prior tracking unchanged.
+     */
+    @meta.blue.method
+    @meta.adapted
+    SetTargetTracking(id, targetId, trackingRange)
+    {
+        const ball = this.GetBall(id);
+        if (!ball) return;
+        targetId = CjsDestinyBall._toInt64(targetId);
+        if (trackingRange <= 0 || targetId === 0n)
+        {
+            ball.mTrackingPtr = null; ball.mTrackingRange = 0;
+            return;
+        }
+        const target = this.GetBall(targetId);
+        if (!target) return;
+        ball.mTrackingPtr = target; ball.mTrackingRange = trackingRange;
+        ball.UpdateProximityStatus(); ball.mWithinTrackingRange = false;
+    }
+
+    /**
+     * Activates an existing ball's sensor without exposing the core status result.
+     * Adaptation: JS defaults reflect Python defaults; checked IDs replace native IDs.
+     * Source: destiny/src/Ballpark.cpp:5120-5134; Thunkers.cpp:1284-1307.
+     * @param {bigint|number} id Sensor ball identity.
+     * @param {number} range Float32 surface range.
+     * @param {number} [period=2] Scan period in seconds.
+     * @param {number|boolean} [shuffle=0] Nonzero shuffles initial elapsed time.
+     * @param {boolean} [onlyInteractives=false] Interactive-only candidate filter.
+     * @returns {void} Missing balls and rejected combined radii are ignored.
+     */
+    @meta.blue.method
+    @meta.adapted
+    AddProximitySensor(id, range, period = 2, shuffle = 0, onlyInteractives = false)
+    {
+        const ball = this.GetBall(id);
+        if (ball) ball.AddProximitySensor(range, period, shuffle, onlyInteractives);
+    }
+
+    /**
+     * Disables an existing sensor while preserving notification/tracking registration.
+     * Adaptation: checked JS identity replaces native map lookup.
+     * Source: destiny/src/Ballpark.cpp:5140-5150.
+     * @param {bigint|number} id Sensor ball identity.
+     * @returns {void} Missing balls are ignored.
+     */
+    @meta.blue.method
+    @meta.adapted
+    RemoveProximitySensor(id)
+    {
+        const ball = this.GetBall(id);
+        if (ball) ball.RemoveProximitySensor();
+    }
+
+    /**
+     * Binds Python sensor defaults and discards the Ball core's rejection code.
+     * Adaptation: explicit JS arity/integer checks replace native tuple parsing.
+     * Source: destiny/src/Thunkers.cpp:1284-1307.
+     * @param {bigint|number} id Sensor identity.
+     * @param {number} range Float32 sensor range.
+     * @param {number} [period=2] Period in seconds.
+     * @param {number|boolean} [shuffle=0] Signed-int32 shuffle flag.
+     * @param {number|boolean} [onlyInteractives=0] Unsigned-byte interactive flag.
+     * @returns {void} Missing balls and native sensor rejection return no value.
+     */
+    @meta.adapted
+    PyAddProximitySensor(id, range, period = 2, shuffle = 0, onlyInteractives = 0)
+    {
+        if (arguments.length < 2 || arguments.length > 5) throw new TypeError("PyAddProximitySensor requires 2 to 5 arguments");
+        id = CjsDestinyBall._toInt64(id);
+        if (typeof shuffle === "boolean") shuffle = Number(shuffle);
+        if (typeof onlyInteractives === "boolean") onlyInteractives = Number(onlyInteractives);
+        if (!Number.isInteger(shuffle) || shuffle < -2147483648 || shuffle > 2147483647
+            || !Number.isInteger(onlyInteractives) || onlyInteractives < 0 || onlyInteractives > 255)
+            throw new RangeError("Sensor flags exceed native integer storage");
+        this.AddProximitySensor(id, range, period, shuffle, onlyInteractives !== 0);
+    }
+
+    /**
+     * Binds the single required sensor-removal identity.
+     * Adaptation: JS arity checking replaces Python tuple parsing.
+     * Source: destiny/src/Thunkers.cpp:1312-1327.
+     * @param {bigint|number} id Sensor identity.
+     * @returns {void} Delegates to RemoveProximitySensor.
+     */
+    @meta.adapted
+    PyRemoveProximitySensor(id)
+    {
+        if (arguments.length !== 1) throw new TypeError("PyRemoveProximitySensor requires 1 argument");
+        this.RemoveProximitySensor(id);
+    }
+
+    /**
+     * Binds the required notification identity and double range.
+     * Adaptation: JS arity checking replaces Python tuple parsing.
+     * Source: destiny/src/Thunkers.cpp:732-748.
+     * @param {bigint|number} id Ball identity.
+     * @param {number} range Destination range.
+     * @returns {void} Delegates to SetNotificationRange.
+     */
+    @meta.adapted
+    PySetNotificationRange(id, range)
+    {
+        if (arguments.length !== 2) throw new TypeError("PySetNotificationRange requires 2 arguments");
+        this.SetNotificationRange(id, range);
+    }
+
+    /**
+     * Binds the two tracking identities and required double range.
+     * Adaptation: checked JS IDs and arity replace Python tuple parsing.
+     * Source: destiny/src/Thunkers.cpp:754-770.
+     * @param {bigint|number} id Source identity.
+     * @param {bigint|number} targetId Target identity.
+     * @param {number} range Tracking range.
+     * @returns {void} Delegates to SetTargetTracking.
+     */
+    @meta.adapted
+    PySetTargetTracking(id, targetId, range)
+    {
+        if (arguments.length !== 3) throw new TypeError("PySetTargetTracking requires 3 arguments");
+        id = CjsDestinyBall._toInt64(id); targetId = CjsDestinyBall._toInt64(targetId);
+        this.SetTargetTracking(id, targetId, range);
+    }
+
+    /**
+     * Checks a registration snapshot, giving inactive bubbles one final populated scan.
+     * Adaptation: strong JS references replace native Lock/Unlock; snapshot iteration
+     * uses Map insertion order rather than unordered-map traversal. Callback additions
+     * wait for the next pass. Removed/detached entries retain native entry checks.
+     * Source: destiny/src/Ballpark.cpp:5822-5867.
+     * @returns {void} Dead bubbles clear remembered sensor contacts after the check.
+     */
+    @meta.adapted
+    HandleProximities()
+    {
+        const copy = Array.from(this.mProximityBalls.values());
+        for (const ball of copy)
+        {
+            if (ball.isMoribund) continue;
+            if (this.InDeadBubble(ball))
+            {
+                if (ball.mSensor.balls.size > 0)
+                {
+                    ball.mSensor.elapsed = ball.mSensor.period;
+                    ball.CheckForProximity();
+                }
+                ball.mSensor.balls.clear();
+                continue;
+            }
+            if (!ball.mHasProximity) continue;
+            ball.CheckForProximity();
+        }
     }
 
     /**
