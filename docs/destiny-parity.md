@@ -597,5 +597,32 @@ restores temporary radius/velocity after JavaScript failures. Entry event hosts
 survive notification callback detachment. Map insertion order replaces native
 unordered traversal, and Math.random replaces the CRT shuffle sequence.
 SetBallRadius now accepts the native pointer overload and rejects only negative
-radii, removing the earlier JS finite-value guard. Cloak commands and spatial
-query/relative-motion families remain unfinished; no native executable oracle ran.
+radii, removing the earlier JS finite-value guard. Cloak commands and sphere
+visibility are covered below; other queries and relative-motion families remain
+unfinished. No native executable oracle ran.
+
+## Cloak commands and sphere visibility
+
+[Cloaking and visibility](destiny-visibility.md) connects numeric cloak state,
+normal master sensors, follower transitions and same-bubble contact clearing.
+Uncloak preserves massiveness and contacts in proper warp; alignment is not
+proper warp. Replacing normal cloak with another mode retains its old sensor.
+Queued cloak events retain old-bubble routing metadata and native pending/prune
+behavior, without claiming ticker application or network delivery.
+
+CheckVisibility uses Carbon's sphere near-root test and first traversal hit,
+including strict endpoints, tangent hits and source-inside exclusion. It returns
+0n for clear and -2n for invalid endpoints/bubbles. Double scalar locals preserve
+world positions; Map traversal explicitly replaces Python dict traversal.
+
+The ownerless DSTCONSTANTS enum is exported as one object. Direct isCloaked
+property writes follow BlueVariable.cpp's byte mask of a native-long input;
+out-of-int32 inputs explicitly throw instead of reproducing a pending Python
+overflow error. Python cloak arguments separately validate unsigned bytes,
+then narrow to signed char. Runtime remains unchanged.
+
+Twenty-six new tests cover nine native cloak/visibility fixtures, donor action
+cases, sensor/follower ordering, mode transitions, byte conversion, proper warp,
+visibility edges, large translated coordinates and exact IDs. The suite has 652
+passing tests. Destiny remains 114e89f; supporting Blue byte conversion was
+reviewed at blueexposure 086a6948fa29e568cbe10f239910cdef70defa61.

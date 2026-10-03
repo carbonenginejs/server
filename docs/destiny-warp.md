@@ -85,7 +85,8 @@ during evolution. Native `AddBall`, `AddOldStyleOrientedBall` and
 
 `ProximitySensor` and its `MapOfLongLongs` storage are implemented records;
 periodic scanning, tracking and proximity notifications are implemented in the
-[proximity integration](destiny-proximity.md); cloak commands remain unfinished.
+[proximity integration](destiny-proximity.md). [Cloak commands](destiny-visibility.md)
+preserve proper-warp versus alignment differences when restoring massiveness.
 `ShiftFromPlanets` implements the native in-place global-sphere helper; neither
 Carbon nor this port calls it automatically from warp commands. Overlapping globals
 use JS Map insertion order instead of Python dictionary traversal. An exact-center

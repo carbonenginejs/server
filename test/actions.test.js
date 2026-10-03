@@ -159,5 +159,4 @@ test("Actions declares partial provenance and fails explicitly for unported sign
     assert.equal(CjsSchema.getSchema(Actions).modelledOn, "destiny.net.server.Actions");
     assert.throws(() => actions.on_add_to_system_history, /not implemented/);
     assert.throws(() => actions.on_ball_made_global, /not implemented/);
-    assert.equal(Actions.prototype.cloak_ball, undefined, "no phantom cloak support");
 });

@@ -292,16 +292,18 @@ for every `DSTBALLMODE` member, including source modes with no dedicated steerin
 
 Implement each distance, range, cone, capsule, triangle and scan API from its own
 wrapper and core algorithm. Preserve sorting, boundary inclusion, sentinels,
-cloaking/global/interactive filters and center-versus-surface semantics. Add the
-native sphere-only visibility function; retain its actual implementation return
-codes rather than relying on conflicting comments.
+cloaking/global/interactive filters and center-versus-surface semantics. The
+[native sphere-only visibility function](destiny-visibility.md) is implemented
+with its actual return codes and strict near-root test, including source-inside
+and tangent behavior. General query families remain open.
 
 Notification ranges, target tracking events and periodic sensors now work,
 including entered/exited sets, dead-bubble handling and callback cleanup.
 Sensor shuffle uses the replaceable Ball.floatrand adapter; it does not reproduce
 the native CRT random sequence. Add relative-motion calculations and GetAccuracy,
-including native wrapper output values. Complete
-cloak/uncloak and other setters' side effects instead of only storing flags.
+including native wrapper output values. Cloak/uncloak side effects, numeric cloak
+state and queued cloak metadata/pending helpers are implemented. Other setter
+side effects and native ticker routing remain unfinished.
 
 Exit checks: visibility, getter/setter and callback donor tests; an independent
 small-scene oracle for query inclusion; tangent and inside-origin rays; exact range

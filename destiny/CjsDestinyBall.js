@@ -717,8 +717,37 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     isMassive = false;
     @meta.type.boolean
     isSpaceJunk = false;
-    @meta.type.boolean
-    isCloaked = false;
+    _isCloaked = 0;
+
+    /**
+     * Reads the numeric cloak mode, including non-enumerated native byte values.
+     * Adaptation: a JS accessor exposes the byte backing field without schema coercion.
+     * Source: destiny/src/Ball.h:113; destiny/src/Ball.cpp:69.
+     * @returns {number} Unsigned byte; zero means uncloaked.
+     */
+    @meta.type.uint8
+    @meta.adapted
+    get isCloaked() { return this._isCloaked; }
+
+    /**
+     * Stores a Blue-style byte without executing cloak command effects.
+     * Adaptation: explicit JS conversion accepts booleans as Python integers and
+     * masks native-long values to uint8. Values outside the selected signed-int32
+     * long domain throw rather than reproducing Python's pending overflow error.
+     * No schema machinery is used.
+     * Source: destiny/src/Ball_Blue.cpp:106-113.
+     * Source: blueexposure/BlueVariable.cpp:945-953.
+     * @param {number|boolean} value Native-long value; true stores normal mode 1.
+     * @returns {void} Does not change sensors, massiveness or follower commands.
+     */
+    @meta.adapted
+    set isCloaked(value)
+    {
+        if (typeof value === "boolean") value = Number(value);
+        if (!Number.isInteger(value) || value < -2147483648 || value > 2147483647)
+            throw new RangeError("Cloak property input must fit native signed long");
+        this._isCloaked = value & 255;
+    }
 
     /**
      * Reads mId through id.

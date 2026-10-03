@@ -29,6 +29,7 @@ argument to `SetBallPosition`.
 | `go_to_point`, `go_to_direction` | `GotoPoint`, `GotoDirection` |
 | `orbit`, `follow_ball`, `stop` | `Orbit`, `FollowBall`, `Stop` |
 | `warp_to`, `entity_warp_in` | `WarpTo`, `EntityWarpIn` |
+| `cloak_ball`, `uncloak_ball` | `CloakBall`, `UncloakBall` |
 | `launch_missile`, `set_ball_massive` | `LaunchMissile`, `SetBallMassive` |
 | `set_ball_troll`, `set_ball_harmonic` | `SetBallTroll`, `SetBallHarmonic` |
 | `set_ball_velocity`, `set_ball_position` | `SetBallVelocity`, `SetBallPosition` |
@@ -39,6 +40,15 @@ When enabling a forcefield, `set_ball_harmonic` first queues SetBallMassive:
 true if any affiliation differs from -1, false otherwise. It then queues harmonic
 state. Disabling a field queues only harmonic state. Direct SetBallHarmonic does
 not change massiveness. Harmonic values normalize to signed-int64 BigInt.
+
+Cloak events carry a third item containing the old bubble when the ball is
+changing bubbles, otherwise the current bubble (including zero or -1). Cloaking
+a missing ball returns false; uncloak still queues missing IDs. Pending cloak
+mode reads the last queued cloak, even after a later uncloak or ball removal,
+then falls back to live numeric state or null. undo_pending_cloak removes every
+matching cloak while retaining other entries and their order. Native ticker
+routing and same-tick cloak/uncloak conflict handling are still unported; the
+simple loop below does not implement those policies.
 
 The initial stamp is zero when the park's `currentTime` is zero, otherwise `currentTime + 1`.
 `set_stamp_for_system(stamp)` labels subsequent commands. Stamps are tick
@@ -108,7 +118,7 @@ also owns failures: a flushed batch is detached, and execution is not transactio
 - Native weak-reference `Signal` is unported. Accessing either signal property
   throws explicitly. This subset omits enqueue notifications, including the
   notification Carbon sends for a suppressed duplicate.
-- Angular controls, cloak, global/bubble actions, stream serialization,
+- Angular controls, global/bubble actions, stream serialization,
   follower cleanup and removal wrappers are not exported by this subset.
   Native `remove_ball` performs immediate removal and must not later be
   misrepresented as an ordinary queued action.

@@ -10,3 +10,4 @@ export { CollisionImpact, CollisionItem, BallLocation } from "./CollisionStructu
 export { CollisionBallProperties } from "./CollisionBallProperties.js";
 export { ProximitySensor } from "./ProximitySensor.js";
 export { MapOfLongLongs } from "./MapOfLongLongs.js";
+export { DSTCONSTANTS } from "./consts.js";

@@ -56,6 +56,7 @@ Candidate filters come from destiny/src/Partition.cpp:283-295,427-455.
 The 17 callback scenarios in destiny/python/destiny/test/ballpark/test_callbacks.py:7-183
 are translated alongside numeric and callback-lifetime cases in proximity.test.js.
 
-Cloak/uncloak commands, general spatial queries, relative-motion calculations and
-network replication remain unfinished. See [port status](port-status.md) for the
-full boundary and [warp](destiny-warp.md) for existing sensor activity transitions.
+[Cloak/uncloak commands](destiny-visibility.md) now integrate sensor ownership and
+same-bubble contact clearing. General spatial queries, relative-motion calculations
+and network replication remain unfinished. See [port status](port-status.md) for
+the full boundary and [warp](destiny-warp.md) for sensor activity transitions.

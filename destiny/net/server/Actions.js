@@ -424,6 +424,100 @@ export class Actions
     }
 
     /**
+     * Queues cloak with the native old-bubble delivery hint during a transition.
+     * Adaptation: GetBall replaces Python dictionary lookup and JS arrays replace
+     * tuples. Checked BigInt admission preserves the full signed identity domain.
+     * Source: destiny/python/destiny/net/server/_actions.py:600-639.
+     * @param {bigint|number} src_id Ball identity.
+     * @param {number} cloak_mode Mode retained until the command is applied.
+     * @param {number} uncloak_range_meters Normal cloak sensor range.
+     * @returns {boolean} False for missing source, otherwise true after enqueueing.
+     */
+    @meta.adapted
+    cloak_ball(src_id, cloak_mode, uncloak_range_meters)
+    {
+        src_id = CjsDestinyBall._toInt64(src_id);
+        const ball = this._park.GetBall(src_id);
+        if (!ball) return false;
+        const bubble_id = ball.newBubbleId !== ball.oldBubbleId ? ball.oldBubbleId : ball.newBubbleId;
+        this._add_to_system_history(src_id, "CloakBall", [cloak_mode, uncloak_range_meters], { local_args: bubble_id });
+        return true;
+    }
+
+    /**
+     * Queues uncloak even when the source is currently absent.
+     * Adaptation: JS arrays and checked BigInt IDs replace Python tuples/integers.
+     * Source: destiny/python/destiny/net/server/_actions.py:641-651.
+     * @param {bigint|number} src_id Ball identity.
+     * @returns {void} Appends UncloakBall without executing it.
+     */
+    @meta.adapted
+    uncloak_ball(src_id) { this._add_to_system_history(src_id, "UncloakBall"); }
+
+    /**
+     * Removes queued cloak commands without changing live cloak state.
+     * Adaptation: diagnostic logging/timing is omitted; pruning retains native order.
+     * Source: destiny/python/destiny/net/server/_actions.py:686-693.
+     * @param {bigint|number} src_id Ball identity.
+     * @returns {void} The native wrapper discards the removed count.
+     */
+    @meta.adapted
+    undo_pending_cloak(src_id) { this._prune_pending_actions(src_id, "CloakBall"); }
+
+    /**
+     * Replaces history with entries that do not match both identity and event name.
+     * Adaptation: Array.filter replaces Python comprehension, retaining surviving
+     * tuple references; checked BigInt query IDs preserve native identity equality.
+     * Source: destiny/python/destiny/net/server/_actions.py:695-707.
+     * @param {bigint|number} src_id Ball identity.
+     * @param {string} event_name Native event name.
+     * @returns {number} Count of removed entries across all pending timestamps.
+     */
+    @meta.adapted
+    _prune_pending_actions(src_id, event_name)
+    {
+        src_id = CjsDestinyBall._toInt64(src_id);
+        const before = this._system_history.length;
+        this._system_history = this._system_history.filter(event => event[0] !== src_id || event[2][0] !== event_name);
+        return before - this._system_history.length;
+    }
+
+    /**
+     * Reports a queued cloak independently of current cloak state.
+     * Source: destiny/python/destiny/net/server/_actions.py:730-731.
+     * @param {bigint|number} src_id Ball identity.
+     * @returns {boolean} Whether at least one CloakBall event is pending.
+     */
+    @meta.implemented
+    has_pending_cloak(src_id) { return this._has_pending_action(src_id, "CloakBall"); }
+
+    /**
+     * Reports a queued uncloak independently of current cloak state.
+     * Source: destiny/python/destiny/net/server/_actions.py:733-734.
+     * @param {bigint|number} src_id Ball identity.
+     * @returns {boolean} Whether at least one UncloakBall event is pending.
+     */
+    @meta.implemented
+    has_pending_uncloak(src_id) { return this._has_pending_action(src_id, "UncloakBall"); }
+
+    /**
+     * Returns the last queued cloak mode, otherwise the live byte or missing sentinel.
+     * Adaptation: GetBall replaces dictionary access and null represents Python None.
+     * Pending uncloak events do not override the last pending cloak in Carbon.
+     * Source: destiny/python/destiny/net/server/_actions.py:736-742.
+     * @param {bigint|number} src_id Ball identity.
+     * @returns {number|null} Last pending mode, live mode, or null for a missing ball.
+     */
+    @meta.adapted
+    get_pending_cloak_mode(src_id)
+    {
+        const events = this._get_pending_actions(src_id, "CloakBall");
+        if (events.length) return events[events.length - 1][1][1];
+        const ball = this._park.GetBall(src_id);
+        return ball ? ball.isCloaked : null;
+    }
+
+    /**
      * Queues launch of an existing missile; collision callbacks own explosion policy.
      * Adaptation: all three IDs normalize to checked BigInt; JS arrays replace tuples.
      * Source: destiny/python/destiny/net/server/_actions.py:653-675.

@@ -12,6 +12,7 @@ import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { quat } from "@carbonenginejs/runtime/math/quat";
 import { mat4 } from "@carbonenginejs/runtime/math/mat4";
 import { vec3d } from "./math/vec3d.js";
+import { DSTCONSTANTS } from "./consts.js";
 
 import { g_useIterativeCollision, g_useDynamicalOrientation, g_useNewOrbit, g_collisionMaxIterations,
     g_disableDynamicalOrientationForMissiles } from "./Settings/CjsDestinyGlobalSettings.js";
@@ -42,7 +43,7 @@ export class CjsBallparkController
 
     mTime = 0n;
     mLocalCnt = -1n;
-    mLocalHiCnt = -1073741824n;
+    mLocalHiCnt = BigInt(DSTCONSTANTS.DSTLOCALBALLS);
     mEgo = 0n;
     mLastEgo = 0n;
     mLastEgoBall = null;
@@ -2151,7 +2152,7 @@ export class CjsBallparkController
         this.ClearBubbles();
         this.moribundBalls.clear();
         this.mLocalCnt = -1n;
-        this.mLocalHiCnt = -1073741824n;
+        this.mLocalHiCnt = BigInt(DSTCONSTANTS.DSTLOCALBALLS);
         this.mLastEgo = 0n;
         this.mLastEgoBall = null;
     }
@@ -4605,6 +4606,152 @@ export class CjsBallparkController
         if (arguments.length !== 3) throw new TypeError("PySetTargetTracking requires 3 arguments");
         id = CjsDestinyBall._toInt64(id); targetId = CjsDestinyBall._toInt64(targetId);
         this.SetTargetTracking(id, targetId, range);
+    }
+
+    /**
+     * Cloaks a ball after installing the normal master sensor and stopping followers.
+     * Adaptation: JS bit operations reproduce the selected native signed-char ABI;
+     * the optional range follows the Python wrapper. IDs remain checked BigInt.
+     * Source: destiny/src/Ballpark.cpp:5223-5251.
+     * @param {bigint|number} id Ball identity.
+     * @param {number} cloakMode Native char; nonpositive narrowed values are ignored.
+     * @param {number} [range=2000] Float32 sensor range for normal master cloaks.
+     * @returns {void} Sets mode and non-massive state after follower transitions.
+     */
+    @meta.blue.method
+    @meta.adapted
+    CloakBall(id, cloakMode, range = 2000)
+    {
+        cloakMode = (cloakMode << 24) >> 24;
+        range = f32(range);
+        const ball = this.GetBall(id);
+        if (!ball || cloakMode <= 0) return;
+        if (this.isMaster && cloakMode === DSTCONSTANTS.DSTNORMALCLOAK)
+            ball.AddProximitySensor(range, 2, 0);
+        this.StopAllFollowers(ball);
+        ball.isCloaked = cloakMode;
+        ball.isMassive = false;
+    }
+
+    /**
+     * Uncloaks a ball and clears same-bubble remembered contacts outside proper warp.
+     * Adaptation: Map iteration replaces the native unordered registry; object
+     * references replace pointers. Only normal master cloak removes its sensor.
+     * Source: destiny/src/Ballpark.cpp:5258-5292.
+     * @param {bigint|number} id Ball identity.
+     * @returns {void} Proper warp retains massiveness and remembered contacts.
+     */
+    @meta.blue.method
+    @meta.adapted
+    UncloakBall(id)
+    {
+        const ball = this.GetBall(id);
+        if (!ball) return;
+        if (this.isMaster && ball.isCloaked === DSTCONSTANTS.DSTNORMALCLOAK)
+            ball.RemoveProximitySensor();
+        ball.isCloaked = 0;
+        if (!ball.IsWarping())
+        {
+            ball.isMassive = true;
+            for (const sensor of this.mProximityBalls.values())
+            {
+                if (sensor.mNewBubble !== ball.mNewBubble || sensor.isMoribund || !sensor.mHasProximity) continue;
+                sensor.mSensor.balls.delete(ball.mId);
+            }
+        }
+    }
+
+    /**
+     * Binds the required cloak byte and optional sensor range.
+     * Adaptation: explicit JS arity/unsigned-byte checks replace Python b parsing;
+     * the core then narrows that byte to native signed char before its mode guard.
+     * Source: destiny/src/Thunkers.cpp:1846-1865.
+     * @param {bigint|number} id Ball identity.
+     * @param {number|boolean} cloakMode Required unsigned byte, not an optional default.
+     * @param {number} [range=2000] Sensor range in meters.
+     * @returns {void} Missing balls and nonpositive native chars are ignored.
+     */
+    @meta.adapted
+    PyCloakBall(id, cloakMode, range = 2000)
+    {
+        if (arguments.length < 2 || arguments.length > 3) throw new TypeError("PyCloakBall requires 2 or 3 arguments");
+        id = CjsDestinyBall._toInt64(id);
+        if (typeof cloakMode === "boolean") cloakMode = Number(cloakMode);
+        if (!Number.isInteger(cloakMode) || cloakMode < 0 || cloakMode > 255)
+            throw new RangeError("Cloak mode must fit an unsigned byte");
+        this.CloakBall(id, cloakMode, range);
+    }
+
+    /**
+     * Binds the single required uncloak identity.
+     * Adaptation: JS arity and checked IDs replace Python tuple parsing.
+     * Source: destiny/src/Thunkers.cpp:1870-1886.
+     * @param {bigint|number} id Ball identity.
+     * @returns {void} Delegates native uncloak side effects.
+     */
+    @meta.adapted
+    PyUncloakBall(id)
+    {
+        if (arguments.length !== 1) throw new TypeError("PyUncloakBall requires 1 argument");
+        this.UncloakBall(id);
+    }
+
+    /**
+     * Returns the first ball sphere occluding the open center-to-center ray segment.
+     * Adaptation: double scalar locals replace stack vectors; Map insertion order
+     * replaces native PyDict iteration, without sorting by distance. BigInt retains
+     * every native ID and sentinel. Zero-length normalization leaves the ray zero.
+     * Native quirk: only the sphere's near intersection is tested, so a source
+     * inside/on a sphere is not occluded by that sphere. Clear returns 0, not the
+     * -1 described by the native header. Moribund balls are not excluded.
+     * Source: destiny/src/Ballpark.cpp:5299-5366; destiny/src/Vector3d.h:59-72.
+     * @param {bigint|number} srcId Source identity.
+     * @param {bigint|number} dstId Destination identity.
+     * @returns {bigint} Occluder ID, 0n for clear, or -2n for missing/different-bubble endpoints.
+     */
+    @meta.blue.method
+    @meta.adapted
+    CheckVisibility(srcId, dstId)
+    {
+        const src = this.GetBall(srcId);
+        if (!src) return -2n;
+        const dst = this.GetBall(dstId);
+        if (!dst || src.mNewBubble !== dst.mNewBubble) return -2n;
+        let x = dst.mNewPos[0] - src.mNewPos[0], y = dst.mNewPos[1] - src.mNewPos[1], z = dst.mNewPos[2] - src.mNewPos[2];
+        const distance = Math.sqrt(x * x + y * y + z * z);
+        if (distance !== 0)
+        {
+            const reciprocal = 1 / distance;
+            x *= reciprocal; y *= reciprocal; z *= reciprocal;
+        }
+        for (const occluder of this._balls.values())
+        {
+            if (occluder.mNewBubble !== src.mNewBubble || occluder === src || occluder === dst
+                || !occluder.isMassive || occluder.isCloaked) continue;
+            const dx = occluder.mNewPos[0] - src.mNewPos[0], dy = occluder.mNewPos[1] - src.mNewPos[1], dz = occluder.mNewPos[2] - src.mNewPos[2];
+            const v = x * dx + y * dy + z * dz;
+            const dsq = occluder.mRadius * occluder.mRadius - (dx * dx + dy * dy + dz * dz - v * v);
+            if (dsq < 0) continue;
+            const near = v - Math.sqrt(dsq);
+            if (near > 0 && near < distance) return occluder.mId;
+        }
+        return 0n;
+    }
+
+    /**
+     * Binds both visibility identities and preserves the native signed return value.
+     * Adaptation: checked BigInt IDs and JS arity replace Python tuple parsing.
+     * Source: destiny/src/Thunkers.cpp:1824-1840.
+     * @param {bigint|number} srcId Source identity.
+     * @param {bigint|number} dstId Destination identity.
+     * @returns {bigint} Native visibility result, including error and clear sentinels.
+     */
+    @meta.adapted
+    PyCheckVisibility(srcId, dstId)
+    {
+        if (arguments.length !== 2) throw new TypeError("PyCheckVisibility requires 2 arguments");
+        srcId = CjsDestinyBall._toInt64(srcId); dstId = CjsDestinyBall._toInt64(dstId);
+        return this.CheckVisibility(srcId, dstId);
     }
 
     /**

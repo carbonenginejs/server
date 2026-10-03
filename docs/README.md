@@ -17,6 +17,7 @@ Summary: Current APIs, source correspondence and remaining port work.
 - [Missile launch, pursuit and collision events](destiny-missiles.md)
 - [Special movement modes and fields](destiny-special-modes.md)
 - [Proximity events and tick integration](destiny-proximity.md)
+- [Cloaking and sphere visibility](destiny-visibility.md)
 - [Collision history records](destiny-collision-records.md)
 - [Spatial partition](../destiny/partition/README.md)
 - [Bubble lifecycle and activity](destiny-bubbles.md)
