@@ -40,6 +40,11 @@ native fixtures plus source-derived ray, overlap and alias cases. This advances
 the shape prerequisites; oriented wrappers, partition integration and collision
 response remain pending.
 
+Partition, Box, Key/KeyHash, all three sorted-set comparers and the
+Partitionable/StaticCollidable membership bases now work independently. Forty
+tests verify this kernel. Ball state ownership, swept membership, full bubble
+lifecycle and simulation consumers still require integration.
+
 ## What can run without the client
 
 | Feature family | Headless implementation and required inputs | Donor entry points |

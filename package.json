@@ -9,6 +9,7 @@
     "./destiny": "./dist/destiny/index.js",
     "./destiny/net/server": "./dist/destiny/net/server/index.js",
     "./destiny/geometry": "./dist/destiny/geometry/index.js",
+    "./destiny/partition": "./dist/destiny/partition/index.js",
     "./destiny/_util/settings": "./dist/destiny/_util/settings.js"
   },
   "files": [

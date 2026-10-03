@@ -7,7 +7,7 @@ Summary: Current implementation and the families still required for completion.
 
 The target is the whole public Destiny donor, not only features used by a racing
 demo. Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
-The current server suite has 194 passing CPU tests against runtime alpha.9.
+The current server suite has 234 passing CPU tests against runtime alpha.9.
 
 | Family | Current status |
 |---|---|
@@ -17,7 +17,8 @@ The current server suite has 194 passing CPU tests against runtime alpha.9.
 | Clock/host boundary | Separate time/currentTime, Start/Pause, OnTick, AdjustTimes and deferred ball cleanup implemented; ClientBall/capsule/bubble dependencies remain pending |
 | BoxShape/RectangleShape | Numeric geometry implemented; all 25 native fixtures and 18 additional cases |
 | Capsules/oriented boxes and mini-shapes | Pending |
-| Partition/Partitionable/Box, bubbles and activity | Pending; use the new KeyHash donor at Partition.h:104-123 |
+| Partition/Partitionable/Box/StaticCollidable | Standalone key/hash, cells, ordering, lifecycle, candidate filters and membership bases implemented; Ball integration pending |
+| Bubbles and activity | Cell traversal implemented; Ballpark transitions, counts and activity remain pending |
 | Legacy and iterative collision response | Pending |
 | New orbit | Non-dynamical path implemented; all four native scenarios pass; heading fallback pending |
 | Orientation, warp, missiles, formations and remaining modes | Pending |
@@ -27,7 +28,7 @@ The current server suite has 194 passing CPU tests against runtime alpha.9.
 | Client history merging, wait rules, restore and replay | Pending |
 | Settings and settings utility functions | Native globals, configuration snapshots, bindings and aliases implemented |
 | Signal, remaining timing and Python wrapper utilities | Pending; native-long counter bounds/wrapping are not yet modeled |
-| Native support containers, comparers, Random and full constants | Pending |
+| Native support containers, comparers, Random and full constants | Three sorted-set comparers implemented; other support families pending |
 | Module lifecycle, interfaces and property notification semantics | Pending |
 
 The source inventory contains 32 native implementation files, 33 source headers,

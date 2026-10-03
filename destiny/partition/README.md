@@ -1,0 +1,74 @@
+# Destiny spatial partition
+
+Status: Evolving
+Scope: Native Partition, Box, ordering and static membership prerequisites
+Audience: Simulation maintainers
+Summary: Standalone spatial indexing, with Ballpark integration still pending.
+
+Import the classes from `@carbonenginejs/server/destiny/partition`. Their
+`CjsDestiny` names identify the temporary port; metadata names each Carbon donor.
+`Partition/` mirrors the multi-class `Partition.h` include unit, and
+`SortedSets/` owns the three native ordering predicates. `Partition.NearbyCriteria`
+retains its nested native ownership and one-bit assignment behavior.
+
+The partition creates cells and ancestors on demand. Boxes own sorted occupant
+and child collections; their comparers determine both order and equivalence.
+Removing the final occupant can synchronously release an entire ancestor chain.
+Partitionable supplies shared spatial state and abstract obligations;
+StaticCollidable implements both directions of static-shape membership.
+
+The current movement Ball/Controller does not yet consume these owners. Candidate
+tests use explicit native-shaped records, not a second live Ball implementation.
+Connecting them requires one authoritative Ball state, swept-bound insertion,
+bubble lifecycle and collision consumers. Those remain unfinished.
+
+## JavaScript representation
+
+Coordinates and IDs use BigInts at int64 boundaries; physical positions and cell
+widths retain double-precision Numbers. Harmonic values are int64 BigInts, while
+corporation/alliance IDs and bubble counters are native 32-bit Numbers.
+Checked conversions reject undefined native signed overflow and nonfinite casts.
+`GetBoxKey` uses one output record for its three native references.
+
+Sorted arrays replace C++ comparator-aware sets. Equivalent insertions retain the
+existing object, even when the incoming pointer differs. JS Map cannot use native
+value-object equality, so internal keys combine the donor hash with the full
+coordinate tuple. Hash collisions therefore never merge unequal keys. The hash
+is the current `Partition.h:104-123` implementation, with Windows x64 MSVC's
+eight-byte, little-endian FNV-1a integer hashing explicitly implemented. Its
+integers are not a portable wire contract.
+
+JS garbage collection replaces BoxAllocator's raw allocation cache and placement
+new; Box.Dispose still runs native membership teardown synchronously. Released
+boxes are invalid for further use. JS references replace Python reference counts
+for Box.mObject. False-valued objects remain valid stored values. Console output
+replaces native diagnostic log channels.
+
+Native unordered-map order is unspecified; GetActiveBoxes and DumpPartition use
+JS Map insertion order. Candidate enumeration instead preserves the native
+sorted membership/discovery order. It appends into existing output arrays, uses
+native handled flags for deduplication and does not apply the final sort described
+by the native comment. Interactive-only, missile, field and static-object filter
+branches retain their distinct rules. See the method JSDoc for output semantics.
+
+The module-level `GetBoxCenter(level, x, y, z)` is exported from the root and the
+partition subpath. It returns the native center tuple as an array and preserves
+the Python binding's TypeError for illegal levels. The class method retains
+native in-place vector output. The unused native `isNotMissile` helper has no
+call sites or header declaration and adds no exported JS surface; active filters
+retain their source predicates at their original methods.
+
+## Evidence and remaining work
+
+Baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`. Forty partition tests include
+the native TestPartition hash-separation fixture, source-derived key/grid and
+membership cases, all candidate filter families, and an independent multilevel
+cell-volume overlap oracle. A header-only MSVC 14.50 x64 executable using the actual
+donor Partition.h verified the two hash integers. This is not execution evidence
+for the native partition implementation or the complete simulation.
+
+The source quirks retained include zero-grid lower-first key clamping, removal
+on an empty-set miss, edge-clamped neighbor self-aliases, and top-level-only
+traversal reset. Capsule/OrientedBox insertion, Ball spatial ownership, actual
+bubble transitions/activity and the native Python integration trajectories are
+still required before calling the spatial simulation complete.

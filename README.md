@@ -97,6 +97,13 @@ using double-precision Number arrays. See [geometry](docs/destiny-geometry.md)
 for output-reference adaptations and preserved source quirks. These are numeric
 queries; they are not yet wired into ballpark collision response.
 
+The `@carbonenginejs/server/destiny/partition` subpath provides the standalone
+native partition, cell lifecycle, candidate filters and static membership bases.
+It is not yet connected to the movement Ball/Controller. The
+[partition guide](destiny/partition/README.md) records that boundary and its
+representation adaptations. Native module `GetBoxCenter(level, x, y, z)` is also
+available from the package root.
+
 ## Current boundary
 
 This is one region with movement, native clock phases, deferred ball cleanup and

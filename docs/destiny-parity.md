@@ -75,7 +75,7 @@ The new tests translate donor `test_actions.py` fixtures and cover stamp/order
 semantics, adjacent tuple deduplication, local position metadata, pending state,
 and queued-versus-direct movement application. The action checkpoint had 38
 passing tests, including the original 17 movement
-metadata/trajectory tests; the current suite has 194 passing tests.
+metadata/trajectory tests; the current suite has 234 passing tests.
 
 ## Validation and remaining work
 
@@ -87,7 +87,7 @@ command transitions, radii, coincident centers, target removal/replacement, stat
 objects, parameter changes, precision at large coordinates, failure boundaries and
 schema registration. These are fixture comparisons; the native binary was not run.
 
-The next source areas are spatial queries/partitions, collision shapes and forces,
+The next source areas are spatial integration, collision shapes and forces,
 orientation, additional movement modes, then state replication. None of
 those capabilities is implied by this movement subset. Higher-level combat and
 drone policy remain separate consumers of the ballpark.
@@ -99,7 +99,7 @@ The geometry subpath implements `AABB`, `Planed`, `Triangle`, and all six
 The 44 tests from `TestAABB.cpp`, `TestPlane.cpp`, `TestTriangle.cpp` and
 `TestCollision.cpp` are transcribed with their native names and expectations.
 Seven additional cases cover aliasing, partial output writes, large coordinates,
-swept spheres and source quirks. There are 194 passing tests in the current suite.
+swept spheres and source quirks. There are 234 passing tests in the current suite.
 See [geometry](destiny-geometry.md) for the exact value/reference adaptations.
 
 `BoxShape.h:7-67` and `BoxShape.cpp:8-306` now supply shared corner/side enums,
@@ -125,7 +125,7 @@ unchanged. Ballpark, Ball Blue exposure, settings and wrappers only received
 include-name casing corrections; the ported formulas/defaults are unchanged.
 The recorded orbit, stopping and numeric geometry quirks still exist.
 
-The one source algorithm change is in the unported spatial partition:
+The one source algorithm change was in the then-unported spatial partition:
 `src/Partition.h:104-123` introduces `KeyHash`, combining hashes of ix, iy,
 iz and n in order, replacing the implicit linear Key-to-size_t hash. Key
 clamping, equality and ordering remain unchanged (`src/Partition.h:70-101`).
@@ -133,7 +133,7 @@ The final added regression is `tests/TestPartition.cpp:5-13`, distinguishing
 keys (1,0,0,16) and (0,2,0,16). Their old collision did not make them equal or
 lose map entries. Bucket distribution and native unordered traversal can change;
 `src/Partition.cpp:490-518` exposes such traversal through GetActiveBoxes.
-This is pending work for the partition port, not a change to current JS behavior.
+The standalone partition checkpoint below now implements this hash change.
 Hash integers depend on size_t width and the native standard library and are not
 portable wire values. JS signed 32-bit shift operators are not a direct translation.
 
@@ -219,3 +219,26 @@ All six test_configure.py cases and four new-orbit test_orbit.py scenarios pass.
 Seventeen additional cases cover boundary conversions, copied/global state, casts,
 aliases, unsupported execution and orbit branch/quirk behavior. The suite now has
 151 tests. Native collision, orientation and binary execution are not claimed.
+
+## Standalone spatial partition
+
+At baseline `114e89fa584f0e1a81eb0a679aabf41af8870072`, Partition.h:66-123,195-209,
+Partition.cpp:19-554 and Box.cpp:15-282 supply the cell hierarchy, keys/hash,
+candidate filters, traversal and cell lifetime. Partitionable.h/.cpp and
+StaticCollidable.h/.cpp supply shared spatial state and static membership;
+SortedSets.h supplies comparator-aware ordering. Partition_Blue.cpp:7-34 supplies
+the module-level GetBoxCenter binding. See the [partition guide](../destiny/partition/README.md)
+for representation choices and retained source quirks.
+
+Forty tests cover the donor TestPartition hash fixture, source-derived ordering,
+membership, traversal and filtering, and an independent cell-volume overlap
+oracle. A native-header MSVC 14.50 x64 probe confirms two Windows integer hash
+values; it does not validate the complete native partition implementation.
+The complete JS suite has 234 passing tests. JS Map iteration is insertion order,
+whereas the native unordered-map order is unspecified. Sorted candidate discovery
+retains source ordering and appends to caller output without a final sort.
+
+The movement Ball/Controller does not yet use Partitionable or the partition.
+Tests use native-shaped records to isolate this kernel. Shared Ball state,
+swept-bound membership, bubble transitions and collision consumers remain open.
+Runtime remains unchanged; schema machinery is not used in the simulation.

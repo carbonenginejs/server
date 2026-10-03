@@ -11,7 +11,7 @@ not call schema APIs, hydration or values-export machinery. Decorators record
 Carbon provenance and implementation status; they are not a simulation engine.
 
 The current implementation is a movement ballpark, an independent movement
-action queue, and standalone collision geometry. It has no implicit clock,
+action queue, standalone collision geometry and a standalone spatial partition. It has no implicit clock,
 socket, renderer or provider connection. Importing the package does not start
 services. Controls and authoritative world synchronization are the priority;
 human messaging and external stream-provider I/O remain separate consumers.
@@ -23,6 +23,11 @@ tick admission and recovery around the donor's explicit interfaces.
 Geometry uses Number arrays for double-precision Vector3d values; runtime vec3
 operations receive explicit destinations. No alternate vector library or global
 allocation-mode change is introduced. Source functions keep their native owners.
+
+The partition owns keys, sorted membership, cell lifecycle and candidate filters.
+Partitionable/StaticCollidable retain native shared ownership; the movement Ball
+has not yet been connected to them. See the [partition guide](../destiny/partition/README.md)
+for integer, allocation, ordering and reference-output adaptations.
 
 Current implementation boundaries and remaining native families are listed in
 [port status](port-status.md). Native DLL loading, refcounts and operating-system
