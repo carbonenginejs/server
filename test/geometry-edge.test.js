@@ -37,7 +37,7 @@ test("native triangle value arguments survive output/input aliases", () =>
         if (alias === "vertex") out.collisionPoint = triangle.a;
         assert.equal(IntersectSphereTriangle(position, 1, velocity, triangle, out), true, alias);
         assert.equal(out.collisionTime, 1, alias);
-        assert.deepEqual(out.collisionPoint, [0, 0, 0], alias);
+        assert.deepEqual(Array.from(out.collisionPoint), [0, 0, 0], alias);
         assert.deepEqual(out.normal, [0, -1, 0], alias);
     }
 });

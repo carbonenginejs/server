@@ -10,7 +10,13 @@ Import from `@carbonenginejs/server/destiny/geometry`. Class exports are
 `CjsDestinyRectangleShape` and `CjsDestinyBoxShape`, with explicit
 donor metadata. Their field and method names follow the native owners.
 
-Vectors are three-element Number arrays or caller-provided Float64Array values.
+Vector inputs and outputs accept three-element Number arrays or Float64Array values.
+Triangle vertices and plane normals are owned float64 factory values. Triangle
+queries use separate class scratch; sphere/triangle sweeps borrow complete frames
+that retain the copied triangle, plane, impact record and float64 locals. Frames
+return on every exit, including exceptions. Nested sweeps own distinct frames,
+and warmed queries create no additional math storage. Native input-copying and
+partial-output semantics remain unchanged.
 No f32 allocation defaults are used. Constructors copy native value arguments.
 `Triangle.GetNormal(out)`, `Triangle.GetClosestPoint(out, point)` and
 `GetPointOnBallThatFirstIntersectsPlane(out, ...)` write a supplied vector in

@@ -1,5 +1,6 @@
 import { meta } from "@carbonenginejs/runtime/schema";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
+import { vec3d } from "../math/vec3d.js";
 
 // Source: destiny/src/Plane.h; destiny/src/Plane.cpp
 /** Carbon plane with an unnormalized, double-precision normal and dot offset. */
@@ -7,7 +8,8 @@ import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 export class CjsDestinyPlaned
 {
     d = 0;
-    normal = [0, 0, 0];
+
+    normal = vec3d.create();
 
     /**
      * Copies the normal by value and calculates d without normalizing it.

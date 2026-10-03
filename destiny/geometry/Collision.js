@@ -1,9 +1,8 @@
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
-import { CjsDestinyPlaned } from "./CjsDestinyPlaned.js";
 import { CjsDestinyTriangle } from "./CjsDestinyTriangle.js";
 
 // Source: destiny/src/Collision.h; destiny/src/Collision.cpp
-// Adaptation: Number arrays carry native Vector3d values. A caller-owned record
+// Adaptation: Number components preserve native Vector3d precision. A caller-owned record
 // replaces scalar output references: collisionPoint/collisionTime/normal or v1/v2.
 // Boolean returns and native partial writes are retained, including on misses.
 
@@ -83,7 +82,9 @@ export function IntersectSegmentSphere(p0, p1, spherePos, sphereRad, out)
 
 /**
  * Sweeps a sphere against the native oriented triangle test and edge fallback.
- * Adaptation: Number arrays and an output record replace native vector values and reference arguments.
+ * Adaptation: pooled float64 frames replace native by-value inputs and stack
+ * locals. An output record retains reference writes; finally releases the frame
+ * on hits, misses and exceptions, including nested calls from output setters.
  *
  * @param {number[]|Float64Array} spherePosition Sphere start position.
  * @param {number} sphereRadius Sphere radius in meters.
@@ -94,35 +95,48 @@ export function IntersectSegmentSphere(p0, p1, spherePos, sphereRad, out)
  */
 export function IntersectSphereTriangle(spherePosition, sphereRadius, sphereVelocity, triangle, out)
 {
-    // Native locals have value semantics. Plain Number arrays avoid the f32
-    // allocation default of vec3.create/clone without introducing a vector class.
-    // Carbon receives these arguments by value. Snapshot before any output write,
-    // including when caller output storage aliases a vertex, center or velocity.
-    spherePosition = vec3.copy([0, 0, 0], spherePosition);
-    sphereVelocity = vec3.copy([0, 0, 0], sphereVelocity);
-    triangle = new CjsDestinyTriangle(triangle.a, triangle.b, triangle.c);
-    const triangleNormal = triangle.GetNormal([0, 0, 0]);
-    let p0 = GetPointOnBallThatFirstIntersectsPlane([0, 0, 0], spherePosition, sphereRadius, triangleNormal);
-    let p1 = vec3.add([0, 0, 0], p0, sphereVelocity);
-    const plane = new CjsDestinyPlaned(triangle.a, triangleNormal);
-    if (!IntersectSegmentPlane(p0, p1, plane, out)) return false;
-    if (triangle.ContainsPoint(out.collisionPoint))
+    const frame = CjsDestinyTriangle._allocCollisionFrame(triangle);
+    try
     {
-        vec3.copy(out.normal, triangleNormal);
+        const { vec3d_0, vec3d_1, vec3d_2, vec3d_3, vec3d_4, plane, impact } = frame;
+        // Carbon receives these arguments by value. Snapshot all of them before
+        // any output write, including outputs that alias the original vertices.
+        vec3.copy(vec3d_0, spherePosition);
+        vec3.copy(vec3d_1, sphereVelocity);
+        vec3.copy(frame.triangle.a, triangle.a);
+        vec3.copy(frame.triangle.b, triangle.b);
+        vec3.copy(frame.triangle.c, triangle.c);
+        triangle = frame.triangle;
+        triangle.GetNormal(vec3d_2);
+        GetPointOnBallThatFirstIntersectsPlane(vec3d_3, vec3d_0, sphereRadius, vec3d_2);
+        vec3.add(vec3d_4, vec3d_3, vec3d_1);
+        vec3.copy(plane.normal, vec3d_2);
+        plane.d = vec3.dot(triangle.a, vec3d_2);
+        if (!IntersectSegmentPlane(vec3d_3, vec3d_4, plane, out)) return false;
+        if (triangle.ContainsPoint(out.collisionPoint))
+        {
+            vec3.copy(out.normal, vec3d_2);
+            return true;
+        }
+        triangle.GetClosestPoint(out.collisionPoint, out.collisionPoint);
+        vec3.copy(vec3d_3, out.collisionPoint);
+        vec3.subtract(vec3d_4, out.collisionPoint, vec3d_1);
+        vec3.negate(out.normal, vec3d_1);
+        impact.collisionTime = out.collisionTime;
+        const intersects = IntersectSegmentSphere(vec3d_3, vec3d_4, vec3d_0, sphereRadius, impact);
+        out.collisionTime = impact.collisionTime;
+        if (!intersects) return false;
+        // The impact point is only read after the segment/sphere hit wrote it.
+        vec3.subtract(vec3d_2, vec3d_0, impact.collisionPoint);
+        const length = Math.sqrt(vec3.dot(vec3d_2, vec3d_2));
+        if (length !== 0) vec3.scale(vec3d_2, vec3d_2, 1 / length);
+        vec3.copy(out.normal, vec3d_2);
         return true;
     }
-    triangle.GetClosestPoint(out.collisionPoint, out.collisionPoint);
-    p0 = vec3.copy(p0, out.collisionPoint);
-    p1 = vec3.subtract(p1, out.collisionPoint, sphereVelocity);
-    vec3.negate(out.normal, sphereVelocity);
-    const impact = { collisionPoint: [0, 0, 0], collisionTime: out.collisionTime };
-    const intersects = IntersectSegmentSphere(p0, p1, spherePosition, sphereRadius, impact);
-    out.collisionTime = impact.collisionTime;
-    if (!intersects) return false;
-    vec3.subtract(out.normal, spherePosition, impact.collisionPoint);
-    const length = Math.sqrt(vec3.dot(out.normal, out.normal));
-    if (length !== 0) vec3.scale(out.normal, out.normal, 1 / length);
-    return true;
+    finally
+    {
+        CjsDestinyTriangle._unallocCollisionFrame(frame);
+    }
 }
 
 /**

@@ -194,7 +194,7 @@ test("TestPlane.cpp: Plane.CanCreate", () =>
     const normal = [0.0, 1.0, 0.0];
     const plane = new Planed(point, normal);
     assert.deepEqual(2.0, plane.d);
-    assert.deepEqual(normal, plane.normal);
+    assert.deepEqual(normal, Array.from(plane.normal));
 });
 
 // Source: destiny/tests/TestTriangle.cpp:5
@@ -205,9 +205,9 @@ test("TestTriangle.cpp: Triangle.CanCreate", () =>
     const b = [4.0, 5.0, 6.0];
     const c = [7.0, 8.0, 9.0];
     const t = new Triangle(a, b, c);
-    assert.deepEqual(a, t.a);
-    assert.deepEqual(b, t.b);
-    assert.deepEqual(c, t.c);
+    assert.deepEqual(a, Array.from(t.a));
+    assert.deepEqual(b, Array.from(t.b));
+    assert.deepEqual(c, Array.from(t.c));
 });
 
 // Source: destiny/tests/TestTriangle.cpp:16
