@@ -7,6 +7,7 @@ Summary: Current APIs, source correspondence and remaining port work.
 
 - [Architecture](architecture.md)
 - [Movement API](../destiny/README.md)
+- [ClientBall renderer curves](destiny-client-curves.md)
 - [Global settings and orbit selection](destiny-settings.md)
 - [Action queue](destiny-actions.md)
 - [Numeric collision geometry](destiny-geometry.md)

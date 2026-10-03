@@ -7,14 +7,14 @@ Summary: Current implementation and the families still required for completion.
 
 The target is the whole public Destiny donor, not only features used by a racing
 demo. Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
-The current server suite has 321 passing CPU tests against runtime alpha.9.
+The current server suite has 331 passing CPU tests against runtime alpha.9.
 
 | Family | Current status |
 |---|---|
 | Ball/Ballpark | Temporary movement subset: goto, follow, legacy/new orbit, stop and basic lifecycle/setters, exact signed-int64 IDs/timestamps and native local-ID allocation |
 | Actions | Movement commands, timestamps, adjacent deduplication and pending queries |
 | AABB/Planed/Triangle/Collision | Numeric primitives implemented; 44 native fixtures and seven additional cases |
-| Clock/host boundary | Separate time/currentTime, Start/Pause, OnTick, AdjustTimes and deferred ball/capsule cleanup implemented; ClientBall and network-batch dependencies remain pending |
+| Clock/host boundary | Separate time/currentTime, Start/Pause, OnTick, AdjustTimes and deferred ball/capsule cleanup implemented; ClientBall sample caches shift with the clock; network batches pending |
 | BoxShape/RectangleShape | Numeric geometry implemented; all 25 native fixtures and 18 additional cases |
 | Capsules/oriented boxes | Geometry, Blue aliases, memberships, response, Ballpark ownership and legacy scheduling implemented; native cleanup quirks retained |
 | Mini-shapes | Pending |
@@ -22,9 +22,9 @@ The current server suite has 321 passing CPU tests against runtime alpha.9.
 | Bubbles and activity | Insertion, initialization, delta bookkeeping, subscriptions and activity implemented; conflict resolution and network batches pending |
 | Legacy and iterative collision response | Fractional integration, Gradient/Potential and static-shape scheduling implemented; 13 donor trajectories pass; warp/Mini integration and iterative solver pending |
 | New orbit | Non-dynamical path implemented; all four native scenarios pass; heading fallback pending |
-| Orientation, warp, missiles, formations and remaining modes | Pending |
+| Orientation, warp, missiles, formations and remaining modes | Legacy yaw/pitch/roll and client damping implemented; dynamical/impact orientation and remaining movement modes pending |
 | Visibility, range/volume queries, sensors and relative motion | Pending |
-| ClientBall interpolation, snapshots and binary streams | Pending |
+| ClientBall interpolation, snapshots and binary streams | Number/BigInt tick position, velocity, legacy rotation, two-tick delay and ego reference implemented; remaining curves, snapshots and streams pending |
 | Server tickers, bubble updates and recipient batching | Pending |
 | Client history merging, wait rules, restore and replay | Pending |
 | Settings and settings utility functions | Native globals, configuration snapshots, bindings and aliases implemented |

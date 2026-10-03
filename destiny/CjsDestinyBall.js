@@ -22,43 +22,93 @@ const boxComparer = new CjsDestinyBoxSortComparer();
 @meta.define({ className: "CjsDestinyBall", modelledOn: "Ball" })
 export class CjsDestinyBall extends CjsDestinyPartitionable
 {
+    mNewYaw = 0;
+    mOldYaw = 0;
+    mNewPitch = 0;
+    mOldPitch = 0;
+    mNewRoll = 0;
+    mOldRoll = 0;
+    mNewRollSpeed = 0;
+    mOldRollSpeed = 0;
+    mYawDelta = 0;
+
     /**
-     * Converts a native signed-int64 primitive without losing identity or time precision.
-     * JS adaptation: Number cannot represent the whole ID/Be::Time domain. This
-     * internal binding helper accepts BigInt or safe integer Numbers, rejects
-     * coercible strings/booleans and overflow, and never wraps signed arithmetic.
-     * It replaces native typed/Python integer conversion, not simulation schema APIs.
-     *
-     * @param {bigint|number} value Native ID or 100ns timestamp value.
-     * @returns {bigint} Exact signed-int64 value.
-     * @throws {RangeError} If the value is not an exact signed-int64 input.
+     * Evolves Carbon's velocity-directed, mass-damped legacy orientation.
+     * Adaptation: scalar components replace temporary Vector3d objects. Warp
+     * orientation remains unavailable with the unported warp simulation. Detached
+     * reporting uses console instead of the native optional Python callback.
+     * Source: destiny/src/Ball.cpp:335-460.
+     * @param {boolean} [snap=false] Bypass damping and clear roll state.
+     * @returns {void} Updates native old/new angles and roll speed.
      */
-    @meta.ours
-    static _toInt64(value)
+    @meta.adapted
+    CalculateYawPitchRoll(snap = false)
     {
-        if (typeof value === "number" && Number.isSafeInteger(value)) value = BigInt(value);
-        if (typeof value !== "bigint" || value < -9223372036854775808n || value > 9223372036854775807n)
+        if (!this.mPark)
         {
-            throw new RangeError("Native int64 values must be signed-int64 BigInts or safe integers");
+            this.mNewYaw = this.mNewPitch = this.mNewRoll = 0;
+            console.warn("Ball is not in a ballpark", this.mId);
+            return;
         }
-        return value;
+        if (this.mMode === CjsDestinyBall.DSTBALLMODE.DSTBALL_WARP)
+            throw new Error("Warp orientation is not implemented");
+        this.mOldPitch = this.mNewPitch;
+        this.mOldYaw = this.mNewYaw;
+        this.mOldRoll = this.mNewRoll;
+        this.mOldRollSpeed = this.mNewRollSpeed;
+        let massModifier = this.mMass / this.mPark.mFriction;
+        massModifier = massModifier !== 0 ? 100 / massModifier : 100;
+        const vx = this.mNewVel[0], vy = this.mNewVel[1], vz = this.mNewVel[2];
+        const vel2 = vx * vx + vy * vy + vz * vz;
+        let x = this.mGoto[0] - this.mNewPos[0];
+        let y = this.mGoto[1] - this.mNewPos[1];
+        let z = this.mGoto[2] - this.mNewPos[2];
+        if (vel2 !== 0)
+        {
+            if (this.mMode !== CjsDestinyBall.DSTBALLMODE.DSTBALL_MISSILE && !snap)
+            {
+                const length = Math.sqrt(x * x + y * y + z * z);
+                if (length !== 0)
+                {
+                    x *= 1 / length;
+                    y *= 1 / length;
+                    z *= 1 / length;
+                }
+                const speed = Math.sqrt(vel2) * 0.3;
+                x = vx + speed * x;
+                y = vy + speed * y;
+                z = vz + speed * z;
+            }
+            else
+            {
+                x = vx; y = vy; z = vz;
+            }
+        }
+        this.mNewYaw = Math.atan2(x, z);
+        const radius = Math.sqrt(x * x + y * y + z * z);
+        this.mNewPitch = radius > 0 ? -Math.asin(Math.min(1, Math.max(-1, y / radius))) : 0;
+        this.mOldYaw %= 2 * Math.PI;
+        this.mOldPitch %= 2 * Math.PI;
+        this.mNewYaw = CjsDestinyBall._modulo2pi(this.mOldYaw, this.mNewYaw);
+        this.mNewPitch = CjsDestinyBall._modulo2pi(this.mOldPitch, this.mNewPitch);
+        if (snap)
+        {
+            this.mNewRoll = this.mOldRoll = this.mNewRollSpeed = this.mOldRollSpeed = this.mYawDelta = 0;
+            return;
+        }
+        const tmp = 1 / (1 + massModifier * 0.5);
+        this.mNewYaw = (this.mOldYaw + massModifier * 0.5 * this.mNewYaw) * tmp;
+        this.mNewPitch = (this.mOldPitch + massModifier * 0.5 * this.mNewPitch) * tmp;
+        this.mYawDelta = Math.asin(Math.sin(this.mNewYaw - this.mOldYaw));
+        this.mNewRollSpeed += this.mYawDelta * this.mPark.mRollSpeedAcceleration;
+        this.mNewRollSpeed += this.mOldRollSpeed * this.mPark.mRollSpeedDecay * this.mPark.dt;
+        this.mNewRollSpeed = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.mNewRollSpeed));
+        this.mNewRoll += this.mNewRollSpeed * this.mPark.mRollAcceleration * this.mPark.dt;
+        this.mNewRoll += this.mOldRoll * this.mPark.mRollDecay * this.mPark.dt;
+        this.mNewRoll = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.mNewRoll));
     }
 
-    static DSTBALLMODE = Object.freeze({
-        DSTBALL_GOTO: 0,
-        DSTBALL_FOLLOW: 1,
-        DSTBALL_STOP: 2,
-        DSTBALL_WARP: 3,
-        DSTBALL_ORBIT: 4,
-        DSTBALL_MISSILE: 5,
-        DSTBALL_MUSHROOM: 6,
-        DSTBALL_BOID: 7,
-        DSTBALL_TROLL: 8,
-        DSTBALL_MINIBALL: 9,
-        DSTBALL_FIELD: 10,
-        DSTBALL_RIGID: 11,
-        DSTBALL_FORMATION: 12
-    });
+
 
     /**
      * Clears owned membership links and native neighbor activity without removing occupants.
@@ -1043,4 +1093,60 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
         this.mFollowers = value;
     }
 
+    /**
+     * Converts a native signed-int64 primitive without losing identity or time precision.
+     * JS adaptation: Number cannot represent the whole ID/Be::Time domain. This
+     * internal binding helper accepts BigInt or safe integer Numbers, rejects
+     * coercible strings/booleans and overflow, and never wraps signed arithmetic.
+     * It replaces native typed/Python integer conversion, not simulation schema APIs.
+     *
+     * @param {bigint|number} value Native ID or 100ns timestamp value.
+     * @returns {bigint} Exact signed-int64 value.
+     * @throws {RangeError} If the value is not an exact signed-int64 input.
+     */
+    @meta.ours
+    static _toInt64(value)
+    {
+        if (typeof value === "number" && Number.isSafeInteger(value)) value = BigInt(value);
+        if (typeof value !== "bigint" || value < -9223372036854775808n || value > 9223372036854775807n)
+        {
+            throw new RangeError("Native int64 values must be signed-int64 BigInts or safe integers");
+        }
+        return value;
+    }
+
+
+
+    /**
+     * Selects Carbon's nearest equivalent target angle, retaining strict tie rules.
+     * Adaptation: caller wraps its first angle in place; JS returns the second value.
+     * Source: destiny/src/Ball.cpp:777-808.
+     * @param {number} a First angle, already reduced modulo two pi.
+     * @param {number} b Target angle.
+     * @returns {number} Wrapped target nearest to a.
+     */
+    @meta.adapted
+    static _modulo2pi(a, b)
+    {
+        const tau = 2 * Math.PI;
+        b %= tau;
+        if (Math.abs(b - a) < Math.abs(b + tau - a))
+            return Math.abs(b - a) < Math.abs(b - tau - a) ? b : b - tau;
+        return Math.abs(b + tau - a) < Math.abs(b - tau - a) ? b + tau : b - tau;
+    }
+    static DSTBALLMODE = Object.freeze({
+        DSTBALL_GOTO: 0,
+        DSTBALL_FOLLOW: 1,
+        DSTBALL_STOP: 2,
+        DSTBALL_WARP: 3,
+        DSTBALL_ORBIT: 4,
+        DSTBALL_MISSILE: 5,
+        DSTBALL_MUSHROOM: 6,
+        DSTBALL_BOID: 7,
+        DSTBALL_TROLL: 8,
+        DSTBALL_MINIBALL: 9,
+        DSTBALL_FIELD: 10,
+        DSTBALL_RIGID: 11,
+        DSTBALL_FORMATION: 12
+    });
 }

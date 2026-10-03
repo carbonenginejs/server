@@ -21,8 +21,8 @@ an authenticated remote invocation protocol. The host will provide transport,
 tick admission and recovery around the donor's explicit interfaces.
 
 Geometry uses Number arrays for double-precision Vector3d values; runtime vec3
-operations receive explicit destinations. No alternate vector library or global
-allocation-mode change is introduced. Source functions keep their native owners.
+operations receive explicit destinations. Server-owned float64 factories and a whole-view pool supply ClientBall state and
+collision temporaries without changing runtime allocation settings. Source functions keep their native owners.
 
 The partition owns keys, sorted membership, cell lifecycle and candidate filters.
 Ball inherits Partitionable and shares native vector/identity storage with its
@@ -37,8 +37,11 @@ remains unfinished port work.
 
 The movement park now consumes an injected Blue tick host and optional native-shaped
 PyOS event bridge. It owns counter/timestamp separation and native tick/cleanup
-ordering; the host owns clock sampling and event-handler failures. Full replication,
-ClientBall clocks and the remaining proximity/compound-shape lifecycle remain outside the implemented boundary.
+ordering; the host owns clock sampling and event-handler failures. Full replication
+and the remaining proximity/compound-shape lifecycle remain outside the implemented
+boundary. Replica ClientBall curves share the host/scene tick epoch;
+[their sampling contract](destiny-client-curves.md) documents Number conversion,
+reference caching and legacy orientation.
 
 Destiny settings preserve the donor's module-global ownership. Apply copies
 configuration values; Get returns detached snapshots. Existing parks read live

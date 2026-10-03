@@ -105,13 +105,18 @@ membership. Ballpark now maintains insertion, bubble transitions and activity. T
 representation adaptations. Native module `GetBoxCenter(level, x, y, z)` is also
 available from the package root.
 
+Replica parks now create `CjsDestinyClientBall`, exported at the package root. It
+provides Number-tick position, velocity and legacy rotation sampling with reusable
+caller outputs. See [ClientBall curves](docs/destiny-client-curves.md) for the shared
+scene clock and reference-origin contract.
+
 ## Current boundary
 
 This is one region with movement, native clock phases, deferred ball/capsule cleanup,
 legacy sphere/static-shape collision response and a separate movement-command queue.
 Massive moving balls use native partition candidates and collision forces.
 The iterative solver, visibility,
-mini-shapes, dynamical orientation, warp, missiles, formations, interpolation,
+mini-shapes, dynamical orientation, warp, missiles, formations, impact rotation,
 replication, combat, and drone command policy are not implemented. Unsupported
 mobile movement modes throw before advancing the tick.
 

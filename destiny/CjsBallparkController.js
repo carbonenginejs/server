@@ -1,6 +1,7 @@
 import { meta } from "@carbonenginejs/runtime/schema";
 import { IBlueEvents } from "@carbonenginejs/runtime/blue";
 import { CjsDestinyBall } from "./CjsDestinyBall.js";
+import { CjsDestinyClientBall } from "./CjsDestinyClientBall.js";
 import { CjsDestinyPartition } from "./partition/Partition/CjsDestinyPartition.js";
 import { CjsDestinyCapsule } from "./geometry/CjsDestinyCapsule.js";
 import { CjsDestinyOrientedBox } from "./geometry/CjsDestinyOrientedBox.js";
@@ -32,6 +33,19 @@ export class CjsBallparkController
     mTime = 0n;
     mLocalCnt = -1n;
     mLocalHiCnt = -1073741824n;
+    mEgo = 0n;
+    mLastEgo = 0n;
+    mLastEgoBall = null;
+    mLastReferenceTime = -1n;
+    mLastReference = vec3d.create();
+    mOldReference = vec3d.create();
+    mLastDelta = vec3d.create();
+    mSomeWeirdHackToFixSomething = 1;
+    mCollisionLocations = new Map();
+    mRollSpeedAcceleration = -3;
+    mRollSpeedDecay = -0.9;
+    mRollAcceleration = 1;
+    mRollDecay = -0.5;
     @meta.type.int32
     currentTime = 0;
     @meta.type.int32
@@ -193,7 +207,9 @@ export class CjsBallparkController
     /**
      * Shifts the simulation clock and nonzero ball timestamps, preserving zero sentinels.
      * Adaptation: checked BigInt arithmetic replaces native Be::Time; overflow is
-     * rejected before mutating timestamps. ClientBall cache timestamps are unported.
+     * rejected before mutating timestamps. Exact constructor identity replaces the
+     * native ClassType comparison without using simulation schema APIs. Client
+     * sample caches shift even when zero; the reference cache retains native behavior.
      *
      * @param {bigint|number} timeDelta Signed clock adjustment in 100ns units.
      * @returns {void} No return value.
@@ -206,12 +222,22 @@ export class CjsBallparkController
         const time = CjsDestinyBall._toInt64(this.time + timeDelta);
         for (const ball of this._balls.values())
         {
+            if (ball.constructor === CjsDestinyClientBall)
+            {
+                CjsDestinyBall._toInt64(ball.mPosUpdateTime + timeDelta);
+                CjsDestinyBall._toInt64(ball.mRotUpdateTime + timeDelta);
+            }
             if (ball.mNewTime !== 0n) CjsDestinyBall._toInt64(ball.mNewTime + timeDelta);
             if (ball.mOldTime !== 0n) CjsDestinyBall._toInt64(ball.mOldTime + timeDelta);
         }
         this.time = time;
         for (const ball of this._balls.values())
         {
+            if (ball.constructor === CjsDestinyClientBall)
+            {
+                ball.mPosUpdateTime += timeDelta;
+                ball.mRotUpdateTime += timeDelta;
+            }
             if (ball.mNewTime !== 0n) ball.mNewTime += timeDelta;
             if (ball.mOldTime !== 0n) ball.mOldTime += timeDelta;
         }
@@ -774,7 +800,7 @@ export class CjsBallparkController
         const created = !ball;
         if (created)
         {
-            ball = new CjsDestinyBall();
+            ball = this.isMaster ? new CjsDestinyBall() : new CjsDestinyClientBall();
             ball.id = objectId;
         }
         else
@@ -825,6 +851,7 @@ export class CjsBallparkController
         }
         else if (!created) this._removeFreeBall(ball.mId);
         this.InsertBallInBoxes(ball);
+        if (ball.isFree && !g_useDynamicalOrientation) ball.CalculateYawPitchRoll(true);
         return ball;
     }
 
@@ -840,6 +867,100 @@ export class CjsBallparkController
     GetBall(id)
     {
         return this._balls.get(CjsDestinyBall._toInt64(id)) ?? null;
+    }
+
+    /**
+     * Reads the native Blue ego identifier.
+     * @returns {bigint} Ball used as the renderer's reference origin.
+     */
+    @meta.type.int64
+    @meta.implemented
+    get ego()
+    {
+        return this.mEgo;
+    }
+
+    /**
+     * Assigns the native ego without invalidating the same-time reference cache.
+     * Adaptation: checked Number IDs normalize to BigInt.
+     * @param {number|bigint} value Reference ball identity.
+     * @returns {void} The next different-time sample updates the reference.
+     */
+    @meta.adapted
+    set ego(value)
+    {
+        this.mEgo = CjsDestinyBall._toInt64(value);
+    }
+
+    /**
+     * Resolves and caches the native ego ball.
+     * Adaptation: missing lookup does not insert a null map entry, matching GetBall.
+     * Source: destiny/src/Ballpark.cpp:6624-6645.
+     * @returns {CjsDestinyClientBall|null} Current reference ball.
+     */
+    @meta.adapted
+    GetEgo()
+    {
+        if (this.mEgo === this.mLastEgo && this.mLastEgoBall) return this.mLastEgoBall;
+        this.mLastEgoBall = this.GetBall(this.mEgo);
+        this.mLastEgo = this.mEgo;
+        return this.mLastEgoBall;
+    }
+
+    /**
+     * Samples the ego's absolute position on the same clock as every client ball.
+     * Adaptation: safe Number ticks normalize to BigInt and time precedes output.
+     * The native same-time cache survives ego changes, removal and AdjustTimes.
+     * Source: destiny/src/Ballpark.cpp:3041-3066.
+     * @param {number|bigint} time Scene clock in elapsed 100ns ticks since Blue startup.
+     * @param {Float64Array} out Caller-owned reference position.
+     * @returns {Float64Array} The supplied output.
+     */
+    @meta.adapted
+    GetReferencePoint(time, out)
+    {
+        time = CjsDestinyBall._toInt64(time);
+        if (time === this.mLastReferenceTime) return vec3.copy(out, this.mLastReference);
+        const ball = this.GetEgo();
+        if (!ball) return vec3.set(out, 0, 0, 0);
+        ball.InterpolatedPosition(time, this.mLastReference);
+        vec3.copy(this.mLastDelta, this.mOldReference);
+        vec3.copy(this.mOldReference, this.mLastReference);
+        vec3.subtract(this.mLastDelta, this.mLastReference, this.mLastDelta);
+        this.mLastReferenceTime = time;
+        return vec3.copy(out, this.mLastReference);
+    }
+
+    /**
+     * Samples native fractional drag or a recorded collision trajectory.
+     * Adaptation: float64 scratch holds the acceleration sum; console reports null.
+     * Iterative collision record production remains unported, but existing records
+     * retain Carbon's CalculatePosition dispatch rather than endpoint interpolation.
+     * Source: destiny/src/Ballpark.cpp:2715-2741.
+     * @param {CjsDestinyBall|null} ball Ball whose physical parameters are sampled.
+     * @param {number} timeStepFraction Elapsed seconds from the old motion state.
+     * @param {Float64Array} position In/out absolute position.
+     * @param {Float64Array} velocity In/out velocity.
+     * @returns {void} Mutates the supplied motion state.
+     */
+    @meta.adapted
+    CalculateBallPositionVelocity(ball, timeStepFraction, position, velocity)
+    {
+        if (!ball)
+        {
+            console.error("Null ball in CalculateBallPositionVelocity");
+            return;
+        }
+        if (timeStepFraction === 0) return;
+        const collision = this.mCollisionLocations.get(ball.mId);
+        if (collision) collision.CalculatePosition(position, velocity, timeStepFraction);
+        else
+        {
+            const { vec3d_0 } = CjsBallparkController.scratch;
+            vec3.add(vec3d_0, ball.mLastG, ball.mLastC);
+            this.Integrate(position, velocity, vec3d_0, ball.mMass * ball.mAgility,
+                this.mFriction, ball.mTimeFactor, timeStepFraction);
+        }
     }
 
     /**
@@ -1088,6 +1209,11 @@ export class CjsBallparkController
         if (ball.isFree) this._removeFreeBall(ball.mId);
         if (ball.isGlobal) this.mGlobals.delete(ball.mId);
         this._balls.delete(ball.id);
+        if (this.mEgo === ball.id)
+        {
+            this.mLastEgo = 0n;
+            this.mLastEgoBall = null;
+        }
     }
 
     /**
@@ -1128,6 +1254,8 @@ export class CjsBallparkController
         this.moribundBalls.clear();
         this.mLocalCnt = -1n;
         this.mLocalHiCnt = -1073741824n;
+        this.mLastEgo = 0n;
+        this.mLastEgoBall = null;
     }
 
 
@@ -1308,6 +1436,7 @@ export class CjsBallparkController
                     ball.mNewVel[q] = ball.mOldVel[q];
                     ball.mOldVel[q] = velocity;
                 }
+                ball.CalculateYawPitchRoll();
                 const dx = ball.x - ball._oldX, dy = ball.y - ball._oldY, dz = ball.z - ball._oldZ;
                 if (dx * dx + dy * dy + dz * dz >= 0.1) this.InsertBallInBoxes(ball);
             }
@@ -2157,6 +2286,7 @@ export class CjsBallparkController
         ball.vx = ball._oldVx = x;
         ball.vy = ball._oldVy = y;
         ball.vz = ball._oldVz = z;
+        ball.CalculateYawPitchRoll(true);
     }
 
     /**

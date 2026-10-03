@@ -47,7 +47,8 @@ has been introduced. Nothing was promoted from generated source or regenerated.
   allocation is implemented; Blue-specific negative-target rejection remains unported.
 - There is a single implicit region. Removal supports native delay/buffering and
   an optional injected PyOS bridge for tick/final-cleanup callbacks. Collision
-  forces, networking, orientation, interpolation and spatial notifications are absent.
+  forces and legacy client orientation/interpolation are implemented; networking,
+  full orientation and spatial notifications remain incomplete.
   Boolean flags are retained as data; only `isFree`/`isMoribund` affect tick participation,
   and follow/orbit validate target cloaking/death when receiving a command.
 - Mobile balls with nonpositive or nonfinite mass/agility fail before tick mutation.
@@ -300,3 +301,15 @@ See the [geometry guide](destiny-geometry.md#ballpark-ownership-and-legacy-colli
 for ownership, Gradient/Potential, scheduling and the 13 donor trajectories.
 Compound Mini attachment, warp and iterative propagation remain open. No native
 executable validation is claimed.
+
+## ClientBall renderer subset
+
+Replica creation now uses the exported CjsDestinyClientBall subclass. Legacy
+yaw/pitch/roll runs at native creation, velocity-set and evolution sites. Its tick
+curve methods accept safe Number or BigInt ticks on the same Blue-start epoch,
+select position/rotation by output length and fill caller-owned buffers. Float64
+state and distinct class scratch slots protect nested ego-reference sampling.
+See [ClientBall curves](destiny-client-curves.md) for per-contract donor ranges,
+cache quirks and explicitly unsupported native branches. Complete native interface
+registration, impact/dynamical/warp sampling and additional curve methods remain
+open; no runtime files were changed to introduce this renderer-method subset.
