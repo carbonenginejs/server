@@ -723,3 +723,25 @@ port correction rather than changed upstream behavior. PyOS/game callbacks
 remain dynamic. Native snapshots retain their partial-restore and pruning
 quirks; full native interface parity, remaining binding admission, server
 batching and actual marshal wire compatibility are not claimed.
+
+## Server bubble delta checkpoint
+
+GetRemoteFollowers, PopulateAddDelForBubble, AdditionsAndDeletions and transition
+events now feed the native-shaped server BubbleUpdater. It collects once per
+currentTime before CopyBubbles acknowledges action markers. The public
+[bubble guide](destiny-bubbles.md) records the mixed per-player value shapes,
+filter asymmetries, duplicate processing and JS error/alias adaptations.
+Thirty-four new cases bring the suite to 843; all 16 corresponding donor cases
+are included. A master park moving a player between two occupied regions verifies
+the collection/acknowledgment order with actual spatial insertion.
+
+That integration exposed missing position OnModified behavior in the earlier
+port. Ball x/y/z now store then dispatch SetBallPosition; core AddBall and
+SetBallPosition write backing vectors to avoid notification recursion. One
+isolated spatial fixture now mutates backing storage, preserving its original
+InsertInBoxes assertions. This is a port correction, not an upstream change.
+Other property notification branches and server ticker/batcher work remain open.
+
+Evidence: destiny/src/Thunkers.cpp:1193-1240,2509-2895;
+destiny/src/Ballpark.cpp:6009-6057; destiny/src/Ball.cpp:1506-1537;
+destiny/python/destiny/net/server/_bubbleupdater.py:6-54. Baseline remains 114e89f.

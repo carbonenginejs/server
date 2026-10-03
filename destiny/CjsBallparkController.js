@@ -358,6 +358,199 @@ export class CjsBallparkController
     }
 
     /**
+     * Lists free followers whose targets are missing or in a different bubble.
+     * Adaptation: ordered JS traversal replaces std::map; console replaces native
+     * diagnostics. Moribund followers still participate, and lookup does not insert.
+     * Source: destiny/src/Thunkers.cpp:1193-1240; destiny/src/Ballpark.cpp:68.
+     * @returns {bigint[]} Owned list in signed-ID order.
+     */
+    @meta.adapted
+    PyGetRemoteFollowers()
+    {
+        const result = [];
+        for (const src of this._iterateFreeBalls())
+        {
+            if (src.mMode !== Mode.DSTBALL_FOLLOW && src.mMode !== Mode.DSTBALL_ORBIT
+                && src.mMode !== Mode.DSTBALL_MISSILE && src.mMode !== Mode.DSTBALL_FORMATION) continue;
+            if (src.isMoribund) console.warn("GetRemoteFollowers: moribund follower", src.mId);
+            const dst = this._balls.get(src.mFollowId);
+            if (dst && src.mNewBubble === dst.mNewBubble) continue;
+            if (!dst) console.error("GetRemoteFollowers: missing target", src.mId, src.mFollowId);
+            result.push(src.mId);
+        }
+        return result;
+    }
+
+    /**
+     * Exposes the native Blue remote-follower name.
+     * Adaptation: explicit owner dispatch replaces the native Blue binding.
+     * @returns {bigint[]} Owned list of remote or invalid followers.
+     */
+    @meta.blue.method
+    @meta.adapted
+    GetRemoteFollowers() { return CjsBallparkController.prototype.PyGetRemoteFollowers.call(this); }
+
+    /**
+     * Appends one bubble's visible additions and removals without acknowledging them.
+     * Adaptation: Maps/arrays and checked BigInt IDs replace Python containers.
+     * Invalid keys throw immediately; native pending Python errors can outlive this helper.
+     * Native quirk: global removals survive, but existing cloaked removals do not.
+     * Source: destiny/src/Thunkers.cpp:2509-2568.
+     * @param {Map<bigint,number>} bubble Ball IDs and action markers.
+     * @param {bigint[]} bubbleAddList Caller-owned additions.
+     * @param {bigint[]} bubbleDelList Caller-owned deletions.
+     * @returns {void} Appends in dictionary order, preserving existing entries.
+     */
+    @meta.adapted
+    PopulateAddDelForBubble(bubble, bubbleAddList, bubbleDelList)
+    {
+        for (const [key, action] of bubble)
+        {
+            const id = CjsDestinyBall._toInt64(key);
+            if (id < BigInt(DSTCONSTANTS.DSTLOCALBALLS)) continue;
+            const ball = this._balls.get(id);
+            if (action !== -1)
+            {
+                if (!ball || ball.isGlobal || ball.isCloaked) continue;
+            }
+            else if (ball && ball.isCloaked) continue;
+            if (action === 1) bubbleAddList.push(id);
+            else if (action === -1) bubbleDelList.push(id);
+        }
+    }
+
+    /**
+     * Builds shared bubble deltas and per-player bubble IDs or explicit delta lists.
+     * Adaptation: Maps/arrays replace Python dict/list admission, output ball keys
+     * normalize to BigInt, and throws replace Python errors. Console replaces
+     * diagnostic logging; profiling/refcount and allocation-failure paths are absent.
+     * Owner calls retain nonvirtual dispatch. Invalid later IDs leave prior mutations.
+     * JS keeps aliased output lists alive where native refcounts can leave dangling
+     * pointers. Cross-domain aliases retain distinct Number/BigInt keys, unlike Python.
+     * Native quirk: new-bubble additions may name missing balls; membership tests
+     * include pending deletions. Duplicate users observe the preceding old-ID update.
+     * Source: destiny/src/Thunkers.cpp:2570-2895.
+     * @param {Map<bigint,number|bigint[]>} additionsPerPlayer Output additions by player.
+     * @param {Map<bigint,number|bigint[]>} deletionsPerPlayer Output deletions by player.
+     * @param {Map<number,bigint[]>} additionsPerBubble Output shared additions.
+     * @param {Map<number,bigint[]>} deletionsPerBubble Output shared deletions.
+     * @param {Array<bigint|number>} userShips Ordered user IDs, including duplicates.
+     * @returns {void} Updates old bubble IDs before delivering the transition event.
+     */
+    @meta.adapted
+    PyAdditionsAndDeletions(additionsPerPlayer, deletionsPerPlayer, additionsPerBubble, deletionsPerBubble, userShips)
+    {
+        if (arguments.length !== 5 || !(additionsPerPlayer instanceof Map) || !(deletionsPerPlayer instanceof Map)
+            || !(additionsPerBubble instanceof Map) || !(deletionsPerBubble instanceof Map) || !Array.isArray(userShips))
+            throw new TypeError("AdditionsAndDeletions requires four Maps and a user list");
+        if (!this.bubbles) throw new Error("PyAdditionsAndDeletions: Bubbles not initialized yet");
+        additionsPerPlayer.clear(); deletionsPerPlayer.clear(); additionsPerBubble.clear(); deletionsPerBubble.clear();
+        for (const [id, bubble] of this.bubbles)
+        {
+            if (!this.bubbleInteractives.has(id)) continue;
+            const adds = [], dels = [];
+            additionsPerBubble.set(id, adds); deletionsPerBubble.set(id, dels);
+            CjsBallparkController.prototype.PopulateAddDelForBubble.call(this, bubble, adds, dels);
+        }
+        const transitions = [], count = userShips.length;
+        for (let i = 0; i < count; ++i)
+        {
+            let value = userShips[i];
+            if (typeof value === "boolean") value = Number(value);
+            if (typeof value !== "bigint" && (typeof value !== "number" || !Number.isInteger(value)))
+                throw new TypeError("AdditionsAndDeletions requires integer user IDs");
+            const userID = CjsDestinyBall._toInt64(value), user = this._balls.get(userID);
+            if (!user) continue;
+            const bubble = user.mNewBubble === -1 ? null : this.bubbles.get(user.mNewBubble);
+            const oldBubble = user.mOldBubble === -1 ? null : this.bubbles.get(user.mOldBubble);
+            if (user.mNewBubble === user.mOldBubble && user.mNewBubble !== -1 && bubble)
+            {
+                if (additionsPerBubble.has(user.mNewBubble) && deletionsPerBubble.has(user.mNewBubble))
+                {
+                    additionsPerPlayer.set(userID, user.mNewBubble); deletionsPerPlayer.set(userID, user.mNewBubble);
+                }
+                else
+                {
+                    console.warn("AdditionsAndDeletions: no prebuilt lists for user", userID, user.mNewBubble);
+                    const adds = [], dels = [];
+                    CjsBallparkController.prototype.PopulateAddDelForBubble.call(this, bubble, adds, dels);
+                    additionsPerPlayer.set(userID, adds); deletionsPerPlayer.set(userID, dels);
+                }
+            }
+            else
+            {
+                const adds = [], dels = [];
+                additionsPerPlayer.set(userID, adds); deletionsPerPlayer.set(userID, dels);
+                if (bubble) for (const [key, action] of bubble)
+                {
+                    const id = CjsDestinyBall._toInt64(key);
+                    if (id < BigInt(DSTCONSTANTS.DSTLOCALBALLS)) continue;
+                    const ball = this._balls.get(id);
+                    if (ball && (ball.isGlobal || ball.isCloaked)) continue;
+                    const wasIn = oldBubble && oldBubble.has(key);
+                    if (action >= 0 && !wasIn) adds.push(id);
+                    else if (action === -1 && (wasIn || !oldBubble)) dels.push(id);
+                }
+                if (oldBubble) for (const [key, action] of oldBubble)
+                {
+                    const id = CjsDestinyBall._toInt64(key);
+                    if (id < BigInt(DSTCONSTANTS.DSTLOCALBALLS)) continue;
+                    const ball = this._balls.get(id);
+                    if (action !== -1)
+                    {
+                        if (!ball || ball.isGlobal || ball.isCloaked) continue;
+                    }
+                    else if (ball && ball.isCloaked) continue;
+                    if (!(bubble && bubble.has(key)) && action <= 0) dels.push(id);
+                }
+                CjsBallparkController.prototype.AddTransitionToList.call(this, user, transitions);
+            }
+            user.mOldBubble = user.mNewBubble;
+        }
+        CjsBallparkController.prototype.NotifyOfBubbleTransitions.call(this, transitions);
+    }
+
+    /**
+     * Exposes the native Blue additions/deletions binding.
+     * Adaptation: explicit owner dispatch preserves native admission and nonvirtual calls.
+     * @param {...*} args Four output Maps followed by the ordered user list.
+     * @returns {void} Mutates outputs and emits transitions through the core binding.
+     */
+    @meta.blue.method
+    @meta.adapted
+    AdditionsAndDeletions(...args) { return CjsBallparkController.prototype.PyAdditionsAndDeletions.apply(this, args); }
+
+    /**
+     * Appends the old/new bubble tuple unless the ball is a troll.
+     * Adaptation: an owned array replaces the Python tuple; JS allocation errors throw.
+     * Source: destiny/src/Ballpark.cpp:6009-6042.
+     * @param {CjsDestinyBall} ball Ball whose transition is captured.
+     * @param {Array|null} transitions Destination, or null to log and skip.
+     * @returns {void} Does not require old and new IDs to differ.
+     */
+    @meta.adapted
+    AddTransitionToList(ball, transitions)
+    {
+        if (transitions == null) { console.warn("AddTransitionToList: invalid transitions list"); return; }
+        if (ball.mMode !== Mode.DSTBALL_TROLL) transitions.push([ball.mId, ball.mOldBubble, ball.mNewBubble]);
+    }
+
+    /**
+     * Delivers a transition batch, including an empty list, through native event names.
+     * Adaptation: an optional synchronous PyOS host replaces the native global service;
+     * without a host the headless park has no event subscribers.
+     * Source: destiny/src/Ballpark.cpp:6048-6057.
+     * @param {Array|null} transitions Owned transition tuples, or null to suppress delivery.
+     * @returns {void} A failed host send reports PyError after all old-ID updates.
+     */
+    @meta.adapted
+    NotifyOfBubbleTransitions(transitions)
+    {
+        if (transitions != null && this._pyOS && !this._pyOS.SendEvent(this,
+            "Destiny::DoBubbleTransitions", "DoBubbleTransitions", null, "(O)", transitions)) this._pyOS.PyError();
+    }
+
+    /**
      * Adds an interactive object to a non-sentinel bubble.
      * Adaptation: JS Maps/Sets and BigInt IDs replace Python containers and integer objects;
      * injected PyOS supplies events without native refcounts or allocation-error channels.
@@ -856,9 +1049,7 @@ export class CjsBallparkController
         {
             ball.DeleteFromBoxes();
         }
-        ball.x = x;
-        ball.y = y;
-        ball.z = z;
+        vec3.set(ball.mNewPos, x, y, z);
         ball.vx = vx;
         ball.vy = vy;
         ball.vz = vz;
@@ -4370,8 +4561,11 @@ export class CjsBallparkController
     }
 
     /**
-     * Adaptation: scalar accessors update native vectors with a finite input guard.
+     * Assigns both native position samples, then refreshes spatial membership.
+     * Adaptation: factory-owned vectors retain double precision with a finite input guard.
+     * Core writes bypass Blue accessors, avoiding a second OnModified notification.
      * Native spatial membership and bubble transitions are refreshed afterward.
+     * Source: destiny/src/Ballpark.cpp:4738-4764.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} x Position component in meters.
@@ -4385,9 +4579,8 @@ export class CjsBallparkController
     {
         const ball = this.GetBall(id);
         if (!ball || ![x, y, z].every(Number.isFinite)) return;
-        ball.x = ball._oldX = x;
-        ball.y = ball._oldY = y;
-        ball.z = ball._oldZ = z;
+        vec3.set(ball.mNewPos, x, y, z);
+        vec3.set(ball.mOldPos, x, y, z);
         this.InsertBallInBoxes(ball);
     }
 
@@ -6386,6 +6579,9 @@ export class CjsBallparkController
     }
 
     static collisionFrames = [];
+
+    // Supply the native owner without an eager Ball/ClientBall inheritance cycle.
+    static { CjsDestinyBall.ballparkPrototype = this.prototype; }
 
     /**
      * Native Blue exposure names mapped to their current JS binding methods.

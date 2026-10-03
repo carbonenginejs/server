@@ -31,8 +31,43 @@ BigInts. `bubbles` maps each bubble to a Map of IDs and action markers:
 | -1 | Removal pending acknowledgment |
 
 CopyBubbles changes 1 to 0, removes -1 entries and then empty bubbles. Evolve
-does not call it. Network recipient batching and its once-per-tick acknowledgment
-workflow remain unported.
+does not call it. The server BubbleUpdater calculates deltas before acknowledgment,
+once per currentTime; recipient batching remains unported.
+
+## Server delta collection
+
+`BubbleUpdater`, exported from `@carbonenginejs/server/destiny/net/server`,
+collects user IDs from bubbleInteractives, then calls AdditionsAndDeletions with
+four output Maps. Ball IDs are BigInts and bubble IDs are Numbers. The per-player
+Maps contain either explicit lists or a numeric bubble ID indexing the shared
+per-bubble Maps. A player who stays in a tracked bubble normally receives that
+shared ID. Moving players receive explicit lists calculated from both bubbles.
+
+Tracking markers matter: presence with marker -1 still counts as membership in
+the opposite bubble. New-bubble scans can include IDs missing from the aggregate
+ball dictionary; same-bubble scans cannot add them. Existing global removals
+survive same/old-bubble filtering but are excluded from the new-bubble scan.
+Cloaked entries are excluded, and only IDs strictly below DSTLOCALBALLS are local
+minis. Interactive-map key existence enables prebuilding even for an empty set.
+
+The controller mutates caller-owned output Maps and updates each existing user's
+old bubble immediately. Duplicate user IDs are processed repeatedly, potentially
+replacing an earlier explicit result with a shared ID. After processing, it sends
+DoBubbleTransitions through the PyOS host, including an empty batch. Transition
+tuples retain the previous IDs; trolls are excluded from these tuples only.
+
+BubbleUpdater replaces its output Maps when processing a new tick. Calls within
+the same tick preserve the previous outputs and their identities. Failed
+calculation leaves that tick unacknowledged. GetRemoteFollowers supplies the
+sorted free-ball IDs whose FOLLOW/ORBIT/MISSILE/FORMATION target is missing or in
+another bubble; it neither stops the balls nor filters out moribund followers.
+
+JavaScript adaptations are explicit: malformed IDs throw immediately rather than
+leaving a pending Python error; JS retains aliased output lists where native
+reference counting can leave dangling pointers. Cross-domain output aliases keep
+Number and BigInt keys distinct, unlike Python integer keys. These alias cases
+are not native parity guarantees. Use four distinct output Maps in ordinary use.
+No Blue schema machinery or runtime changes are required.
 
 `bubbleInteractives` and `bubbleKeepAlives` map bubble IDs to ID Sets.
 `bubbleKeepAliveBalls` is the global Set of IDs whose keep-alive membership follows
@@ -87,8 +122,9 @@ These are donor/source-derived JS checks, not native-executable bubble evidence.
 
 Proximity notifications now use bubble activity and the native final populated
 scan in dead bubbles; see [proximity integration](destiny-proximity.md).
-Conflict resolution, AdditionsAndDeletions, transition batches and server/client
-tickers remain open.
+Conflict resolution and server ticker/batch orchestration remain open.
+AdditionsAndDeletions, transition batches, BubbleUpdater and the
+[client ticker](destiny-client-ticker.md) are implemented.
 The native conflict-resolution call in OnTick is commented out; the port does
 not invent an automatic replacement. Legacy/iterative collision response and static ownership work; [Mini ownership](destiny-minis.md) is now implemented.
 
@@ -96,3 +132,16 @@ Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
 Native definitions: Ballpark.h:60,124-129,150; Ballpark.cpp:86-150,417-660,
 3115-3207,5872-5890,5959-6002,6154-6277,6337-6618,6745-6804;
 Thunkers.cpp:1123-1142,2011-2031; Ball_Blue.cpp:415-433.
+
+The delta/updater checkpoint adds 34 tests, bringing the complete suite to 843.
+It includes all 16 donor lifecycle-transition, remote-follower and BubbleUpdater
+cases, plus marker/filter/error/alias and movement integration regressions.
+Position-property writes now notify the attached park, as native Ball::OnModified
+does; core position initialization writes backing storage directly. The isolated
+InsertInBoxes fixture also writes backing storage to test that method alone.
+Other unported property-notification branches remain listed in the port status.
+
+Additional evidence: destiny/src/Thunkers.cpp:1193-1240,2509-2895;
+destiny/src/Ballpark.cpp:68,4738-4764,6009-6057;
+destiny/src/Ball.cpp:1506-1537; destiny/src/Ball_Blue.cpp:155-183;
+destiny/python/destiny/net/server/_bubbleupdater.py:6-54.

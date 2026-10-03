@@ -1047,9 +1047,10 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     }
 
     /**
-     * Writes mNewPos[0] through x.
-     * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
-     *
+     * Writes X, then notifies the attached park to update position and membership.
+     * Adaptation: owner-prototype dispatch replaces Blue OnModified without schema APIs.
+     * Store-before-notify preserves the new coordinate if the park rejects the update.
+     * Source: destiny/src/Ball.cpp:1526-1537; destiny/src/Ball_Blue.cpp:155-183.
      * @param {number} value New native value.
      * @returns {void} Updates the shared storage.
      */
@@ -1057,6 +1058,8 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     set x(value)
     {
         this.mNewPos[0] = value;
+        if (this.mPark) CjsDestinyBall.ballparkPrototype.SetBallPosition.call(this.mPark,
+            this.mId, this.mNewPos[0], this.mNewPos[1], this.mNewPos[2]);
     }
 
     /**
@@ -1073,9 +1076,10 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     }
 
     /**
-     * Writes mNewPos[1] through y.
-     * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
-     *
+     * Writes Y, then notifies the attached park to update position and membership.
+     * Adaptation: owner-prototype dispatch replaces Blue OnModified without schema APIs.
+     * Store-before-notify preserves the new coordinate if the park rejects the update.
+     * Source: destiny/src/Ball.cpp:1526-1537; destiny/src/Ball_Blue.cpp:155-183.
      * @param {number} value New native value.
      * @returns {void} Updates the shared storage.
      */
@@ -1083,6 +1087,8 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     set y(value)
     {
         this.mNewPos[1] = value;
+        if (this.mPark) CjsDestinyBall.ballparkPrototype.SetBallPosition.call(this.mPark,
+            this.mId, this.mNewPos[0], this.mNewPos[1], this.mNewPos[2]);
     }
 
     /**
@@ -1099,9 +1105,10 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     }
 
     /**
-     * Writes mNewPos[2] through z.
-     * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
-     *
+     * Writes Z, then notifies the attached park to update position and membership.
+     * Adaptation: owner-prototype dispatch replaces Blue OnModified without schema APIs.
+     * Store-before-notify preserves the new coordinate if the park rejects the update.
+     * Source: destiny/src/Ball.cpp:1526-1537; destiny/src/Ball_Blue.cpp:155-183.
      * @param {number} value New native value.
      * @returns {void} Updates the shared storage.
      */
@@ -1109,6 +1116,8 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     set z(value)
     {
         this.mNewPos[2] = value;
+        if (this.mPark) CjsDestinyBall.ballparkPrototype.SetBallPosition.call(this.mPark,
+            this.mId, this.mNewPos[0], this.mNewPos[1], this.mNewPos[2]);
     }
 
     /**
@@ -2501,6 +2510,14 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
 
     // JS module-cycle adaptation; Ballpark.s_ballNotInParkCallback forwards here.
     static _ballNotInParkCallback = null;
+
+    /**
+     * Native Ballpark owner installed when its module initializes. Importing that
+     * class here creates a Ball -> Ballpark -> ClientBall extends Ball ESM cycle.
+     * Position OnModified uses this reference to retain nonvirtual native dispatch.
+     * Source: destiny/src/Ball.cpp:1526-1537; destiny/src/Ball.h:103.
+     */
+    static ballparkPrototype = null;
 
     static scratch = {
         vec3_0: vec3.create(), vec3_1: vec3.create(),

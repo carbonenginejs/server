@@ -104,7 +104,8 @@ test("Changed modifiers rebuild released cells and restore only master top bubbl
         const park = new Park(); park.isMaster = master;
         const ball = create(park); insert(ball, 23);
         const old = ball.mMyBox;
-        ball.x = 1; insert(ball, 41);
+        // Isolate native InsertInBoxes; a Blue x write now also notifies the park.
+        ball.mNewPos[0] = 1; insert(ball, 41);
         assert.notEqual(ball.mMyBox, old);
         assert.deepEqual(active(ball), [12, 13]);
         assert.equal(park.mPartition.GetTopmost(ball.mMyBox).mBubble, master ? 41 : -1);

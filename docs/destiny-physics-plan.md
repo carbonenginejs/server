@@ -334,7 +334,8 @@ equivalence, using existing organization binary I/O facilities where appropriate
 native AddBall replacement correction are implemented. [Client snapshots and
 replay](destiny-client-ticker.md) now implement the donor ticker, including its
 partial-restore limitations; one delayed ordinary-motion replay integration
-passes. Server batching and broader restart/replay scenarios remain open.
+passes. Server bubble delta collection and once-per-tick acknowledgment are
+implemented; server ticker/batching and broader restart/replay scenarios remain open.
 Review `python/destiny/net` for action timing and replica sequencing. Provide an
 in-process replay harness; this does not require live network transport or EVE
 protocol compatibility. Native snapshots may omit future-affecting transient
