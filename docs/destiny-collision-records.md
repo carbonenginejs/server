@@ -3,14 +3,15 @@
 Status: Evolving
 Scope: `@carbonenginejs/server/destiny`
 Audience: Maintainers and simulation integrators
-Summary: Native collision history storage, invalidation and sampling before iterative scheduling.
+Summary: Native collision history, impulse calculation and invalidation before iterative scheduling.
 
 `CollisionImpact`, `CollisionItem`, `BallLocation` and `CollisionBallProperties`
 are exported from the Destiny entry point. They implement the records in
 `destiny/src/CollisionStructures.h` and the methods in
 `destiny/src/CollisionBallProperties.cpp` at donor baseline `114e89f`.
-The iterative scheduler and impulse producer remain unported. Selecting iterative
-collision still throws before movement; these classes do not enable that solver.
+Ballpark contact approximation, static/free impulses and recursive invalidation
+are implemented. Collision discovery and iterative scheduling remain unported.
+Selecting iterative collision still throws before movement.
 
 ## Ownership and time
 
@@ -48,7 +49,7 @@ No simulation schema APIs participate, and runtime allocation settings are uncha
 
 The park's existing `CalculateBallPositionVelocity` and
 `CalculateBallRotationVelocity` dispatch directly to these sampling methods when
-a history exists in `mCollisionLocations`. Automatic creation, impact propagation,
+a history exists in `mCollisionLocations`. Recursive impact propagation is implemented; automatic collision discovery,
 ordering and cleanup by the iterative scheduler remain to be implemented.
 
 ## Preserved donor quirks
@@ -73,3 +74,44 @@ Tests independently solve terminal-speed motion and exponential impulse decay,
 verify both invalidation orders, fuzzy boundaries, extrapolation, dynamic-off
 storage reuse, angular integration, ID normalization and pool cleanup. These are
 source-derived and analytic checks, not a native executable oracle.
+
+
+## Contact impulses and recursive propagation
+
+`ApproximateEllipsePointOfImpact(ball, location, collision, out)` writes a
+caller-owned float64 contact offset. Static and free impulse calculations retain
+native `CollisionItem`/`CollisionImpact` ownership. Temporary locations and vectors
+come from balanced complete-frame pools, allowing sampling to reenter an impulse
+calculation without overwriting live state.
+
+`CalculateCollisionImpactStatic` fills a candidate once when `mbIndex2 === -2`.
+`CalculateCollisionImpactFree` fills a pair and returns the owned reciprocal
+candidate. Both include angular surface velocity and the donor's approximate
+inertia when dynamic orientation is enabled. Static overlap acceleration updates
+before position sampling when time equals the search start. Free overlap updates
+after sampling and only at absolute time zero.
+
+`AddImpact` caps the caller's impulse, updates its existing history and recursively
+removes invalidated contacts from other free balls. Linear and angular limits use
+squared ratios directly; this does not clamp a vector to the nominal limit length.
+Native float32 numerator arithmetic is preserved. `RemoveImpactFromFree` walks
+the invalidation graph depth first after rebuilding each history. Repeated visits
+to a ball are required; a visited set would change the result. Missing histories
+log and return, matching the native error path.
+
+Preserved contact quirks (`Ballpark.cpp:2323-2672`):
+
+- Dynamic exact-zero, axial, out-of-range and unordered cosine branches return
+  the outward normal without radius scaling. Quaternion matrix arithmetic is
+  staged as native float32 because rounding can select a different branch.
+- A zero axis in the native Rodrigues matrix produces a cosine-scaled diagonal;
+  converting through an axis-angle quaternion would change this case.
+- Negative impulses leave allocated zero impacts with collider zero; exactly
+  zero impulses receive actual collider IDs.
+- The reciprocal free candidate copies the original collider pointer even though
+  its impact's collider ID names the first ball. Miniball indices swap.
+- Zero radius/mass divisions retain native nonfinite results; no epsilon is added.
+
+Tests cover unequal-mass elastic responses, independently derived oblique angular
+contacts, exact float branch boundaries, singular inputs, mutation order, squared
+caps and a four-ball invalidation graph that must visit one ball twice.

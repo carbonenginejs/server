@@ -442,5 +442,38 @@ The missing-removal bug, different invalidation orders and sampling inequalities
 equal-time insertion, nonfinite-time comparisons, dynamic-off angular retention
 and elapsed-seconds-as-angular-fraction behavior are preserved. The
 [record contract](destiny-collision-records.md) describes those cases and tests.
-These records work through both existing park sampling dispatchers; the iterative
-producer, response propagation, scheduler and cleanup remain unfinished.
+These records work through both existing park sampling dispatchers. Contact
+impulses and recursive invalidation are implemented below; discovery, scheduling
+and cleanup remain unfinished.
+
+
+## Iterative contact impulses and invalidation
+
+Ballpark.cpp:2323-2672 supplies ApproximateEllipsePointOfImpact,
+CalculateCollisionImpactStatic, CalculateCollisionImpactFree, AddImpact and
+RemoveImpactFromFree. The port retains their native argument order; contact
+approximation adds a caller-owned output in place of its return-by-value vector.
+Complete pooled frames hold independent temporary BallLocation records and f64
+vectors across sampling calls; finally returns them on every exit path. Owned
+impact objects and returned reciprocal candidates remain with their callers.
+
+Ellipse calculations preserve double cross/dot operations, native quaternion
+matrix float staging, Rodrigues zero-axis behavior, float narrowing before asin,
+float contact/radius multiplication and final double ellipse scaling. A source
+review caught a branch-visible quaternion matrix rounding mismatch: using the
+runtime's double intermediates could turn an exact-zero cosine into a tiny value
+and wrongly enable radius scaling. A regression pins the native branch locally,
+without changing runtime math.
+
+Static impulses scale the relative velocity by -2 before its dot product; free
+impulses scale the completed dot. Rotational surface velocity, inertia, reciprocal
+vector division, negative-impulse zero IDs, pointer-copy quirks and singular
+nonfinite outputs remain intact. Linear and angular caps apply squared ratios,
+including float32 numerator rounding. Recursive invalidation uses owned result
+lists and preserves repeated visits, native map lookups and diagnostics.
+
+Eighteen tests cover analytic linear impulses, independently derived oblique
+angular fixtures, precision/degenerate branches, overlap update ordering, caps,
+a four-ball recursive graph, reentrant sampling and exceptional pool cleanup.
+Collision discovery, the iterative scheduler and its lifecycle cleanup remain
+unfinished; these kernels do not enable iterative Evolve yet.

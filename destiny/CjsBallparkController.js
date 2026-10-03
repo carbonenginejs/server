@@ -2,6 +2,7 @@ import { meta } from "@carbonenginejs/runtime/schema";
 import { IBlueEvents } from "@carbonenginejs/runtime/blue";
 import { CjsDestinyBall } from "./CjsDestinyBall.js";
 import { CjsDestinyClientBall } from "./CjsDestinyClientBall.js";
+import { BallLocation, CollisionImpact, CollisionItem } from "./CollisionStructures.js";
 import { CjsDestinyPartition } from "./partition/Partition/CjsDestinyPartition.js";
 import { CjsDestinyCapsule } from "./geometry/CjsDestinyCapsule.js";
 import { CjsDestinyOrientedBox } from "./geometry/CjsDestinyOrientedBox.js";
@@ -1354,6 +1355,309 @@ export class CjsBallparkController
         vec3.set(angvel, x, y, z);
         quat.set(rotation, qx, qy, qz, qw);
         if (Number.isNaN(norm)) console.error("NaNs in rotation");
+    }
+
+    /**
+     * Approximates the native ellipsoidal contact offset from a sphere normal.
+     * Adaptation: caller-owned output replaces Vector3d return-by-value; class
+     * scratch retains native float conversions and axis-angle matrix behavior.
+     * Native quirk: dynamic axial/perpendicular/out-of-range cosine branches
+     * return the unscaled outward normal, without multiplying by radius.
+     * Source: destiny/src/Ballpark.cpp:2323-2367.
+     * Source: math/include/Matrix_inline.h:365-412.
+     * @param {CjsDestinyBall} ball Supplies the collision radius.
+     * @param {BallLocation} ballLoc Physical rotation at impact.
+     * @param {CollisionItem} collision Supplies the inward double-precision normal.
+     * @param {Float64Array|number[]} out Caller-owned contact offset, written last.
+     * @returns {Float64Array|number[]} The supplied output.
+     */
+    @meta.adapted
+    ApproximateEllipsePointOfImpact(ball, ballLoc, collision, out)
+    {
+        const nx = collision.normal[0], ny = collision.normal[1], nz = collision.normal[2];
+        if (!g_useDynamicalOrientation) return vec3.set(out, -nx * ball.mRadius, -ny * ball.mRadius, -nz * ball.mRadius);
+        const { vec3_15, vec3_16, mat4_3 } = CjsBallparkController.scratch;
+        const qx = ballLoc.rot[0], qy = ballLoc.rot[1], qz = ballLoc.rot[2], qw = ballLoc.rot[3];
+        // Float staging is branch-visible: double intermediates can turn native
+        // heading.z == 0 into a nonzero cosine and select radius scaling.
+        mat4_3[0] = f32(1 - f32(2 * f32(f32(qy * qy) + f32(qz * qz))));
+        mat4_3[1] = f32(2 * f32(f32(qx * qy) + f32(qz * qw)));
+        mat4_3[2] = f32(2 * f32(f32(qx * qz) - f32(qy * qw)));
+        mat4_3[3] = 0;
+        mat4_3[4] = f32(2 * f32(f32(qx * qy) - f32(qz * qw)));
+        mat4_3[5] = f32(1 - f32(2 * f32(f32(qx * qx) + f32(qz * qz))));
+        mat4_3[6] = f32(2 * f32(f32(qy * qz) + f32(qx * qw)));
+        mat4_3[7] = 0;
+        mat4_3[8] = f32(2 * f32(f32(qx * qz) + f32(qy * qw)));
+        mat4_3[9] = f32(2 * f32(f32(qy * qz) - f32(qx * qw)));
+        mat4_3[10] = f32(1 - f32(2 * f32(f32(qx * qx) + f32(qy * qy))));
+        mat4_3[11] = mat4_3[12] = mat4_3[13] = mat4_3[14] = 0;
+        mat4_3[15] = 1;
+        vec3.set(vec3_15, 0, 0, 1);
+        CjsDestinyBall._transformCoord(vec3_15, vec3_15, mat4_3);
+        const dx = vec3_15[0], dy = vec3_15[1], dz = vec3_15[2];
+        const cosine = -nx * dx - ny * dy - nz * dz;
+        if (!(Math.abs(cosine) < 1 && Math.abs(cosine) > 0)) return vec3.set(out, -nx, -ny, -nz);
+        const sine = Math.sqrt(1 - cosine * cosine);
+        const sinAlpha = 0.6 * cosine * sine / Math.sqrt(
+            (Math.pow(cosine, 2) + Math.pow(0.7 * sine, 2)) *
+            (Math.pow(cosine, 2) + Math.pow(1.3 * sine, 2)));
+        vec3.set(vec3_15, dy * nz - dz * ny, dz * nx - dx * nz, dx * ny - dy * nx);
+        CjsDestinyBall._normalizeVector3(vec3_15, vec3_15);
+        const angle = f32(Math.asin(f32(sinAlpha))), sinAngle = f32(Math.sin(angle)), cosAngle = f32(Math.cos(angle));
+        const x = vec3_15[0], y = vec3_15[1], z = vec3_15[2], complement = f32(1 - cosAngle);
+        // Native direct Rodrigues matrix; zero axes are not replaced by identity.
+        mat4_3[0] = f32(f32(f32(complement * x) * x) + cosAngle);
+        mat4_3[4] = f32(f32(f32(complement * x) * y) - f32(sinAngle * z));
+        mat4_3[8] = f32(f32(f32(complement * x) * z) + f32(sinAngle * y));
+        mat4_3[12] = 0;
+        mat4_3[1] = f32(f32(f32(complement * y) * x) + f32(sinAngle * z));
+        mat4_3[5] = f32(f32(f32(complement * y) * y) + cosAngle);
+        mat4_3[9] = f32(f32(f32(complement * y) * z) - f32(sinAngle * x));
+        mat4_3[13] = 0;
+        mat4_3[2] = f32(f32(f32(complement * z) * x) - f32(sinAngle * y));
+        mat4_3[6] = f32(f32(f32(complement * z) * y) + f32(sinAngle * x));
+        mat4_3[10] = f32(f32(f32(complement * z) * z) + cosAngle);
+        mat4_3[14] = 0;
+        mat4_3[3] = mat4_3[7] = mat4_3[11] = 0;
+        mat4_3[15] = 1;
+        vec3.set(vec3_16, -nx, -ny, -nz);
+        CjsDestinyBall._transformCoord(vec3_16, vec3_16, mat4_3);
+        vec3.scale(vec3_16, vec3_16, ball.mRadius);
+        const scale = 0.7 * Math.sqrt(1 / (sine * sine + 0.7 * cosine * cosine));
+        const ox = vec3_16[0] * scale, oy = vec3_16[1] * scale, oz = vec3_16[2] * scale;
+        return vec3.set(out, ox, oy, oz);
+    }
+
+    /**
+     * Computes an elastic impulse against a static contact, once per candidate.
+     * Adaptation: a balanced frame pool replaces native temporary value records;
+     * impact storage belongs to the candidate and survives the call.
+     * Negative impulses retain the native zero-valued impact and collider zero.
+     * Source: destiny/src/Ballpark.cpp:2370-2440.
+     * @param {CollisionBallProperties} ballProp Moving ball's collision history.
+     * @param {CollisionItem} collision Static candidate, mutated to own its impact.
+     * @returns {void} Existing impacts and non-static candidates are unchanged.
+     */
+    @meta.adapted
+    CalculateCollisionImpactStatic(ballProp, collision)
+    {
+        if (collision.impact !== null || collision.mbIndex2 !== -2) return;
+        collision.impact = new CollisionImpact();
+        collision.impact.timeOfImpact = collision.timeOfImpact;
+        const ball = ballProp.m_ball;
+        if (ballProp.m_tStart === collision.timeOfImpact)
+        {
+            const anormal = vec3.dot(ball.mLastG, collision.normal);
+            const acceleration = ball.mMaxVel * this.mFriction / (ball.mMass * ball.mAgility) - anormal;
+            vec3.scale(ball.mLastC, collision.normal, acceleration);
+        }
+        const frame = CjsBallparkController._allocCollisionFrame();
+        const { ballLoc, vec3d_0, vec3d_1, vec3d_2, vec3d_3 } = frame;
+        try
+        {
+            ballProp.CalculatePosition(ballLoc.p, ballLoc.v, collision.timeOfImpact);
+            if (g_useDynamicalOrientation) ballProp.CalculateRotation(ballLoc.rot, ballLoc.omega, collision.timeOfImpact);
+            this.ApproximateEllipsePointOfImpact(ball, ballLoc, collision, vec3d_0);
+            vec3.copy(vec3d_1, ballLoc.v);
+            vec3.copy(vec3d_2, ballLoc.omega);
+            if (g_useDynamicalOrientation)
+            {
+                vec3.cross(vec3d_2, vec3d_2, vec3d_0);
+                vec3.add(vec3d_1, vec3d_1, vec3d_2);
+            }
+            // Native expression scales the vector before its double dot product.
+            vec3.scale(vec3d_2, vec3d_1, -2);
+            const vImpulse = vec3.dot(vec3d_2, collision.normal);
+            if (vImpulse < 0) return;
+            let impulse = vImpulse;
+            if (g_useDynamicalOrientation)
+            {
+                vec3.cross(vec3d_3, vec3d_0, collision.normal);
+                vec3.cross(vec3d_2, vec3d_3, vec3d_0);
+                const inertiaOverMass = 0.5 * ball.mRadius * ball.mRadius;
+                impulse = vImpulse / (1 + vec3.dot(vec3d_2, collision.normal) / inertiaOverMass);
+                const scale = f32(impulse / inertiaOverMass);
+                for (let i = 0; i < 3; ++i) collision.impact.angularVelocityChange[i] = f32(vec3d_3[i]) * scale;
+            }
+            vec3.scale(collision.impact.velocityChange, collision.normal, impulse);
+            collision.impact.collider = collision.collider.mId;
+        }
+        finally { CjsBallparkController.collisionFrames.push(frame); }
+    }
+
+    /**
+     * Computes paired elastic impulses for two free balls at a candidate time.
+     * Adaptation: the returned candidate owns its data; temporary value records
+     * use a balanced frame pool so sampling callbacks may reenter this method.
+     * Native quirk: the returned candidate copies collision.collider, even though
+     * its impact identifies the first ball; negative impulses keep collider zero.
+     * Source: destiny/src/Ballpark.cpp:2442-2574.
+     * @param {CollisionBallProperties} ballProp First ball history.
+     * @param {CollisionBallProperties} otherProp Other ball history.
+     * @param {CollisionItem} collision Candidate whose normal and impact are filled.
+     * @returns {CollisionItem} Owned reciprocal candidate, or native default on invalid input.
+     */
+    @meta.adapted
+    CalculateCollisionImpactFree(ballProp, otherProp, collision)
+    {
+        const otherCollision = new CollisionItem();
+        if (collision.impact !== null || collision.mbIndex2 === -2) return otherCollision;
+        otherCollision.timeOfImpact = collision.timeOfImpact;
+        otherCollision.collider = collision.collider;
+        otherCollision.mbIndex1 = collision.mbIndex2;
+        otherCollision.mbIndex2 = collision.mbIndex1;
+        otherCollision.impact = new CollisionImpact();
+        otherCollision.impact.timeOfImpact = collision.timeOfImpact;
+        collision.impact = new CollisionImpact();
+        collision.impact.timeOfImpact = collision.timeOfImpact;
+        const frame = CjsBallparkController._allocCollisionFrame();
+        const { ballLoc, otherLoc, vec3d_0, vec3d_1, vec3d_2, vec3d_3, vec3d_4, vec3d_5, vec3d_6 } = frame;
+        try
+        {
+            ballProp.CalculatePosition(ballLoc.p, ballLoc.v, collision.timeOfImpact);
+            otherProp.CalculatePosition(otherLoc.p, otherLoc.v, collision.timeOfImpact);
+            if (g_useDynamicalOrientation)
+            {
+                ballProp.CalculateRotation(ballLoc.rot, ballLoc.omega, collision.timeOfImpact);
+                otherProp.CalculateRotation(otherLoc.rot, otherLoc.omega, collision.timeOfImpact);
+            }
+            vec3.subtract(collision.normal, ballLoc.p, otherLoc.p);
+            const length = Math.sqrt(vec3.dot(collision.normal, collision.normal));
+            if (length > 0) vec3.scale(collision.normal, collision.normal, 1 / length);
+            else collision.normal[2] = 1;
+            vec3.negate(otherCollision.normal, collision.normal);
+            const ball = ballProp.m_ball, other = otherProp.m_ball;
+            if (collision.timeOfImpact === 0)
+            {
+                let anormal = vec3.dot(ball.mLastG, collision.normal);
+                let acceleration = ball.mMaxVel * this.mFriction / (ball.mMass * ball.mAgility) - anormal;
+                vec3.scale(ball.mLastC, collision.normal, acceleration);
+                anormal = vec3.dot(other.mLastG, otherCollision.normal);
+                acceleration = other.mMaxVel * this.mFriction / (other.mMass * other.mAgility) - anormal;
+                vec3.scale(other.mLastC, otherCollision.normal, acceleration);
+            }
+            this.ApproximateEllipsePointOfImpact(ball, ballLoc, collision, vec3d_0);
+            this.ApproximateEllipsePointOfImpact(other, otherLoc, otherCollision, vec3d_1);
+            vec3.copy(vec3d_3, ballLoc.omega);
+            vec3.copy(vec3d_4, otherLoc.omega);
+            vec3.subtract(vec3d_2, otherLoc.v, ballLoc.v);
+            if (g_useDynamicalOrientation)
+            {
+                vec3.cross(vec3d_3, vec3d_3, vec3d_0);
+                vec3.cross(vec3d_4, vec3d_4, vec3d_1);
+                for (let i = 0; i < 3; ++i) vec3d_2[i] += vec3d_4[i] - vec3d_3[i];
+            }
+            const vImpulse = -2 * vec3.dot(vec3d_2, otherCollision.normal);
+            if (vImpulse < 0) return otherCollision;
+            vec3.copy(vec3d_5, vec3d_0);
+            vec3.copy(vec3d_6, vec3d_1);
+            if (g_useDynamicalOrientation)
+            {
+                vec3.cross(vec3d_5, vec3d_5, collision.normal);
+                vec3.cross(vec3d_3, vec3d_5, vec3d_0);
+                vec3.cross(vec3d_6, vec3d_6, otherCollision.normal);
+                vec3.cross(vec3d_4, vec3d_6, vec3d_1);
+            }
+            const m1 = ball.mMass, m2 = other.mMass, r1 = ball.mRadius, r2 = other.mRadius;
+            let impulse;
+            if (g_useDynamicalOrientation)
+            {
+                for (let i = 0; i < 3; ++i)
+                    vec3d_2[i] = 2 * (vec3d_3[i] * m2 * (1 / (r1 * r1)) - vec3d_4[i] * m1 * (1 / (r2 * r2)));
+                impulse = m1 * m2 * vImpulse / (m1 + m2 + vec3.dot(vec3d_2, collision.normal));
+            }
+            else impulse = m1 * m2 * vImpulse / (m1 + m2);
+            vec3.scale(collision.impact.velocityChange, collision.normal, impulse / m1);
+            vec3.scale(otherCollision.impact.velocityChange, otherCollision.normal, impulse / m2);
+            if (g_useDynamicalOrientation)
+            {
+                const scale1 = f32(impulse / (0.5 * m1 * r1 * r1));
+                const scale2 = f32(impulse / (0.5 * m2 * r2 * r2));
+                for (let i = 0; i < 3; ++i)
+                {
+                    collision.impact.angularVelocityChange[i] = f32(vec3d_5[i]) * scale1;
+                    otherCollision.impact.angularVelocityChange[i] = f32(vec3d_6[i]) * scale2;
+                }
+            }
+            collision.impact.collider = other.mId;
+            otherCollision.impact.collider = ball.mId;
+            return otherCollision;
+        }
+        finally { CjsBallparkController.collisionFrames.push(frame); }
+    }
+
+    /**
+     * Limits an impulse, inserts it in history and recursively invalidates peers.
+     * Adaptation: owned invalidation arrays replace native static storage; console
+     * provides the native diagnostics. The unused native collIter is retained.
+     * Native quirk: limits use squared ratios directly, without taking square roots.
+     * Source: destiny/src/Ballpark.cpp:2577-2642.
+     * @param {CollisionImpact} impact Caller-owned impulse, mutated by the limits.
+     * @param {number|bigint} collIter Native iteration argument, currently unused.
+     * @param {CjsDestinyBall} ball Ball whose existing history receives the impulse.
+     * @returns {void} Missing history or late impacts return without changing the impulse.
+     */
+    @meta.adapted
+    AddImpact(impact, collIter, ball)
+    {
+        const history = this.mCollisionLocations.get(ball.mId);
+        if (!history)
+        {
+            console.error("Collision structure not found when adding impacts", ball.mId);
+            return;
+        }
+        if (history.m_tEnd <= impact.timeOfImpact) return;
+        const speed2 = vec3.dot(impact.velocityChange, impact.velocityChange);
+        const fraction = f32(f32(25 * ball.mMaxVel) * ball.mMaxVel) / speed2;
+        if (fraction < 1) vec3.scale(impact.velocityChange, impact.velocityChange, fraction);
+        if (g_useDynamicalOrientation)
+        {
+            const omega2 = CjsDestinyBall._dotVector3(impact.angularVelocityChange, impact.angularVelocityChange);
+            const fraction = f32(f32(f32(4 * ball.mMaxAngVel) * ball.mMaxAngVel) / omega2);
+            if (fraction < 1) vec3.scale(impact.angularVelocityChange, impact.angularVelocityChange, fraction);
+        }
+        const invalidated = history.AddImpact(impact);
+        for (const [time, collider] of invalidated)
+        {
+            const other = this.mFreeBalls.get(collider);
+            if (other) this.RemoveImpactFromFree(time, ball.mId, other);
+        }
+        let current = 0;
+        for (const location of history.m_locations)
+        {
+            const previous = current;
+            current = location.time;
+            if (current < previous) console.warn("Adding impacts out of order! This should not happen.");
+        }
+    }
+
+    /**
+     * Removes one free-ball impact and propagates its invalidations depth first.
+     * Adaptation: local result ownership replaces value-returned native vectors;
+     * repeated visits remain possible, and console provides missing-history errors.
+     * Source: destiny/src/Ballpark.cpp:2647-2672.
+     * @param {number} time Impact time in seconds.
+     * @param {bigint|number} collider The other participant in the removed contact.
+     * @param {CjsDestinyBall|null} ball Free ball to update, ignored when absent/fixed.
+     * @returns {void} Rebuilds histories before recursively processing their peers.
+     */
+    @meta.adapted
+    RemoveImpactFromFree(time, collider, ball)
+    {
+        if (!ball || !ball.isFree) return;
+        const history = this.mCollisionLocations.get(ball.mId);
+        if (!history)
+        {
+            console.error("Collision structure not found when removing impacts", ball.mId);
+            return;
+        }
+        const invalidated = history.RemoveImpact(time, collider);
+        for (const [otherTime, otherID] of invalidated)
+        {
+            const other = this.mFreeBalls.get(otherID);
+            if (other) this.RemoveImpactFromFree(otherTime, ball.mId, other);
+        }
     }
 
     /**
@@ -3086,6 +3390,31 @@ export class CjsBallparkController
         return BigInt(interval) * 10000n;
     }
 
+    /**
+     * Borrows independent value storage for a reentrant collision-impact call.
+     * Ours: JS has no C++ stack-value allocation; reuse complete records/views
+     * instead. Sampling fills p/v, while default angular values are reset here.
+     * @returns {Object} Dirty frame; return to collisionFrames in finally.
+     */
+    @meta.ours
+    static _allocCollisionFrame()
+    {
+        const frame = CjsBallparkController.collisionFrames.pop() || {
+            ballLoc: new BallLocation(), otherLoc: new BallLocation(),
+            vec3d_0: vec3d.create(), vec3d_1: vec3d.create(), vec3d_2: vec3d.create(),
+            vec3d_3: vec3d.create(), vec3d_4: vec3d.create(), vec3d_5: vec3d.create(), vec3d_6: vec3d.create()
+        };
+        frame.ballLoc.time = frame.otherLoc.time = -1;
+        frame.ballLoc.collider = frame.otherLoc.collider = -1n;
+        quat.identity(frame.ballLoc.rot);
+        quat.identity(frame.otherLoc.rot);
+        vec3.zero(frame.ballLoc.omega);
+        vec3.zero(frame.otherLoc.omega);
+        return frame; // pool-return: caller owns the frame until finally.
+    }
+
+    static collisionFrames = [];
+
     static scratch = {
         orbitalNormal: { orbitalVector: vec3d.create(), toVector: vec3d.create(), dist: 0 },
         gradientBalls: [], gradientStatics: [], vec3d_0: vec3d.create(),
@@ -3097,7 +3426,8 @@ export class CjsBallparkController
         quat_3: quat.create(), mat4_1: mat4.create(),
         vectorBraking: { n2: 0, kappa2: 1, alpha2: vec3.create() },
         scalarBraking: { n2: 0, kappa2: 1, alpha2: 0 },
-        vec3_13: vec3.create(), vec3_14: vec3.create(), quat_4: quat.create(), mat4_2: mat4.create()
+        vec3_13: vec3.create(), vec3_14: vec3.create(), quat_4: quat.create(), mat4_2: mat4.create(),
+        vec3_15: vec3.create(), vec3_16: vec3.create(), mat4_3: mat4.create()
     };
 }
 
