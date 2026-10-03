@@ -68,6 +68,7 @@ for (const [x, expected] of [[10, [13]], [470, [13]], [9, [12, 13]], [471, [13, 
 test("Corner insertion preserves native request order and sorted membership", () =>
 {
     const ball = create(new Park(), 1, 2, [1, 1, 1]), order = [];
+    ball.DeleteFromBoxes();
     const original = ball.SetBoxActive;
     ball.SetBoxActive = function(index, value) { order.push(index); original.call(this, index, value); };
     insert(ball);
@@ -81,7 +82,7 @@ test("Corner insertion preserves native request order and sorted membership", ()
 test("Unchanged membership skips activity repair and bubble restoration", () =>
 {
     const park = new Park(); park.isMaster = true;
-    const ball = create(park); insert(ball, 23);
+    const ball = create(park); ball.DeleteFromBoxes(); insert(ball, 23);
     const base = ball.mMyBox, top = park.mPartition.GetTopmost(base);
     assert.equal(top.mBubble, 23);
     ball.mActiveBoxes[13] = false;
@@ -102,7 +103,7 @@ test("Changed modifiers rebuild released cells and restore only master top bubbl
         assert.notEqual(ball.mMyBox, old);
         assert.deepEqual(active(ball), [12, 13]);
         assert.equal(park.mPartition.GetTopmost(ball.mMyBox).mBubble, master ? 41 : -1);
-        assert.equal(ball.mNewBubble, -1); // Ballpark owns object bubble transitions.
+        assert.equal(ball.mNewBubble, master ? 0 : -1); // Ballpark owns object bubble transitions.
     }
 });
 
@@ -160,7 +161,7 @@ test("Live Balls enumerate as candidates and movement writes the shared vectors"
     const balls = [], statics = [];
     park.mPartition.GetCollisionCandidates(a, balls, statics, false);
     assert.deepEqual(balls, [b]);
-    a.isFree = true;
+    park.SetBallFree(a.id, true);
     park.GotoDirection(1, 1, 0, 0);
     park.Evolve();
     assert.equal(a.x, a.mNewPos[0]);
@@ -175,7 +176,7 @@ test("Replacement, immediate deletion and ClearAll detach spatial membership", (
     a.mOwnerId = 9n; a.mCorporationID = 10; a.mAllianceID = 11; a.mHarmonic = 12n;
     assert.equal(create(park), a);
     assert.deepEqual([a.mOwnerId, a.mCorporationID, a.mAllianceID, a.mHarmonic], [0n, -1, -1, -1n]);
-    assert.equal(park.mPartition.GetSize(), 0);
+    assert.equal(park.mPartition.GetSize(), 8);
     assert.equal(a.mPark, park);
     insert(a); park.RemoveBall(1);
     assert.equal(a.mPark, null);

@@ -7,18 +7,18 @@ Summary: Current implementation and the families still required for completion.
 
 The target is the whole public Destiny donor, not only features used by a racing
 demo. Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
-The current server suite has 250 passing CPU tests against runtime alpha.9.
+The current server suite has 266 passing CPU tests against runtime alpha.9.
 
 | Family | Current status |
 |---|---|
 | Ball/Ballpark | Temporary movement subset: goto, follow, legacy/new orbit, stop and basic lifecycle/setters, exact signed-int64 IDs/timestamps and native local-ID allocation |
 | Actions | Movement commands, timestamps, adjacent deduplication and pending queries |
 | AABB/Planed/Triangle/Collision | Numeric primitives implemented; 44 native fixtures and seven additional cases |
-| Clock/host boundary | Separate time/currentTime, Start/Pause, OnTick, AdjustTimes and deferred ball cleanup implemented; ClientBall/capsule/bubble dependencies remain pending |
+| Clock/host boundary | Separate time/currentTime, Start/Pause, OnTick, AdjustTimes and deferred ball cleanup implemented; ClientBall/capsule and network-batch dependencies remain pending |
 | BoxShape/RectangleShape | Numeric geometry implemented; all 25 native fixtures and 18 additional cases |
 | Capsules/oriented boxes and mini-shapes | Pending |
-| Partition/Partitionable/Box/StaticCollidable | Keys/hash, cells, ordering, filters and static membership implemented; Ball shares state and implements neighborhoods/cleanup; automatic Ballpark insertion pending |
-| Bubbles and activity | Cell traversal implemented; Ballpark transitions, counts and activity remain pending |
+| Partition/Partitionable/Box/StaticCollidable | Keys/hash, cells, ordering, filters and static membership implemented; Ball shares state and implements neighborhoods/cleanup; automatic Ballpark insertion implemented |
+| Bubbles and activity | Insertion, initialization, delta bookkeeping, subscriptions and activity implemented; conflict resolution and network batches pending |
 | Legacy and iterative collision response | Pending |
 | New orbit | Non-dynamical path implemented; all four native scenarios pass; heading fallback pending |
 | Orientation, warp, missiles, formations and remaining modes | Pending |

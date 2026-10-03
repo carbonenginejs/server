@@ -44,8 +44,9 @@ Partition, Box, Key/KeyHash, all three sorted-set comparers and the
 Partitionable/StaticCollidable membership bases now work independently. Forty
 tests verify this kernel. Ball now shares native storage and implements its full
 neighborhood insertion method, with sixteen further tests for membership and
-cleanup. Automatic Ballpark insertion, full bubble lifecycle and simulation
-consumers still require integration.
+cleanup. Automatic Ballpark insertion, initialization, delta tracking, subscriptions
+and activity are now implemented. Conflict resolution, static-shape ownership,
+proximity and replication consumers still require integration.
 
 ## What can run without the client
 

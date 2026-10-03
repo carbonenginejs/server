@@ -17,7 +17,8 @@ const ORBITAL_PRECESSION = 0.001;
 /**
  * Temporary, single-region Ballpark movement subset with native clock phases.
  * The cached evolution step defaults to one second. Native global settings select
- * legacy/new orbit. Dynamical orientation, collision, bubbles and wire are unported.
+ * legacy/new orbit. Spatial membership and bubble activity are maintained;
+ * dynamical orientation, collision response and wire replication remain unported.
  */
 @meta.define({ className: "CjsBallparkController", modelledOn: "Ballpark" })
 @meta.blue.inherit(IBlueEvents)
@@ -140,7 +141,7 @@ export class CjsBallparkController
      * The host must catch handler exceptions and return false, as native PyOS does.
      * BigInt timestamps retain exact arithmetic. Invalid interval products, signed
      * clock overflow and catch-up counts outside native int32 are rejected.
-     * Capsule cleanup, bubble activity and native profiling remain unported.
+     * Capsule cleanup and native profiling remain unported.
      *
      * @param {bigint|number} realTime Host real clock in 100ns units; unused by the donor.
      * @param {bigint|number} simTime Host simulation clock in 100ns units.
@@ -216,8 +217,459 @@ export class CjsBallparkController
     _balls = new Map();
     mPartition = new CjsDestinyPartition();
     mProbe = 0n;
+    mBubbleId = 0;
+    bubbles = new Map();
+    bubbleInteractives = new Map();
+    bubbleKeepAlives = new Map();
+    bubbleKeepAliveBalls = new Set();
+    mBubbleSubscriptions = new Map();
+    mGlobals = new Map();
+    mFreeBalls = new Map();
+
+    /**
+     * Exposes the native read-only Blue subscription dictionary alias.
+     * Adaptation: callers mutate a Map; assigning a replacement through this alias is disallowed.
+     *
+     * @returns {Map<number, *>} Live subscription map; values need not be truthy.
+     */
+    @meta.adapted
+    get bubbleSubs()
+    {
+        return this.mBubbleSubscriptions;
+    }
     mFriction = 1000000;
     dt = 1;
+
+    /**
+     * Clears tracking collections while retaining subscriptions and the bubble counter.
+     * Adaptation: JS Maps/Sets and BigInt IDs replace Python containers and integer objects;
+     * injected PyOS supplies events without native refcounts or allocation-error channels.
+     *
+     * @returns {void} Native result or collection mutation.
+     */
+    @meta.adapted
+    ClearBubbles()
+    {
+        if (this.bubbles) this.bubbles.clear();
+        this.bubbleInteractives.clear();
+        this.bubbleKeepAlives.clear();
+        this.bubbleKeepAliveBalls.clear();
+    }
+
+    /**
+     * Acknowledges added entries and removes deleted entries, then empty bubbles.
+     * Adaptation: JS Maps/Sets and BigInt IDs replace Python containers and integer objects;
+     * injected PyOS supplies events without native refcounts or allocation-error channels.
+     *
+     * @returns {void} Native result or collection mutation.
+     */
+    @meta.adapted
+    CopyBubbles()
+    {
+        if (!this.bubbles) return;
+        for (const [id, bubble] of this.bubbles)
+        {
+            for (const [ballId, action] of bubble)
+            {
+                if (action === 1) bubble.set(ballId, 0);
+                else if (action === -1) bubble.delete(ballId);
+            }
+            if (bubble.size === 0) this.bubbles.delete(id);
+        }
+    }
+
+    /**
+     * Adds an interactive object to a non-sentinel bubble.
+     * Adaptation: JS Maps/Sets and BigInt IDs replace Python containers and integer objects;
+     * injected PyOS supplies events without native refcounts or allocation-error channels.
+     *
+     * @param {CjsDestinyPartitionable} p Spatial object.
+     * @param {number} inBubble Signed-int32 bubble ID.
+     * @returns {void} Native result or collection mutation.
+     */
+    @meta.adapted
+    IncreaseInteractiveCnt(p, inBubble)
+    {
+        if (!p.isInteractive || inBubble === -1) return;
+        let entries = this.bubbleInteractives.get(inBubble);
+        if (!entries) this.bubbleInteractives.set(inBubble, entries = new Set());
+        entries.add(p.mId);
+    }
+
+    /**
+     * Removes an interactive object and discards an empty membership set.
+     * Adaptation: JS Maps/Sets and BigInt IDs replace Python containers and integer objects;
+     * injected PyOS supplies events without native refcounts or allocation-error channels.
+     *
+     * @param {CjsDestinyPartitionable} p Spatial object.
+     * @param {number} inBubble Signed-int32 bubble ID.
+     * @returns {void} Native result or collection mutation.
+     */
+    @meta.adapted
+    DecreaseInteractiveCnt(p, inBubble)
+    {
+        if (!p.isInteractive || inBubble === -1) return;
+        const entries = this.bubbleInteractives.get(inBubble);
+        if (!entries) return;
+        entries.delete(p.mId);
+        if (entries.size === 0) this.bubbleInteractives.delete(inBubble);
+    }
+
+    /**
+     * Updates activity by adding first and removing second, even when IDs are equal.
+     * Adaptation: JS Maps/Sets and BigInt IDs replace Python containers and integer objects;
+     * injected PyOS supplies events without native refcounts or allocation-error channels.
+     *
+     * @param {CjsDestinyPartitionable} p Spatial object.
+     * @param {number} oldBubble Previous bubble.
+     * @param {number} newBubble Destination bubble.
+     * @returns {void} Native result or collection mutation.
+     */
+    @meta.adapted
+    UpdateInteractiveCnt(p, oldBubble, newBubble)
+    {
+        if (!p.isInteractive) return;
+        this.IncreaseInteractiveCnt(p, newBubble);
+        this.DecreaseInteractiveCnt(p, oldBubble);
+    }
+
+    /**
+     * Adds a keep-alive ID to a non-sentinel bubble.
+     * Adaptation: JS Maps/Sets and BigInt IDs replace Python containers and integer objects;
+     * injected PyOS supplies events without native refcounts or allocation-error channels.
+     *
+     * @param {bigint} ballId Native signed-int64 identity.
+     * @param {number} inBubble Signed-int32 bubble ID.
+     * @returns {void} Native result or collection mutation.
+     */
+    @meta.adapted
+    AddKeepAliveBall(ballId, inBubble)
+    {
+        if (inBubble === -1) return;
+        let entries = this.bubbleKeepAlives.get(inBubble);
+        if (!entries) this.bubbleKeepAlives.set(inBubble, entries = new Set());
+        entries.add(ballId);
+    }
+
+    /**
+     * Removes a keep-alive ID and discards its empty membership set.
+     * Adaptation: JS Maps/Sets and BigInt IDs replace Python containers and integer objects;
+     * injected PyOS supplies events without native refcounts or allocation-error channels.
+     *
+     * @param {bigint} ballId Native signed-int64 identity.
+     * @param {number} inBubble Signed-int32 bubble ID.
+     * @returns {void} Native result or collection mutation.
+     */
+    @meta.adapted
+    RemoveKeepAliveBall(ballId, inBubble)
+    {
+        if (inBubble === -1) return;
+        const entries = this.bubbleKeepAlives.get(inBubble);
+        if (!entries) return;
+        entries.delete(ballId);
+        if (entries.size === 0) this.bubbleKeepAlives.delete(inBubble);
+    }
+
+    /**
+     * Moves only IDs in the global automatic keep-alive set, adding before removing.
+     * Adaptation: JS Maps/Sets and BigInt IDs replace Python containers and integer objects;
+     * injected PyOS supplies events without native refcounts or allocation-error channels.
+     *
+     * @param {CjsDestinyPartitionable} p Spatial object.
+     * @param {number} oldBubble Previous bubble.
+     * @param {number} newBubble Destination bubble.
+     * @returns {void} Native result or collection mutation.
+     */
+    @meta.adapted
+    UpdateKeepAliveBalls(p, oldBubble, newBubble)
+    {
+        if (!this.bubbleKeepAliveBalls.has(p.mId)) return;
+        this.AddKeepAliveBall(p.mId, newBubble);
+        this.RemoveKeepAliveBall(p.mId, oldBubble);
+    }
+
+    /**
+     * Changes interactive membership using the old flag while removing membership.
+     * Adaptation: JS Maps/Sets and BigInt IDs replace Python containers and integer objects;
+     * injected PyOS supplies events without native refcounts or allocation-error channels.
+     *
+     * @param {bigint|number} id Ball identity.
+     * @param {boolean} flag New interaction flag.
+     * @returns {void} Native result or collection mutation.
+     */
+    @meta.adapted
+    SetBallInteractive(id, flag)
+    {
+        const ball = this.GetBall(id);
+        if (!ball) return;
+        if (flag && !ball.isInteractive)
+        {
+            ball.isInteractive = flag;
+            this.IncreaseInteractiveCnt(ball, ball.mNewBubble);
+        }
+        else if (!flag && ball.isInteractive)
+        {
+            this.DecreaseInteractiveCnt(ball, ball.mNewBubble);
+            ball.isInteractive = flag;
+        }
+        else ball.isInteractive = flag;
+    }
+
+    /**
+     * Returns the master bubble interactive count; replicas always return zero.
+     * Adaptation: JS Maps/Sets and BigInt IDs replace Python containers and integer objects;
+     * injected PyOS supplies events without native refcounts or allocation-error channels.
+     *
+     * @param {CjsDestinyBall} ball Ball whose current bubble is queried.
+     * @returns {number} Native result or collection mutation.
+     */
+    @meta.adapted
+    GetInteractiveCnt(ball)
+    {
+        if (!this.isMaster) return 0;
+        const entries = this.bubbleInteractives.get(ball.mNewBubble);
+        return entries ? entries.size : 0;
+    }
+
+    /**
+     * Checks master bubble activity; replicas and warping balls are always live.
+     * Adaptation: JS Maps/Sets and BigInt IDs replace Python containers and integer objects;
+     * injected PyOS supplies events without native refcounts or allocation-error channels.
+     *
+     * @param {CjsDestinyBall} ball Ball whose current bubble is queried.
+     * @returns {boolean} Native result or collection mutation.
+     */
+    @meta.adapted
+    InDeadBubble(ball)
+    {
+        if (!this.isMaster || ball.mMode === Mode.DSTBALL_WARP) return false;
+        const interactive = this.bubbleInteractives.get(ball.mNewBubble);
+        if (interactive && interactive.size) return false;
+        const keepAlive = this.bubbleKeepAlives.get(ball.mNewBubble);
+        return !(keepAlive && keepAlive.size);
+    }
+
+    /**
+     * Records add/delete deltas, dispatches subscribed events, then updates activity counts.
+     * Adaptation: JS Maps/Sets and BigInt IDs replace Python containers and integer objects;
+     * injected PyOS supplies events without native refcounts or allocation-error channels.
+     *
+     * @param {CjsDestinyPartitionable} p Spatial object.
+     * @returns {void} Native result or collection mutation.
+     */
+    @meta.adapted
+    AddToBubble(p)
+    {
+        if (!this.bubbles) this.bubbles = new Map();
+        const newBubbleId = p.mNewBubble, oldBubbleId = p.mOldBubble, ballId = p.mId;
+        if (p.mNewBubble !== -1)
+        {
+            let bubble = this.bubbles.get(newBubbleId);
+            if (!bubble) this.bubbles.set(newBubbleId, bubble = new Map());
+            if (!bubble.has(ballId)) bubble.set(ballId, 1);
+            else if (bubble.get(ballId) === -1) bubble.set(ballId, 0);
+            if (this.mBubbleSubscriptions.has(newBubbleId) && this._pyOS
+                && !this._pyOS.SendEvent(this, "Destiny::DoBubbleAdd", "DoBubbleAdd", null, "(iL)", p.mNewBubble, p.mId))
+                this._pyOS.PyError();
+        }
+        if (p.mOldBubble !== -1)
+        {
+            const bubble = this.bubbles.get(oldBubbleId);
+            if (bubble)
+            {
+                const action = bubble.get(ballId);
+                if (action === 0) bubble.set(ballId, -1);
+                else if (action === 1) bubble.delete(ballId);
+                if (this.mBubbleSubscriptions.has(oldBubbleId) && this._pyOS
+                    && !this._pyOS.SendEvent(this, "Destiny::DoBubbleDel", "DoBubbleDel", null, "(iL)", p.mOldBubble, p.mId))
+                    this._pyOS.PyError();
+            }
+        }
+        this.UpdateInteractiveCnt(p, p.mOldBubble, p.mNewBubble);
+        this.UpdateKeepAliveBalls(p, p.mOldBubble, p.mNewBubble);
+    }
+
+    /**
+     * Finds a causal region, records a transition, then rebuilds native neighborhood membership.
+     * Adaptation: JS Maps/Sets and BigInt IDs replace Python containers and integer objects;
+     * injected PyOS supplies events without native refcounts or allocation-error channels.
+     * Signed bubble-counter overflow throws because the native increment has undefined behavior.
+     *
+     * @param {CjsDestinyPartitionable} p Spatial object.
+     * @returns {void} Native result or collection mutation.
+     */
+    @meta.adapted
+    InsertInBoxes(p)
+    {
+        let top = null, newBubbleId = -1;
+        const box = this.mPartition.GetBox(p.GetInflatedRadius(this.dt), p.mNewPos);
+        if (this.isMaster)
+        {
+            top = this.mPartition.GetTopmost(box);
+            newBubbleId = top.mBubble;
+            if (newBubbleId === -1)
+            {
+                p.DeleteFromBoxes();
+                p.mMyBox = null;
+                newBubbleId = top.NearbyBubbles();
+                if (newBubbleId === -1)
+                {
+                    // Native long overflow is undefined; reject instead of inventing wrap semantics.
+                    if (this.mBubbleId >= 2147483647) throw new RangeError("Bubble counter exceeds signed-int32 increment domain");
+                    newBubbleId = this.mBubbleId++;
+                }
+                top.mBubble = newBubbleId;
+            }
+            if (p.mNewBubble !== newBubbleId)
+            {
+                p.mOldBubble = p.mNewBubble;
+                p.mNewBubble = newBubbleId;
+                this.AddToBubble(p);
+            }
+        }
+        p.InsertInBoxes(box, top, newBubbleId);
+    }
+
+    /**
+     * Inserts a Ball and registers ordinary/global maps only outside Evolve.
+     * Adaptation: JS Maps/Sets and BigInt IDs replace Python containers and integer objects;
+     * injected PyOS supplies events without native refcounts or allocation-error channels.
+     *
+     * @param {CjsDestinyBall|null} ball Ball to insert.
+     * @returns {void} Native result or collection mutation.
+     */
+    @meta.adapted
+    InsertBallInBoxes(ball)
+    {
+        if (!ball) return;
+        this.InsertInBoxes(ball);
+        if (!this.inEvolve)
+        {
+            this._balls.set(ball.mId, ball);
+            if (ball.isGlobal) this.mGlobals.set(ball.mId, ball);
+        }
+    }
+
+    /**
+     * Iterates free balls in native signed-ID order, including later-ID insertions.
+     * JS Map has no ordered iterator; rescanning retains native live membership semantics.
+     * This correctness-first implementation is quadratic and awaits the container performance pass.
+     *
+     * @returns {Generator<CjsDestinyBall>} Live ascending-ID traversal.
+     */
+    @meta.ours
+    *_iterateFreeBalls()
+    {
+        let previous = null;
+        while (true)
+        {
+            let next = null, nextId = null;
+            for (const [id, ball] of this.mFreeBalls)
+                if ((previous === null || id > previous) && (next === null || id < nextId))
+                {
+                    next = ball;
+                    nextId = id;
+                }
+            if (!next) return;
+            previous = nextId;
+            yield next;
+        }
+    }
+
+    /**
+     * Recalculates connected top-cell regions, or updates one ID through the Blue overload.
+     * Adaptation: JS containers replace Python values; signed counter overflow throws.
+     * Repeated equal-ID updates retain native add-then-remove bookkeeping behavior.
+     *
+     * @param {bigint|number} [id=0n] Zero for complete initialization, otherwise one ball.
+     * @returns {void} Updates native bubble state.
+     */
+    @meta.adapted
+    InitializeBubbles(id = 0n)
+    {
+        id = CjsDestinyBall._toInt64(id);
+        if (id !== 0n) { this.UpdateBallBubble(id); return; }
+        this.mPartition.ClearTraversalFlag();
+        this.mBubbleId = 0;
+        this.ClearBubbles();
+        for (const ball of this._balls.values())
+        {
+            if (!ball.mMyBox)
+            {
+                console.error("Ball without a box in InitializeBubbles");
+                ball.mOldBubble = ball.mNewBubble;
+                ball.mNewBubble = -1;
+                continue;
+            }
+            const top = this.mPartition.GetTopmost(ball.mMyBox);
+            if (top.mBubble !== -1)
+            {
+                ball.mOldBubble = ball.mNewBubble;
+                ball.mNewBubble = top.mBubble;
+                this.AddToBubble(ball);
+                continue;
+            }
+            if (this.mBubbleId >= 2147483647) throw new RangeError("Bubble counter exceeds signed-int32 increment domain");
+            top.Traverse(this.mBubbleId);
+            ball.mOldBubble = ball.mNewBubble;
+            ball.mNewBubble = this.mBubbleId;
+            this.AddToBubble(ball);
+            this.mBubbleId++;
+        }
+    }
+
+    /**
+     * Assigns one new-bubble ID using the first nearby assigned ball, without tracker updates.
+     * Adaptation: native Python dictionary order is represented by Map insertion order.
+     *
+     * @param {bigint|number} id Ball identity.
+     * @returns {void} Leaves old bubble, partition cells and tracking collections unchanged.
+     */
+    @meta.adapted
+    UpdateBallBubble(id)
+    {
+        const ball = this.GetBall(id);
+        if (!ball) { console.error("UpdateBallBubble: missing ball", id); return; }
+        if (ball.mNewBubble !== -1) console.warn("UpdateBallBubble: ball already has a bubble", id);
+        const width2 = this.mPartition.mLevelWidth[0] * this.mPartition.mLevelWidth[0];
+        let highest = -1;
+        for (const other of this._balls.values())
+        {
+            if (other.mNewBubble > highest) highest = other.mNewBubble;
+            if (other === ball || other.mNewBubble === -1) continue;
+            const x = ball.x - other.x, y = ball.y - other.y, z = ball.z - other.z;
+            if (x * x + y * y + z * z < width2) { ball.mNewBubble = other.mNewBubble; break; }
+        }
+        if (ball.mNewBubble === -1)
+        {
+            if (highest >= 2147483647) throw new RangeError("Bubble ID exceeds signed-int32 range");
+            ball.mNewBubble = highest + 1;
+        }
+    }
+
+    /**
+     * Returns the existing top-cell bubble at world coordinates.
+     * Adaptation: null represents Python None; unassigned existing cells retain -1.
+     *
+     * Numeric primitives are converted before arithmetic; nonnumeric values throw as in "ddd" parsing.
+     *
+     * @param {number|bigint|boolean} x World X.
+     * @param {number|bigint|boolean} y World Y.
+     * @param {number|bigint|boolean} z World Z.
+     * @returns {number|null} Existing bubble or null for absent cells.
+     */
+    @meta.adapted
+    GetBubbleAtCoordinates(x, y, z)
+    {
+        const pos = [x, y, z];
+        for (let i = 0; i < 3; ++i)
+        {
+            if (typeof pos[i] === "bigint" || typeof pos[i] === "boolean") pos[i] = Number(pos[i]);
+            else if (typeof pos[i] !== "number") throw new TypeError("Coordinates must be numeric primitives");
+        }
+        const top = this.mPartition.GetExistingTopBox(pos);
+        return top ? top.mBubble : null;
+    }
 
     /**
      * Resolves native explicit IDs and master/replica local-allocation requests.
@@ -248,7 +700,7 @@ export class CjsBallparkController
     /**
      * Adds or updates a ball using Carbon's positional argument order.
      * Adaptation: checked BigInt IDs, finite scalar inputs and immediate ball-map
-     * registration; automatic spatial insertion and bubbles remain pending.
+     * registration follows native spatial insertion and subscribed bubble callbacks.
      * Re-adding a resolved ID keeps object identity and
      * follower links. Nonpositive IDs follow native master/replica allocation.
      *
@@ -291,7 +743,6 @@ export class CjsBallparkController
         {
             ball = new CjsDestinyBall();
             ball.id = objectId;
-            this._balls.set(objectId, ball);
         }
         else
         {
@@ -335,6 +786,12 @@ export class CjsBallparkController
         ball.followRange = 10;
         ball.mode = Mode.DSTBALL_STOP;
         this.SetBallTimeFactor(ball);
+        if (ball.isFree)
+        {
+            if (!this.mFreeBalls.has(ball.mId)) this.mFreeBalls.set(ball.mId, ball);
+        }
+        else if (!created) this.mFreeBalls.delete(ball.mId);
+        this.InsertBallInBoxes(ball);
         return ball;
     }
 
@@ -387,7 +844,7 @@ export class CjsBallparkController
      * Detaches follower orders, then removes the ball now or queues native delayed cleanup.
      * Adaptation: JS retains object references and uses an optional PyOS bridge for
      * DoFinalCleanup. Cell membership is removed during final cleanup;
-     * mini-shapes, collision caches and bubbles remain unported.
+     * mini-shapes and collision caches remain unported.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} [delay=0] Tick delay before buffered cleanup.
@@ -414,6 +871,11 @@ export class CjsBallparkController
         this.moribundBalls.delete(ball);
         ball.DeleteFromBoxes();
         ball.mPark = null;
+        ball.mOldBubble = ball.mNewBubble;
+        ball.mNewBubble = -1;
+        this.AddToBubble(ball);
+        if (ball.isFree) this.mFreeBalls.delete(ball.mId);
+        if (ball.isGlobal) this.mGlobals.delete(ball.mId);
         this._balls.delete(ball.id);
     }
 
@@ -438,6 +900,9 @@ export class CjsBallparkController
             ball.mPark = null;
         }
         this._balls.clear();
+        this.mGlobals.clear();
+        this.mFreeBalls.clear();
+        this.ClearBubbles();
         this.moribundBalls.clear();
         this.mLocalCnt = -1n;
         this.mLocalHiCnt = -1073741824n;
@@ -493,8 +958,8 @@ export class CjsBallparkController
     /**
      * Advances one cached simulation step and increments currentTime, not time.
      * Forces are evaluated before positions. Adaptation: the default timestamp of
-     * zero follows the Python Evolve wrapper; no collision forces or orientation,
-     * bubbles or notifications. Invalid mobile mass and unsupported modes fail
+     * zero follows the Python Evolve wrapper; collision forces, orientation and
+     * proximity notifications remain unported. Invalid mobile mass and unsupported modes fail
      * before changing the tick, rather than silently simulating another behavior.
      * JS exceptions release inEvolve with finally so callbacks cannot strand cleanup.
      * Timestamp conversion and signed-int64 initialization overflow are checked before movement.
@@ -512,9 +977,9 @@ export class CjsBallparkController
     {
         timestamp = CjsDestinyBall._toInt64(timestamp);
         if (g_useIterativeCollision) throw new Error("Iterative collision response is not implemented");
-        for (const ball of this._balls.values())
+        for (const ball of this._iterateFreeBalls())
         {
-            if (!ball.isFree || ball.isMoribund) continue;
+            if (ball.isMoribund || this.InDeadBubble(ball)) continue;
             if (g_useDynamicalOrientation && !DynamicalOrientationDisabledForBall(ball))
             {
                 throw new Error("Dynamical orientation evolution is not implemented");
@@ -537,24 +1002,49 @@ export class CjsBallparkController
         this.inEvolve = true;
         try
         {
-            for (const ball of this._balls.values())
+            for (const ball of this._iterateFreeBalls())
             {
-                if (ball.isFree && !ball.isMoribund) this.EvolveBehaviorForBall(ball);
+                if (ball.isMoribund) continue;
+                if (this.InDeadBubble(ball))
+                {
+                    ball.mInDeadBubble = true;
+                    continue;
+                }
+                this.EvolveBehaviorForBall(ball);
             }
-            for (const ball of this._balls.values())
+            for (const ball of this._iterateFreeBalls())
             {
-                if (ball.isFree && !ball.isMoribund) this.Integrate(ball);
+                if (ball.isMoribund || ball.mInDeadBubble) continue;
+                this.Integrate(ball);
+                // Native integration stages results in old vectors until the commit pass.
+                for (let q = 0; q < 3; ++q)
+                {
+                    [ball.mNewPos[q], ball.mOldPos[q]] = [ball.mOldPos[q], ball.mNewPos[q]];
+                    [ball.mNewVel[q], ball.mOldVel[q]] = [ball.mOldVel[q], ball.mNewVel[q]];
+                }
             }
             // Carbon completes integration for every ball before updating timestamps.
-            if (timestamp !== 0n)
+            for (const ball of this._iterateFreeBalls())
             {
-                for (const ball of this._balls.values())
+                if (ball.isMoribund) continue;
+                if (ball.mInDeadBubble)
                 {
-                    if (!ball.isFree || ball.isMoribund) continue;
+                    ball.mInDeadBubble = false;
+                    continue;
+                }
+                if (timestamp !== 0n)
+                {
                     ball.mOldTime = ball.mNewTime === 0n
                         ? timestamp - CjsBallparkController._tickTime(this.tickInterval) : ball.mNewTime;
                     ball.mNewTime = timestamp;
                 }
+                for (let q = 0; q < 3; ++q)
+                {
+                    [ball.mNewPos[q], ball.mOldPos[q]] = [ball.mOldPos[q], ball.mNewPos[q]];
+                    [ball.mNewVel[q], ball.mOldVel[q]] = [ball.mOldVel[q], ball.mNewVel[q]];
+                }
+                const dx = ball.x - ball._oldX, dy = ball.y - ball._oldY, dz = ball.z - ball._oldZ;
+                if (dx * dx + dy * dy + dz * dz >= 0.1) this.InsertBallInBoxes(ball);
             }
             this.currentTime++;
         }
@@ -1186,7 +1676,8 @@ export class CjsBallparkController
     }
 
     /**
-     * Adaptation: scalar old/new positions, finite input guard, no partition update.
+     * Adaptation: scalar accessors update native vectors with a finite input guard.
+     * Native spatial membership and bubble transitions are refreshed afterward.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} x Position component in meters.
@@ -1203,6 +1694,7 @@ export class CjsBallparkController
         ball.x = ball._oldX = x;
         ball.y = ball._oldY = y;
         ball.z = ball._oldZ = z;
+        this.InsertBallInBoxes(ball);
     }
 
     /**
@@ -1246,7 +1738,7 @@ export class CjsBallparkController
     }
 
     /**
-     * Adaptation: finite native f32 input guard; no spatial partition update.
+     * Adaptation: finite native f32 input guard before native spatial reinsertion.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} radius Radius in meters.
@@ -1260,10 +1752,11 @@ export class CjsBallparkController
         radius = Math.fround(radius);
         if (!ball || !Number.isFinite(radius) || radius < 0) return;
         ball.radius = radius;
+        this.InsertBallInBoxes(ball);
     }
 
     /**
-     * Adaptation: finite native f32 input guard; no spatial partition update.
+     * Adaptation: finite native f32 input guard before native spatial reinsertion.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} speed Maximum speed in meters per second.
@@ -1277,6 +1770,7 @@ export class CjsBallparkController
         speed = Math.fround(speed);
         if (!ball || !Number.isFinite(speed) || speed < 0) return;
         ball.maxVelocity = speed;
+        this.InsertBallInBoxes(ball);
     }
 
     /**
@@ -1330,7 +1824,7 @@ export class CjsBallparkController
     }
 
     /**
-     * Adaptation: updates movement participation without collision mini-shapes or boxes;
+     * Adaptation: updates the ordered free-ball collection and spatial membership without mini-shapes;
      * checked BigInt timestamp subtraction rejects signed overflow before changing the flag.
      * Disabling a ball with dynamical orientation throws before mutation because the
      * required SetBallVelocity/SnapOrientation path is unported.
@@ -1350,12 +1844,15 @@ export class CjsBallparkController
         ball.isFree = Boolean(isFree);
         if (ball.isFree)
         {
+            if (!this.mFreeBalls.has(ball.mId)) this.mFreeBalls.set(ball.mId, ball);
             ball.mNewTime = newTime;
         }
         else
         {
             this.Stop(id);
             this.SetBallVelocity(id, 0, 0, 0);
+            this.mFreeBalls.delete(ball.mId);
+            this.InsertBallInBoxes(ball);
             ball._lastGx = ball._lastGy = ball._lastGz = 0;
         }
     }

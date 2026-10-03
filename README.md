@@ -100,7 +100,7 @@ queries; they are not yet wired into ballpark collision response.
 The `@carbonenginejs/server/destiny/partition` subpath provides the standalone
 native partition, cell lifecycle, candidate filters and static membership bases.
 Ball shares its native state with the partition and implements neighborhood
-membership. Automatic insertion and bubble lifecycle remain pending. The
+membership. Ballpark now maintains insertion, bubble transitions and activity. The
 [partition guide](destiny/partition/README.md) records that boundary and its
 representation adaptations. Native module `GetBoxCenter(level, x, y, z)` is also
 available from the package root.
@@ -109,7 +109,7 @@ available from the package root.
 
 This is one region with movement, native clock phases, deferred ball cleanup and
 a separate movement-command queue. Balls pass through one another, including
-when `isMassive` is true. Collision response, automatic spatial/bubble updates, visibility,
+when `isMassive` is true. Collision response, visibility,
 mini-shapes, dynamical orientation, warp, missiles, formations, interpolation,
 replication, combat, and drone command policy are not implemented. Unsupported
 mobile movement modes throw before advancing the tick.

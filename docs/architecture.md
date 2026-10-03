@@ -11,7 +11,7 @@ not call schema APIs, hydration or values-export machinery. Decorators record
 Carbon provenance and implementation status; they are not a simulation engine.
 
 The current implementation is a movement ballpark, an independent movement
-action queue, standalone collision geometry and a standalone spatial partition. It has no implicit clock,
+action queue, standalone collision geometry and spatial/bubble lifecycle. It has no implicit clock,
 socket, renderer or provider connection. Importing the package does not start
 services. Controls and authoritative world synchronization are the priority;
 human messaging and external stream-provider I/O remain separate consumers.
@@ -26,8 +26,8 @@ allocation-mode change is introduced. Source functions keep their native owners.
 
 The partition owns keys, sorted membership, cell lifecycle and candidate filters.
 Ball inherits Partitionable and shares native vector/identity storage with its
-existing scalar accessors. Ball and static objects implement membership; automatic
-Ballpark insertion and bubble ownership remain pending. See the [partition guide](../destiny/partition/README.md)
+existing scalar accessors. Ball and static objects implement membership. Ballpark maintains automatic Ball
+insertion, native bubble bookkeeping, subscriptions and activity counts. See the [partition guide](../destiny/partition/README.md)
 for integer, allocation, ordering and reference-output adaptations.
 
 Current implementation boundaries and remaining native families are listed in

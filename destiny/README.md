@@ -46,8 +46,8 @@ membership operations. Each park owns `mPartition`, `mFriction` and cached `dt`;
 the former private `_friction`/`_dt` names have been replaced. AddBall assigns the
 owning park. Replacement, final removal and ClearAll remove existing membership;
 deferred removal retains it until final cleanup. Automatic neighborhood updates,
-bubble ownership and activity counts are still pending, so ordinary movement
-does not yet maintain the partition. See the [partition guide](partition/README.md).
+bubble bookkeeping and activity now follow native insertion/setter/Evolve hooks.
+See the [bubble lifecycle](../docs/destiny-bubbles.md) and [partition guide](partition/README.md).
 
 `CjsDestinyBall.DSTBALLMODE` retains all thirteen source enum members and values.
 Only GOTO, FOLLOW, STOP, and ORBIT are supported movement modes. Both orbit

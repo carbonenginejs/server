@@ -3,7 +3,7 @@
 Status: Evolving
 Scope: Native Partition, Box, ordering and static membership prerequisites
 Audience: Simulation maintainers
-Summary: Spatial indexing and shared Ball membership, with bubble lifecycle still pending.
+Summary: Spatial indexing and shared Ball membership, with automatic Ball lifecycle and native bubble activity.
 
 Import the classes from `@carbonenginejs/server/destiny/partition`. Their
 `CjsDestiny` names identify the temporary port; metadata names each Carbon donor.
@@ -21,8 +21,8 @@ Ball inherits Partitionable and uses native vector/identity storage. Existing
 scalar accessors forward to that storage, so movement and candidates observe the
 same values. Ball implements its native neighborhood insertion method, inflated
 radius, activity mask and reciprocal cleanup. Each controller owns a partition;
-replacement/removal clears memberships. Automatic Ballpark insertion, bubble
-lifecycle and collision consumers remain unfinished. Kernel tests use native-shaped
+replacement/removal clears memberships. Automatic Ballpark insertion and bubble
+activity are implemented; collision consumers and static-shape ownership remain unfinished. Kernel tests use native-shaped
 records; separate integration tests now enumerate actual live Balls.
 
 Native Ball shadows Partitionable's mPark and mHandled members; the JS port
@@ -77,8 +77,8 @@ for the native partition implementation or the complete simulation.
 
 The source quirks retained include zero-grid lower-first key clamping, removal
 on an empty-set miss, edge-clamped neighbor self-aliases, and top-level-only
-traversal reset. Capsule/OrientedBox insertion, automatic Ballpark insertion, actual
-bubble transitions/activity and the native Python integration trajectories are
+traversal reset. Capsule/OrientedBox insertion, collision integration and remaining native Python
+query/replication trajectories are
 still required before calling the spatial simulation complete.
 
 Sixteen additional Ball tests cover shared state, strict tangency, native
@@ -87,4 +87,5 @@ small-cell overlap oracle. The native membership cache compares only the base
 key and boundary modifiers: it can retain eight memberships after a physical
 radius change would otherwise select the 27-cell branch. The port preserves
 that early return, including its skipped activity repair and bubble restoration.
-The full JS suite has 250 passing tests.
+The full JS suite has 266 passing tests. See [bubble lifecycle](../../docs/destiny-bubbles.md)
+for automatic insertion, activity, callback ordering and remaining network obligations.

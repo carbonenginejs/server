@@ -75,7 +75,7 @@ The new tests translate donor `test_actions.py` fixtures and cover stamp/order
 semantics, adjacent tuple deduplication, local position metadata, pending state,
 and queued-versus-direct movement application. The action checkpoint had 38
 passing tests, including the original 17 movement
-metadata/trajectory tests; the current suite has 250 passing tests.
+metadata/trajectory tests; the current suite has 266 passing tests.
 
 ## Validation and remaining work
 
@@ -99,7 +99,7 @@ The geometry subpath implements `AABB`, `Planed`, `Triangle`, and all six
 The 44 tests from `TestAABB.cpp`, `TestPlane.cpp`, `TestTriangle.cpp` and
 `TestCollision.cpp` are transcribed with their native names and expectations.
 Seven additional cases cover aliasing, partial output writes, large coordinates,
-swept spheres and source quirks. There are 250 passing tests in the current suite.
+swept spheres and source quirks. There are 266 passing tests in the current suite.
 See [geometry](destiny-geometry.md) for the exact value/reference adaptations.
 
 `BoxShape.h:7-67` and `BoxShape.cpp:8-306` now supply shared corner/side enums,
@@ -240,7 +240,7 @@ retains source ordering and appends to caller output without a final sort.
 
 Those kernel tests use native-shaped records to isolate partition behavior.
 The Ball integration checkpoint below adds shared state and native membership;
-automatic Ballpark insertion, bubble transitions and collision consumers remain open.
+automatic Ballpark insertion and bubble tracking follow below; collision consumers remain open.
 Runtime remains unchanged; schema machinery is not used in the simulation.
 
 
@@ -256,8 +256,8 @@ per name; no native object-layout contract is promised.
 
 Ballpark.cpp:3349-3350,3446-3449,5564-5567,5903-5907 supplies replacement cleanup,
 park assignment and detachment. These lifecycle portions now operate on real
-Ball memberships. Automatic insertion at AddBall/Evolve, bubble counts and
-transitions remain unfinished. The controller uses native dt/mFriction names;
+Ball memberships. The subsequent bubble checkpoint adds automatic insertion,
+counts and transitions. The controller uses native dt/mFriction names;
 the former private _dt/_friction fields have been removed.
 
 Sixteen source-derived tests cover native default/shared state, cached inflation,
@@ -265,3 +265,15 @@ strict tangency, insertion order, master/replica restoration, huge-radius and
 unchanged-key cache behavior, live candidates and removal. A separate small-cell
 bounding-volume oracle checks membership sets. All 250 JS tests pass, including
 unchanged donor movement trajectories. No native membership executable ran.
+
+
+## Automatic bubble lifecycle
+
+Ballpark now maintains native insertion hooks, master/replica bubble assignment,
+activity/keep-alive sets, add/delete markers and subscriptions. It stages movement
+until the native commit pass and traverses the live free-ball map by signed ID.
+The [bubble guide](destiny-bubbles.md) records exact source ranges, callback
+ordering, retained equal-ID bookkeeping quirks and the current quadratic ordered
+iterator adaptation. Sixteen new tests bring the suite to 266. Native networking
+recipient batches, conflict resolution and collision/proximity consumers remain
+unported; these tests do not establish full server replication or native execution.

@@ -11,6 +11,7 @@ Summary: Current APIs, source correspondence and remaining port work.
 - [Action queue](destiny-actions.md)
 - [Numeric collision geometry](destiny-geometry.md)
 - [Spatial partition](../destiny/partition/README.md)
+- [Bubble lifecycle and activity](destiny-bubbles.md)
 - [Source correspondence and adaptations](destiny-parity.md)
 - [Full port status](port-status.md)
 - [Physics implementation plan](destiny-physics-plan.md)

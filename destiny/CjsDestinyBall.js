@@ -229,6 +229,31 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     mCorporationID = -1;
     mAllianceID = -1;
     mTimeFactor = 1;
+    mInDeadBubble = false;
+
+    /**
+     * Exposes the native read-only Blue current-bubble alias.
+     *
+     * @returns {number} Current bubble ID or -1.
+     */
+    @meta.type.int32
+    @meta.implemented
+    get newBubbleId()
+    {
+        return this.mNewBubble;
+    }
+
+    /**
+     * Exposes the native read-only Blue previous-bubble alias.
+     *
+     * @returns {number} Previous bubble ID or -1.
+     */
+    @meta.type.int32
+    @meta.implemented
+    get oldBubbleId()
+    {
+        return this.mOldBubble;
+    }
     mFollowPtr = null;
     mFollowers = new Set();
     mActiveBoxes = Array(27).fill(false);
