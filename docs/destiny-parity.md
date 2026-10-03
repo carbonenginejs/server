@@ -75,7 +75,7 @@ The new tests translate donor `test_actions.py` fixtures and cover stamp/order
 semantics, adjacent tuple deduplication, local position metadata, pending state,
 and queued-versus-direct movement application. The action checkpoint had 38
 passing tests, including the original 17 movement
-metadata/trajectory tests; the current suite has 270 passing tests.
+metadata/trajectory tests; the current suite has 293 passing tests.
 
 ## Validation and remaining work
 
@@ -99,7 +99,7 @@ The geometry subpath implements `AABB`, `Planed`, `Triangle`, and all six
 The 44 tests from `TestAABB.cpp`, `TestPlane.cpp`, `TestTriangle.cpp` and
 `TestCollision.cpp` are transcribed with their native names and expectations.
 Seven additional cases cover aliasing, partial output writes, large coordinates,
-swept spheres and source quirks. There are 270 passing tests in the current suite.
+swept spheres and source quirks. There are 293 passing tests in the current suite.
 See [geometry](destiny-geometry.md) for the exact value/reference adaptations.
 
 `BoxShape.h:7-67` and `BoxShape.cpp:8-306` now supply shared corner/side enums,
@@ -279,3 +279,20 @@ The live free-ball iterator now uses a sorted key index and binary upper bounds,
 retaining callback mutation behavior without a whole-map scan for every ball. Native networking
 recipient batches, conflict resolution and collision/proximity consumers remain
 unported; these tests do not establish full server replication or native execution.
+
+## Static-shape kernels and fractional integration
+
+Capsule and OrientedBox now implement their complete concrete header methods,
+Blue component aliases and native partition insertion. Ballpark's fractional
+vector Integrate replaces the temporary fixed-tick Ball-only signature; existing
+clock and movement tests still pass. Ball stores the native collision acceleration,
+time and ID list. The [geometry guide](destiny-geometry.md#static-capsule-and-oriented-box)
+records source ranges, f32 boundaries, partial outputs and retained source quirks.
+
+The sampling loop explicitly throws when native float subtraction cannot advance;
+it preserves ordinary diameter sampling and its omitted far-endpoint neighborhood.
+Uninitialized native scalar fields use NaN JS placeholders until Initialize.
+Twenty-three new direct source-derived fixtures bring the suite to 293. Static
+shape ownership, compound mini-shapes, Gradient/Potential, scheduling and both
+complete solver paths are still required; no full collision-trajectory parity
+or native executable validation is claimed by this checkpoint.

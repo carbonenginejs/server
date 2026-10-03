@@ -216,6 +216,9 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     mOldVel = [0, 0, 0];
     mGoto = [0, 0, 0];
     mLastG = [0, 0, 0];
+    mLastC = [0, 0, 0];
+    mLastCollision = -1;
+    mCollisions = [];
     mMass = 0;
     mRadius = 0;
     mMaxVel = 0;

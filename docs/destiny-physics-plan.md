@@ -36,9 +36,10 @@ checkpoints are also implemented; phase completion still needs the remaining
 state, settings consumers and orientation work.
 
 Standalone RectangleShape and BoxShape geometry is now implemented with all 25
-native fixtures plus source-derived ray, overlap and alias cases. This advances
-the shape prerequisites; oriented wrappers, partition integration and collision
-response remain pending.
+native fixtures plus source-derived ray, overlap and alias cases. Static Capsule
+and OrientedBox now implement geometry, membership and direct response methods,
+with the native fractional integrator. Ballpark ownership, mini-shapes and
+collision scheduling remain pending; this does not complete either solver phase.
 
 Partition, Box, Key/KeyHash, all three sorted-set comparers and the
 Partitionable/StaticCollidable membership bases now work independently. Forty

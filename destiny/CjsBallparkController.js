@@ -1063,13 +1063,14 @@ export class CjsBallparkController
             for (const ball of this._iterateFreeBalls())
             {
                 if (ball.isMoribund || ball.mInDeadBubble) continue;
-                this.Integrate(ball);
-                // Native integration stages results in old vectors until the commit pass.
                 for (let q = 0; q < 3; ++q)
                 {
-                    [ball.mNewPos[q], ball.mOldPos[q]] = [ball.mOldPos[q], ball.mNewPos[q]];
-                    [ball.mNewVel[q], ball.mOldVel[q]] = [ball.mOldVel[q], ball.mNewVel[q]];
+                    ball.mOldPos[q] = ball.mNewPos[q];
+                    ball.mOldVel[q] = ball.mNewVel[q];
                 }
+                // Native integration stages results in old vectors until the commit pass.
+                this.Integrate(ball.mOldPos, ball.mOldVel, ball.mLastG,
+                    ball.mMass * ball.mAgility, this.mFriction, ball.mTimeFactor, this.dt);
             }
             // Carbon completes integration for every ball before updating timestamps.
             for (const ball of this._iterateFreeBalls())
@@ -1121,6 +1122,8 @@ export class CjsBallparkController
         ball._lastGx = 0;
         ball._lastGy = 0;
         ball._lastGz = 0;
+        ball.mLastC.fill(0);
+        ball.mCollisions.length = 0;
         switch (ball.mode)
         {
             case Mode.DSTBALL_GOTO:
@@ -1567,45 +1570,38 @@ export class CjsBallparkController
     }
 
     /**
-     * Exact native drag integration at the fixed tick, including its small-k
-     * branch. Adaptation: ball/scalar input and in-place old/new state, no collision
-     * acceleration or fractional interpolation. Force evaluation already finished.
+     * Integrates native linear drag for a full tick or fractional interval.
+     * Adaptation: mutable Number vectors replace Vector3d references, retaining f64
+     * arithmetic and native singular results. The full tick uses the supplied cache.
+     * Source: destiny/src/Ballpark.cpp:751-777.
      *
-     * @param {CjsDestinyBall} ball Ball whose existing state is read or updated.
-     * @returns {void} No return value.
+     * @param {number[]} p Position, updated before velocity as in Carbon.
+     * @param {number[]} v Velocity, updated in place.
+     * @param {number[]} a Applied acceleration.
+     * @param {number} m Mass multiplied by agility.
+     * @param {number} k Friction coefficient.
+     * @param {number} timeFactor Cached full-tick exponential.
+     * @param {number} t Integration duration in seconds.
+     * @returns {void} Zero duration leaves both outputs untouched.
      */
     @meta.blue.method
     @meta.adapted
-    Integrate(ball)
+    Integrate(p, v, a, m, k, timeFactor, t)
     {
-        const m = ball.mass * ball.agility;
-        const k = this.mFriction;
-        const t = this.dt;
-        const factor = ball._timeFactor;
+        if (t === 0) return;
+        if (t !== this.dt) timeFactor = Math.exp(-k / m * t);
         const k2 = k * k;
         const inverseK2 = 1 / k2;
         const inverseK = 1 / k;
-        ball._oldX = ball.x;
-        ball._oldY = ball.y;
-        ball._oldZ = ball.z;
-        ball._oldVx = ball.vx;
-        ball._oldVy = ball.vy;
-        ball._oldVz = ball.vz;
-        if (k < 1e-10 * m * t)
+        for (let q = 0; q < 3; ++q)
         {
-            ball.x = (m * (ball._lastGx * (-k * t) + k * (ball._lastGx * t + ball.vx * k / m * t)) + ball.x * k2) * inverseK2;
-            ball.y = (m * (ball._lastGy * (-k * t) + k * (ball._lastGy * t + ball.vy * k / m * t)) + ball.y * k2) * inverseK2;
-            ball.z = (m * (ball._lastGz * (-k * t) + k * (ball._lastGz * t + ball.vz * k / m * t)) + ball.z * k2) * inverseK2;
+            if (k < 1e-10 * m * t)
+                p[q] = (m * (a[q] * (-k * t) + k * (a[q] * t + v[q] * k * (1 / m) * t)) + p[q] * k2) * inverseK2;
+            else
+                p[q] = (m * (m * a[q] * (timeFactor - 1) + k * (a[q] * t + v[q] - timeFactor * v[q])) + p[q] * k2) * inverseK2;
         }
-        else
-        {
-            ball.x = (m * (m * ball._lastGx * (factor - 1) + k * (ball._lastGx * t + ball.vx - factor * ball.vx)) + ball.x * k2) * inverseK2;
-            ball.y = (m * (m * ball._lastGy * (factor - 1) + k * (ball._lastGy * t + ball.vy - factor * ball.vy)) + ball.y * k2) * inverseK2;
-            ball.z = (m * (m * ball._lastGz * (factor - 1) + k * (ball._lastGz * t + ball.vz - factor * ball.vz)) + ball.z * k2) * inverseK2;
-        }
-        ball.vx = (m * ball._lastGx - (m * ball._lastGx - ball.vx * k) * factor) * inverseK;
-        ball.vy = (m * ball._lastGy - (m * ball._lastGy - ball.vy * k) * factor) * inverseK;
-        ball.vz = (m * ball._lastGz - (m * ball._lastGz - ball.vz * k) * factor) * inverseK;
+        for (let q = 0; q < 3; ++q)
+            v[q] = (m * a[q] - (m * a[q] - v[q] * k) * timeFactor) * inverseK;
     }
 
     /**

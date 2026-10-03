@@ -82,7 +82,7 @@ Sixteen bubble tests include both native initialization fixtures, the native
 two-region distribution, activity changes, delta acknowledgment, callbacks,
 reentrant registration and staged movement. Four additional ordered-iteration
 tests cover wide signed IDs, live changes and lifecycle cleanup. The complete
-suite has 270 tests.
+suite has 293 tests, including the subsequent static-shape kernel fixtures.
 These are donor/source-derived JS checks, not native-executable bubble evidence.
 
 Conflict resolution, proximity notifications, static-shape Ballpark ownership,

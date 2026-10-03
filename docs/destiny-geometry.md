@@ -45,8 +45,9 @@ the displacement over its tested interval, as in the source.
 
 The matching five native test files provide 69 copied fixtures. Additional
 independent/source-derived cases cover precision, aliases, partial writes and
-quadratic/swept-sphere behavior. No native binary was executed. Capsules,
-oriented shape wrappers, partitioning and ballpark collision response remain unported.
+quadratic/swept-sphere behavior. No native binary was executed. Static shape
+wrappers and their direct response methods are described below; Ballpark collision
+scheduling and compound mini-shapes remain unported.
 
 ## Box and rectangle composition
 
@@ -72,3 +73,67 @@ from the entry axis, although its exit distance comes from the exit axis;
 `BoxShape.cpp:166-170` omits parallel-outside-slab rejection. Zero direction thus
 reports an interval from negative to positive `Number.MAX_VALUE`. These behaviors
 have source-derived regression fixtures alongside the 25 native BoxShape tests.
+
+## Static capsule and oriented box
+
+The geometry export now includes `CjsDestinyCapsule` and `CjsDestinyOrientedBox`.
+Both extend the existing `StaticCollidable` port. Their native declarations and
+implementations are `Capsule.h:12-33`, `Capsule.cpp:11-581`,
+`OrientedBox.h:11-39` and `OrientedBox.cpp:6-322`, at baseline `114e89f`.
+
+`Initialize` retains the donor scalar argument order. IDs use exact BigInts;
+endpoint/corner/edge vectors retain double precision. Radius casts and capsule
+remaining-length arithmetic explicitly round to float32. The primitive radius
+fields have NaN placeholders before initialization because the donor leaves them
+uninitialized; construct and initialize before using a shape. `GetCenter(out)`
+replaces native value return with caller-owned output storage.
+
+`CheckCollision(p0, p1, radius, out)` uses
+`{ normal: [0, 0, 0], timeOfImpact: -1 }`. Capsule misses preserve both outputs.
+Box AABB rejection also preserves them, but failed narrow-phase attempts can write
+partial results. Successful box normals are normalized; direct `CollideWithBall`
+instead retains BoxShape's penetration-depth vector for response. Degenerate
+capsule queries use a sphere fallback and +Z for a tiny normal; nondegenerate
+axis overlap retains the native zero normal.
+
+Blue aliases follow `Capsule_Blue.cpp:8-28` and `OrientedBox_Blue.cpp:11-29`.
+Capsule endpoint writes update only the components, leaving cached axis/center
+and spatial membership unchanged. Its radius and ID aliases likewise do not
+rebuild derived state. The box exposes only `id`, `park`, `corner_x` and the
+inherited `isMoribund` from that Blue surface.
+
+`InsertInBoxes` implements each shape's native strategy. Boxes choose a base
+using half the AABB's longest width, cache three overlap modifiers, and use the
+cached bounding diameter for the huge-object 27-cell branch. Capsules sample
+diameter-spaced spheres along the axis. Their same-key check precedes the
+nonpositive-radius check; both can retain old membership. Native sampling does
+not force a final endpoint neighborhood: an unvisited far cap can overlap a cell
+missing from the membership set. This source quirk is retained and tested.
+
+One deliberate exception to capsule sampling: if subtracting the diameter cannot
+decrease the float32 remaining length, JS throws rather than entering the native
+infinite loop (`Capsule.cpp:578-579`). This occurs at extreme length/radius ratios.
+It is not an iteration budget or a silent geometric approximation.
+
+Both `CollideWithBall` and `ReactToCollision` are implemented for direct use with
+native-shaped Ball state and a park reference. They preserve distinct box/capsule
+overlap distances, speculative starting states, and the capsule-only outward
+acceleration rejection. Equal-time responses select the stronger acceleration;
+different-time responses overwrite it. Every accepted response appends its ID.
+Capsule's legacy path still uses endpoint velocity for its cylinder quadratic,
+including its zero-axis singular behavior; the iterative query has a separate
+degenerate-axis branch. No solver correction is implied by this port.
+
+Ball now carries `mLastC`, `mLastCollision` and `mCollisions` from
+`Ball.h:138,163,185`; behavior evaluation clears acceleration/IDs. Native
+`Ballpark.Integrate(p, v, a, m, k, timeFactor, t)` replaces the temporary one-Ball
+method. It updates mutable vectors, skips zero duration, uses the supplied cache
+for a full tick and recomputes it for fractional durations (`Ballpark.cpp:751-777`).
+Small-friction arithmetic and zero-friction singularities remain native-shaped.
+
+Twenty-three additional source-derived tests cover geometry, aliases, response,
+fractional integration and actual partition memberships. The complete suite has
+293 passing tests. These are direct class/algorithm tests, not the donor's full
+Python collision trajectories: Ballpark static ownership, Gradient/Potential,
+collision scheduling, notification dispatch, compound mini-shapes and the
+iterative solver remain required before tick-driven collisions work.
