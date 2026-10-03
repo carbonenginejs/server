@@ -3,6 +3,12 @@ import { CjsDestinyPartitionable } from "./partition/CjsDestinyPartitionable.js"
 import { CjsDestinyBox } from "./partition/CjsDestinyBox.js";
 import { CjsDestinyBoxSortComparer } from "./partition/SortedSets/CjsDestinyBoxSortComparer.js";
 
+import { vec3 } from "@carbonenginejs/runtime/math/vec3";
+import { quat } from "@carbonenginejs/runtime/math/quat";
+import { mat4 } from "@carbonenginejs/runtime/math/mat4";
+import { g_useDynamicalOrientation } from "./Settings/CjsDestinyGlobalSettings.js";
+
+const f32 = Math.fround;
 const boxComparer = new CjsDestinyBoxSortComparer();
 
 // Source: blueexposure/include/BlueTypes.h
@@ -22,6 +28,22 @@ const boxComparer = new CjsDestinyBoxSortComparer();
 @meta.define({ className: "CjsDestinyBall", modelledOn: "Ball" })
 export class CjsDestinyBall extends CjsDestinyPartitionable
 {
+    mMaxAngVel = 1;
+
+    mRoll = 0;
+
+    mRotAgility = f32(0.9);
+
+    mNewRot = quat.create();
+
+    mOldRot = quat.create();
+
+    mNewAngVel = vec3.create();
+
+    mOldAngVel = vec3.create();
+
+    mTorque = vec3.create();
+
     mNewYaw = 0;
     mOldYaw = 0;
     mNewPitch = 0;
@@ -31,6 +53,71 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     mNewRollSpeed = 0;
     mOldRollSpeed = 0;
     mYawDelta = 0;
+
+    /**
+     * Snaps physical orientation to velocity and stops angular motion.
+     * Adaptation: factory-owned float32 state and class scratch replace native
+     * values; gl quaternion products reverse Carbon operands. Runtime matrix
+     * arithmetic uses JS double intermediates with float32 stored results.
+     * Source: destiny/src/Ball.cpp:290-333. The boolean fabs condition and
+     * degenerate opposite-heading quaternion are deliberately preserved.
+     * @returns {void} Updates both rotation samples unless velocity is too small.
+     */
+    @meta.adapted
+    SnapOrientation()
+    {
+        if (!(vec3.squaredLength(this.mNewVel) > 1e-12)) return;
+        const { vec3_0, vec3_1, quat_0, quat_1, mat4_0 } = CjsDestinyBall.scratch;
+        vec3.copy(vec3_0, this.mNewVel);
+        const length = f32(Math.sqrt(f32(f32(f32(vec3_0[0] * vec3_0[0]) + f32(vec3_0[1] * vec3_0[1])) + f32(vec3_0[2] * vec3_0[2]))));
+        if (length < 1e-12) quat.identity(quat_0);
+        else
+        {
+            const cosine = f32(vec3_0[2] / length);
+            // Native std::min/max select their first operand for unordered NaN.
+            const capped = cosine < 1 ? cosine : 1;
+            const angle = f32(Math.acos(-1 < capped ? capped : -1));
+            // Keep the cross products: 0 * Infinity produces native NaNs when
+            // a finite double velocity overflows during conversion to float.
+            vec3.set(vec3_1, 0, 0, 1);
+            vec3.cross(vec3_1, vec3_1, vec3_0);
+            CjsDestinyBall._rotationQuaternion(quat_0, vec3_1[0], vec3_1[1], vec3_1[2], angle);
+            quat.conjugate(quat_1, quat_0);
+            mat4.fromQuat(mat4_0, quat_1);
+            vec3.set(vec3_0, 0, 1, 0);
+            CjsDestinyBall._transformCoord(vec3_0, vec3_0, mat4_0);
+            const roll = vec3_0[2] < f32(0.99) ? f32(Math.atan2(-vec3_0[0], vec3_0[1])) : 0;
+            mat4.fromQuat(mat4_0, quat_0);
+            vec3.set(vec3_1, 0, 0, 1);
+            CjsDestinyBall._transformCoord(vec3_1, vec3_1, mat4_0);
+            CjsDestinyBall._rotationQuaternion(quat_1, vec3_1[0], vec3_1[1], vec3_1[2], roll);
+            // Carbon newRot *= rollQuaternion: heading first, roll second.
+            quat.multiply(quat_0, quat_1, quat_0);
+        }
+        quat.copy(this.mNewRot, quat_0);
+        quat.copy(this.mOldRot, quat_0);
+        vec3.zero(this.mNewAngVel);
+        vec3.zero(this.mOldAngVel);
+    }
+
+    /**
+     * Rotates a direction by physical or legacy orientation, without normalization.
+     * Adaptation: caller-owned float32 vector replaces the native reference and
+     * matrix scratch preserves native behavior for nonunit and zero quaternions.
+     * Source: destiny/src/Ball.cpp:2191-2203.
+     * @param {Float32Array} value In/out direction in the ball's frame.
+     * @returns {void} Writes the direction in the world frame.
+     */
+    @meta.adapted
+    GetRotatedVector(value)
+    {
+        const { quat_0, mat4_0, vec3_0 } = CjsDestinyBall.scratch;
+        if (g_useDynamicalOrientation) quat.copy(quat_0, this.mNewRot);
+        else quat.fromYawPitchRoll(quat_0, f32(this.mNewYaw), f32(this.mNewPitch), f32(this.mNewRoll));
+        mat4.fromQuat(mat4_0, quat_0);
+        CjsDestinyBall._transformCoord(vec3_0, value, mat4_0);
+        vec3.copy(value, vec3_0);
+    }
 
     /**
      * Evolves Carbon's velocity-directed, mass-damped legacy orientation.
@@ -1134,6 +1221,60 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
             return Math.abs(b - a) < Math.abs(b - tau - a) ? b : b - tau;
         return Math.abs(b + tau - a) < Math.abs(b - tau - a) ? b + tau : b - tau;
     }
+
+    /**
+     * Retains native homogeneous division for orientation direction transforms.
+     * Runtime transformMat4 changes zero/NaN divisors to one. This scalar adapter
+     * preserves Carbon's zero result for zero divisors and propagation of NaNs,
+     * including float32 intermediate sums; output is written after every input read.
+     * Source: math/include/Matrix_inline.h:560-578.
+     * @param {Float32Array} out Caller-owned result, possibly aliasing value.
+     * @param {Float32Array} value Direction or coordinate to transform.
+     * @param {Float32Array} matrix Native-layout matrix.
+     * @returns {Float32Array} The supplied output.
+     */
+    @meta.adapted
+    static _transformCoord(out, value, matrix)
+    {
+        const x = value[0], y = value[1], z = value[2];
+        const norm = f32(f32(f32(f32(matrix[3] * x) + f32(matrix[7] * y)) + f32(matrix[11] * z)) + matrix[15]);
+        if (norm === 0) return vec3.zero(out);
+        const ox = f32(f32(f32(f32(x * matrix[0]) + f32(y * matrix[4])) + f32(z * matrix[8])) + matrix[12]);
+        const oy = f32(f32(f32(f32(x * matrix[1]) + f32(y * matrix[5])) + f32(z * matrix[9])) + matrix[13]);
+        const oz = f32(f32(f32(f32(x * matrix[2]) + f32(y * matrix[6])) + f32(z * matrix[10])) + matrix[14]);
+        return vec3.set(out, ox / norm, oy / norm, oz / norm);
+    }
+
+    /**
+     * Adapts native axis normalization and axis-angle construction.
+     * Runtime setAxisAngle requires a normalized axis; these scalar steps preserve
+     * Carbon's largest-component scaling, zero-axis result and float32 boundaries.
+     * Source: math/include/Vector3_inline.h:181-192; math/include/Quaternion_inline.h:232-242.
+     * @param {Float32Array} out Caller-owned quaternion, possibly aliased with input.
+     * @param {number} x Axis X component.
+     * @param {number} y Axis Y component.
+     * @param {number} z Axis Z component.
+     * @param {number} angle Native float32 angle in radians.
+     * @returns {Float32Array} The supplied output, written after reading inputs.
+     */
+    @meta.adapted
+    static _rotationQuaternion(out, x, y, z, angle)
+    {
+        const largest = Math.max(Math.abs(x), Math.abs(y), Math.abs(z));
+        const inverse = f32(1 / (largest || 1));
+        x = f32(x * inverse); y = f32(y * inverse); z = f32(z * inverse);
+        let length = f32(Math.sqrt(f32(f32(f32(x * x) + f32(y * y)) + f32(z * z))));
+        if (length !== 0) length = f32(1 / length);
+        x = f32(x * length); y = f32(y * length); z = f32(z * length);
+        const half = f32(angle / 2), sine = f32(Math.sin(half));
+        return quat.set(out, f32(sine * x), f32(sine * y), f32(sine * z), f32(Math.cos(half)));
+    }
+
+    static scratch = {
+        vec3_0: vec3.create(), vec3_1: vec3.create(),
+        quat_0: quat.create(), quat_1: quat.create(), mat4_0: mat4.create()
+    };
+
     static DSTBALLMODE = Object.freeze({
         DSTBALL_GOTO: 0,
         DSTBALL_FOLLOW: 1,

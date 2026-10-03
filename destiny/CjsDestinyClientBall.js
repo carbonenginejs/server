@@ -702,31 +702,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
     }
 
     /**
-     * Adapts native axis normalization and axis-angle construction for impact math.
-     * Runtime setAxisAngle requires a normalized axis; these scalar steps preserve
-     * Carbon's largest-component scaling, zero-axis result and float32 boundaries.
-     * Source: math/include/Vector3_inline.h:181-192; math/include/Quaternion_inline.h:232-242.
-     * @param {Float32Array} out Caller-owned quaternion, possibly aliased with input.
-     * @param {number} x Axis X component.
-     * @param {number} y Axis Y component.
-     * @param {number} z Axis Z component.
-     * @param {number} angle Native float32 angle in radians.
-     * @returns {Float32Array} The supplied output, written after reading inputs.
-     */
-    @meta.adapted
-    static _rotationQuaternion(out, x, y, z, angle)
-    {
-        const largest = Math.max(Math.abs(x), Math.abs(y), Math.abs(z));
-        const inverse = f32(1 / (largest || 1));
-        x = f32(x * inverse); y = f32(y * inverse); z = f32(z * inverse);
-        let length = f32(Math.sqrt(f32(f32(f32(x * x) + f32(y * y)) + f32(z * z))));
-        if (length !== 0) length = f32(1 / length);
-        x = f32(x * length); y = f32(y * length); z = f32(z * length);
-        const half = f32(angle / 2), sine = f32(Math.sin(half));
-        return quat.set(out, f32(sine * x), f32(sine * y), f32(sine * z), f32(Math.cos(half)));
-    }
-
-    /**
      * Preserves native unguarded quaternion normalization for the impact accumulator.
      * Runtime normalize guards zero; Carbon's reciprocal length instead yields NaNs.
      * Source: math/include/Quaternion_inline.h:165-181.

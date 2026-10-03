@@ -7,11 +7,14 @@ import { CjsDestinyCapsule } from "./geometry/CjsDestinyCapsule.js";
 import { CjsDestinyOrientedBox } from "./geometry/CjsDestinyOrientedBox.js";
 import { CollideTwoSpheres } from "./geometry/Collision.js";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
+import { quat } from "@carbonenginejs/runtime/math/quat";
+import { mat4 } from "@carbonenginejs/runtime/math/mat4";
 import { vec3d } from "./math/vec3d.js";
 
 import { g_useIterativeCollision, g_useDynamicalOrientation, g_useNewOrbit,
     g_disableDynamicalOrientationForMissiles } from "./Settings/CjsDestinyGlobalSettings.js";
 
+const f32 = Math.fround;
 const Mode = CjsDestinyBall.DSTBALLMODE;
 const AU = 0.1495978707e12;
 const ORBITAL_PRECESSION = 0.001;
@@ -929,6 +932,101 @@ export class CjsBallparkController
         vec3.subtract(this.mLastDelta, this.mLastReference, this.mLastDelta);
         this.mLastReferenceTime = time;
         return vec3.copy(out, this.mLastReference);
+    }
+
+    /**
+     * Analytically integrates native heading torque and roll with angular drag.
+     * Adaptation: float32 scratch replaces native stack vectors and quaternions;
+     * runtime arithmetic uses JS double intermediates with float32 stored results.
+     * Carbon quaternion products reverse gl operands. Outputs are written last,
+     * after all scratch reads, and console supplies the native NaN log channel.
+     * Source: destiny/src/Ballpark.cpp:1936-1983.
+     * @param {Float32Array} rotation In/out physical orientation.
+     * @param {Float32Array} angvel In/out world angular velocity.
+     * @param {Float32Array} torque Heading torque, permitted to alias angvel.
+     * @param {number} roll Roll torque scalar.
+     * @param {number} tau Angular drag time constant.
+     * @param {number} timeStepFraction Fraction of this park's tick to integrate.
+     * @returns {void} Updates rotation and angular velocity without allocating.
+     */
+    @meta.adapted
+    ApplyTorque(rotation, angvel, torque, roll, tau, timeStepFraction)
+    {
+        const { vec3_0, vec3_1, vec3_2, vec3_3, vec3_4, quat_0, quat_1, quat_2, mat4_0 } = CjsBallparkController.scratch;
+        const wx = angvel[0], wy = angvel[1], wz = angvel[2];
+        const tx = torque[0], ty = torque[1], tz = torque[2];
+        roll = f32(roll); tau = f32(tau); timeStepFraction = f32(timeStepFraction);
+        const interval = f32(f32(this.dt) * timeStepFraction);
+        const timeFactor = f32(Math.exp(f32(-interval / tau)));
+        const decay = f32(1 - timeFactor);
+        quat.copy(quat_0, rotation);
+        mat4.fromQuat(mat4_0, quat_0);
+        vec3.set(vec3_0, 0, 0, 1);
+        CjsDestinyBall._transformCoord(vec3_0, vec3_0, mat4_0);
+        const omegaRoll = f32(f32(f32(wx * vec3_0[0]) + f32(wy * vec3_0[1])) + f32(wz * vec3_0[2]));
+        vec3.scale(vec3_1, vec3_0, omegaRoll);
+        vec3.set(vec3_1, wx - vec3_1[0], wy - vec3_1[1], wz - vec3_1[2]);
+        const integrated = f32(interval - f32(tau * decay));
+        const rotRoll = f32(tau * f32(f32(roll * integrated) + f32(omegaRoll * decay)));
+        for (let i = 0; i < 3; ++i)
+            vec3_2[i] = f32(tau * f32(f32((i === 0 ? tx : i === 1 ? ty : tz) * integrated) + f32(vec3_1[i] * decay)));
+        const angleHeading = f32(Math.sqrt(f32(f32(f32(vec3_2[0] * vec3_2[0]) + f32(vec3_2[1] * vec3_2[1])) + f32(vec3_2[2] * vec3_2[2]))));
+        const applyHeading = angleHeading > 1e-10;
+        if (applyHeading)
+        {
+            CjsDestinyBall._rotationQuaternion(quat_1, vec3_2[0], vec3_2[1], vec3_2[2], angleHeading);
+            mat4.fromQuat(mat4_0, quat_1);
+            CjsDestinyBall._transformCoord(vec3_3, vec3_0, mat4_0);
+        }
+        else
+        {
+            quat.identity(quat_1);
+            vec3.copy(vec3_3, vec3_0);
+        }
+        const torqueFactor = f32(tau * decay);
+        const tauRoll = f32(tau * roll);
+        const rollFactor = f32(tauRoll - f32(f32(tauRoll - omegaRoll) * timeFactor));
+        for (let i = 0; i < 3; ++i)
+            vec3_4[i] = f32(f32(f32((i === 0 ? tx : i === 1 ? ty : tz) * torqueFactor) + f32(vec3_1[i] * timeFactor)) + f32(vec3_3[i] * rollFactor));
+        // Carbon rotation *= quatHeading, then *= quatRoll: heading then roll.
+        if (applyHeading) quat.multiply(quat_0, quat_1, quat_0);
+        CjsDestinyBall._rotationQuaternion(quat_2, vec3_3[0], vec3_3[1], vec3_3[2], rotRoll);
+        quat.multiply(quat_0, quat_2, quat_0);
+        const norm = f32(Math.sqrt(f32(f32(f32(f32(quat_0[0] * quat_0[0]) + f32(quat_0[1] * quat_0[1])) + f32(quat_0[2] * quat_0[2])) + f32(quat_0[3] * quat_0[3]))));
+        if (norm > 0) quat.scale(quat_0, quat_0, f32(1 / norm));
+        // Snapshot both results so caller output may itself be a scratch slot.
+        const x = vec3_4[0], y = vec3_4[1], z = vec3_4[2];
+        const qx = quat_0[0], qy = quat_0[1], qz = quat_0[2], qw = quat_0[3];
+        vec3.set(angvel, x, y, z);
+        quat.set(rotation, qx, qy, qz, qw);
+        if (Number.isNaN(norm)) console.error("NaNs in rotation");
+    }
+
+    /**
+     * Samples angular drag or the native recorded collision rotation path.
+     * Adaptation: caller-owned math outputs replace reference parameters; console
+     * reports null balls. Collision record production remains unported, but records
+     * dispatch directly to CalculateRotation rather than interpolating endpoints.
+     * Source: destiny/src/Ballpark.cpp:2685-2712.
+     * @param {CjsDestinyBall|null} ball Source physical parameters.
+     * @param {number} timeStepFraction Fraction of the simulation tick.
+     * @param {Float32Array} rotation In/out orientation.
+     * @param {Float32Array} omega In/out angular velocity.
+     * @returns {void} Mutates outputs unless ball is null or fraction is zero.
+     */
+    @meta.adapted
+    CalculateBallRotationVelocity(ball, timeStepFraction, rotation, omega)
+    {
+        if (!ball)
+        {
+            console.error("Null pointer for ball in CalculateBallRotationVelocity");
+            return;
+        }
+        if (timeStepFraction === 0) return;
+        const tau = f32(f32(f32(f32(ball.mMass) * ball.mAgility) * ball.mRotAgility) / f32(this.mFriction));
+        const collision = this.mCollisionLocations.get(ball.mId);
+        if (collision) collision.CalculateRotation(rotation, omega, timeStepFraction);
+        else this.ApplyTorque(rotation, omega, ball.mTorque, ball.mRoll, tau, f32(timeStepFraction));
     }
 
     /**
@@ -2266,9 +2364,8 @@ export class CjsBallparkController
     }
 
     /**
-     * Adaptation: scalar old/new velocities and finite input guard; selecting native
-     * dynamical SnapOrientation throws before velocity mutation until it is ported.
-     * Legacy heading output remains unported.
+     * Adaptation: scalar old/new velocities and the existing finite input guard.
+     * Native settings select SnapOrientation or the legacy yaw/pitch/roll path.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} x Velocity component in meters per second.
@@ -2282,11 +2379,99 @@ export class CjsBallparkController
     {
         const ball = this.GetBall(id);
         if (!ball || ![x, y, z].every(Number.isFinite)) return;
-        if (g_useDynamicalOrientation) throw new Error("Dynamical SnapOrientation is not implemented");
         ball.vx = ball._oldVx = x;
         ball.vy = ball._oldVy = y;
         ball.vz = ball._oldVz = z;
-        ball.CalculateYawPitchRoll(true);
+        if (g_useDynamicalOrientation) ball.SnapOrientation();
+        else ball.CalculateYawPitchRoll(true);
+    }
+
+    /**
+     * Assigns both angular velocity samples to suppress interpolation discontinuity.
+     * Adaptation: factory-owned outputs narrow doubles to native float32 values;
+     * the existing GetBall lookup does not insert a missing null map entry.
+     * Source: destiny/src/Ballpark.cpp:4802-4817.
+     * @param {bigint|number} id Ball identity.
+     * @param {number} wx Angular velocity X in radians per second.
+     * @param {number} wy Angular velocity Y in radians per second.
+     * @param {number} wz Angular velocity Z in radians per second.
+     * @returns {void} Missing balls are ignored.
+     */
+    @meta.blue.method
+    @meta.adapted
+    SetBallAngularVelocity(id, wx, wy, wz)
+    {
+        const ball = this.GetBall(id);
+        if (!ball) return;
+        vec3.set(ball.mNewAngVel, wx, wy, wz);
+        vec3.copy(ball.mOldAngVel, ball.mNewAngVel);
+    }
+
+    /**
+     * Normalizes a supplied rotation and clears old/new angular motion.
+     * Adaptation: float32 scratch replaces the temporary native quaternion; the
+     * existing GetBall lookup does not insert a missing null map entry.
+     * Source: destiny/src/Ballpark.cpp:4819-4846.
+     * @param {bigint|number} id Ball identity.
+     * @param {number} rx Quaternion X.
+     * @param {number} ry Quaternion Y.
+     * @param {number} rz Quaternion Z.
+     * @param {number} rw Quaternion W.
+     * @returns {void} Norms at or below 1e-20 and unordered NaN are ignored.
+     */
+    @meta.blue.method
+    @meta.adapted
+    SetBallRotation(id, rx, ry, rz, rw)
+    {
+        const ball = this.GetBall(id);
+        if (!ball) return;
+        const { quat_0 } = CjsBallparkController.scratch;
+        quat.set(quat_0, rx, ry, rz, rw);
+        const length = f32(Math.sqrt(f32(f32(f32(f32(quat_0[0] * quat_0[0]) + f32(quat_0[1] * quat_0[1])) + f32(quat_0[2] * quat_0[2])) + f32(quat_0[3] * quat_0[3]))));
+        if (!(length > 1e-20)) return;
+        quat.scale(quat_0, quat_0, f32(1 / length));
+        quat.copy(ball.mNewRot, quat_0);
+        quat.copy(ball.mOldRot, quat_0);
+        vec3.zero(ball.mNewAngVel);
+        vec3.zero(ball.mOldAngVel);
+    }
+
+    /**
+     * Sets the physical angular speed limit independently of visual impact speed.
+     * Adaptation: rounds the native float argument; GetBall does not insert a
+     * missing null entry. Native NaN acceptance is retained.
+     * Source: destiny/src/Ballpark.cpp:4721-4732.
+     * @param {bigint|number} id Ball identity.
+     * @param {number} maxAngVel Maximum angular speed in radians per second.
+     * @returns {void} Negative limits and missing balls are ignored.
+     */
+    @meta.blue.method
+    @meta.adapted
+    SetMaxAngularSpeed(id, maxAngVel)
+    {
+        maxAngVel = f32(maxAngVel);
+        if (maxAngVel < 0) return;
+        const ball = this.GetBall(id);
+        if (ball) ball.mMaxAngVel = maxAngVel;
+    }
+
+    /**
+     * Sets rotational agility without changing translational drag caches.
+     * Adaptation: rounds the native float argument; GetBall does not insert a
+     * missing null entry. Native NaN acceptance is retained.
+     * Source: destiny/src/Ballpark.cpp:4958-4966.
+     * @param {bigint|number} id Ball identity.
+     * @param {number} rotAgility Rotational agility modifier.
+     * @returns {void} Nonpositive values and missing balls are ignored.
+     */
+    @meta.blue.method
+    @meta.adapted
+    SetBallAngularAgility(id, rotAgility)
+    {
+        const ball = this.GetBall(id);
+        rotAgility = f32(rotAgility);
+        if (!ball || rotAgility <= 0) return;
+        ball.mRotAgility = rotAgility;
     }
 
     /**
@@ -2395,8 +2580,6 @@ export class CjsBallparkController
     /**
      * Adaptation: updates the ordered free-ball collection and spatial membership without mini-shapes;
      * checked BigInt timestamp subtraction rejects signed overflow before changing the flag.
-     * Disabling a ball with dynamical orientation throws before mutation because the
-     * required SetBallVelocity/SnapOrientation path is unported.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {boolean} isFree Whether the ball can move.
@@ -2408,7 +2591,6 @@ export class CjsBallparkController
     {
         const ball = this.GetBall(id);
         if (!ball || ball.isFree === Boolean(isFree)) return;
-        if (!isFree && g_useDynamicalOrientation) throw new Error("Dynamical SnapOrientation is not implemented");
         const newTime = isFree ? CjsDestinyBall._toInt64(this.time - CjsBallparkController._tickTime(this.tickInterval)) : ball.mNewTime;
         ball.isFree = Boolean(isFree);
         if (ball.isFree)
@@ -2470,7 +2652,10 @@ export class CjsBallparkController
 
     static scratch = {
         orbitalNormal: { orbitalVector: vec3d.create(), toVector: vec3d.create(), dist: 0 },
-        gradientBalls: [], gradientStatics: [], vec3d_0: vec3d.create()
+        gradientBalls: [], gradientStatics: [], vec3d_0: vec3d.create(),
+        vec3_0: vec3.create(), vec3_1: vec3.create(), vec3_2: vec3.create(),
+        vec3_3: vec3.create(), vec3_4: vec3.create(),
+        quat_0: quat.create(), quat_1: quat.create(), quat_2: quat.create(), mat4_0: mat4.create()
     };
 }
 

@@ -78,7 +78,7 @@ The new tests translate donor `test_actions.py` fixtures and cover stamp/order
 semantics, adjacent tuple deduplication, local position metadata, pending state,
 and queued-versus-direct movement application. The action checkpoint had 38
 passing tests, including the original 17 movement
-metadata/trajectory tests; the current suite has 321 passing tests.
+metadata/trajectory tests; the ownership/legacy collision checkpoint had 321 passing tests.
 
 ## Validation and remaining work
 
@@ -296,7 +296,7 @@ The sampling loop explicitly throws when native float subtraction cannot advance
 it preserves ordinary diameter sampling and its omitted far-endpoint neighborhood.
 Uninitialized native scalar fields use NaN JS placeholders until Initialize.
 Twenty-three direct source-derived fixtures brought the suite to 293. The
-subsequent ownership/legacy checkpoint adds 28 tests for a current total of 321.
+subsequent ownership/legacy checkpoint added 28 tests for a total of 321 at that point.
 See the [geometry guide](destiny-geometry.md#ballpark-ownership-and-legacy-collisions)
 for ownership, Gradient/Potential, scheduling and the 13 donor trajectories.
 Compound Mini attachment, warp and iterative propagation remain open. No native
@@ -322,3 +322,42 @@ math. Runtime quaternion products reverse Carbon operands and still use JavaScri
 double intermediates with float32 results. Ordered comparisons preserve native
 std::min/max selection for NaN deterioration. Extra curve helpers, distance getters
 and partition debugging retain their native cache and detached-call asymmetries.
+
+
+## Physical orientation kernels
+
+Ball now owns the native float32 quaternion, angular velocity, torque, roll,
+maximum angular speed and rotational agility state (`Ball.h:129-166`,
+`Ball.cpp:74-83`). These fields remain independent of ClientBall's visual impact
+parameters. `SnapOrientation` and `GetRotatedVector` follow `Ball.cpp:290-333`
+and `2191-2203`, including zero-velocity early return, unnormalized quaternion
+transforms, the native boolean roll condition and degenerate reverse heading.
+`SetBallVelocity` selects the native dynamic or legacy snap; setting zero velocity
+while making a ball static does not clear angular velocity.
+
+`ApplyTorque` implements the heading/roll drag integrator at
+`Ballpark.cpp:1936-1983`. `CalculateBallRotationVelocity` follows
+`Ballpark.cpp:2685-2712`, including fraction-zero bypass, single-integrator fallback
+and direct collision-record dispatch. Record production is still incomplete.
+`SetMaxAngularSpeed`, `SetBallAngularVelocity`, `SetBallRotation` and
+`SetBallAngularAgility` retain the guards and float casts at
+`Ballpark.cpp:4721-4732,4802-4846,4958-4966`. Their missing-ID lookup uses the
+existing non-inserting JS GetBall convention. Native acceptance of nonfinite
+values is retained where its ordered comparisons allow them.
+
+All fixed-size math storage comes from runtime factories; temporary storage is
+class scratch. The native axis-angle adapter lives on Ball and is inherited by
+ClientBall. Quaternion composition reverses Carbon operands. Runtime operations
+use JS double intermediates with float32 result storage, so this is not a promise
+of bitwise C++ float equivalence. Explicit float rounding retains branch thresholds
+and squared-length overflow where it changes behavior. A scalar TransformCoord
+adapter retains Carbon's zero and NaN homogeneous-divisor behavior, which differs
+from runtime transformMat4. Snap retains actual cross products so finite double
+velocities overflowing float32 propagate native NaNs.
+
+Tests independently solve angular decay and constant torque, compose a rotated
+heading plus roll, and cover zero-fraction dispatch, nonunit/zero quaternions,
+setter thresholds, native reverse/downward-heading quirks and aliased scratch.
+The kernels remain prerequisites: GotoTorque/GotoRoll variants, their behavior and
+tick integration, dynamic client interpolation and iterative collision production
+are still unfinished. Full dynamical evolution continues to throw explicitly.

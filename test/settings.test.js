@@ -167,8 +167,6 @@ test("unported selected algorithms fail before ordinary simulation state mutatio
     settings.Apply(config);
     assert.throws(() => park.Evolve(), /Dynamical orientation/);
     assert.throws(() => park.EvolveBehaviorForBall(ball), /thrust and torque/);
-    assert.throws(() => park.SetBallVelocity(1, 1, 2, 3), /SnapOrientation/);
-    assert.throws(() => park.SetBallFree(1, false), /SnapOrientation/);
     assert.deepEqual([park.currentTime, ball.y, ball.vy, ball.isFree], [0, 0, 1, true]);
     park.EvolveStop(ball); // Native stop damping is disabled, even outside full evolution.
     assert.equal(ball.vy, 1);
