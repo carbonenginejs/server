@@ -1,6 +1,7 @@
 import { meta } from "@carbonenginejs/runtime/schema";
 import { IBlueEvents } from "@carbonenginejs/runtime/blue";
 import { CjsDestinyBall } from "./CjsDestinyBall.js";
+import { CjsDestinyPartition } from "./partition/Partition/CjsDestinyPartition.js";
 
 import { g_useIterativeCollision, g_useDynamicalOrientation, g_useNewOrbit,
     g_disableDynamicalOrientationForMissiles } from "./Settings/CjsDestinyGlobalSettings.js";
@@ -155,7 +156,7 @@ export class CjsBallparkController
         this.BringOutTheDeads();
         const interval = CjsBallparkController._tickTime(this.tickInterval);
         if (lastDelta < interval) return;
-        this._dt = this.tickInterval * 0.001;
+        this.dt = this.tickInterval * 0.001;
         // Native integer division: 5.9 intervals is still five, not a backlog reset.
         if (this.isMaster && lastDelta / interval > 5n)
         {
@@ -213,8 +214,10 @@ export class CjsBallparkController
     }
 
     _balls = new Map();
-    _friction = 1000000;
-    _dt = 1;
+    mPartition = new CjsDestinyPartition();
+    mProbe = 0n;
+    mFriction = 1000000;
+    dt = 1;
 
     /**
      * Resolves native explicit IDs and master/replica local-allocation requests.
@@ -244,8 +247,9 @@ export class CjsBallparkController
 
     /**
      * Adds or updates a ball using Carbon's positional argument order.
-     * Adaptation: checked BigInt IDs, finite scalar inputs and immediate
-     * single-region membership. Re-adding a resolved ID keeps object identity and
+     * Adaptation: checked BigInt IDs, finite scalar inputs and immediate ball-map
+     * registration; automatic spatial insertion and bubbles remain pending.
+     * Re-adding a resolved ID keeps object identity and
      * follower links. Nonpositive IDs follow native master/replica allocation.
      *
      * @param {bigint|number} objectId Signed-int64 identity or allocation sentinel; Number inputs must be safe integers.
@@ -291,8 +295,10 @@ export class CjsBallparkController
         }
         else
         {
+            ball.DeleteFromBoxes();
             this.Stop(objectId);
         }
+        ball.mPark = this;
         ball.x = x;
         ball.y = y;
         ball.z = z;
@@ -301,9 +307,9 @@ export class CjsBallparkController
         ball.vz = vz;
         if (created)
         {
-            ball._oldX = x - this._dt * vx;
-            ball._oldY = y - this._dt * vy;
-            ball._oldZ = z - this._dt * vz;
+            ball._oldX = x - this.dt * vx;
+            ball._oldY = y - this.dt * vy;
+            ball._oldZ = z - this.dt * vz;
             ball._oldVx = vx;
             ball._oldVy = vy;
             ball._oldVz = vz;
@@ -321,6 +327,10 @@ export class CjsBallparkController
         ball.isMoribund = false;
         this.moribundBalls.delete(ball);
         ball.mEffectStamp = 0;
+        ball.mOwnerId = 0n;
+        ball.mCorporationID = -1;
+        ball.mAllianceID = -1;
+        ball.mHarmonic = -1n;
         ball.followId = 0n;
         ball.followRange = 10;
         ball.mode = Mode.DSTBALL_STOP;
@@ -376,7 +386,8 @@ export class CjsBallparkController
     /**
      * Detaches follower orders, then removes the ball now or queues native delayed cleanup.
      * Adaptation: JS retains object references and uses an optional PyOS bridge for
-     * DoFinalCleanup. Mini-shapes, collision caches, boxes and bubbles remain unported.
+     * DoFinalCleanup. Cell membership is removed during final cleanup;
+     * mini-shapes, collision caches and bubbles remain unported.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} [delay=0] Tick delay before buffered cleanup.
@@ -401,6 +412,8 @@ export class CjsBallparkController
         if (this._pyOS && !this._pyOS.SendEvent(ball, "Destiny::Ball::DoFinalCleanup",
             "DoFinalCleanup", null, "()")) this._pyOS.PyError();
         this.moribundBalls.delete(ball);
+        ball.DeleteFromBoxes();
+        ball.mPark = null;
         this._balls.delete(ball.id);
     }
 
@@ -421,6 +434,8 @@ export class CjsBallparkController
         {
             this.Stop(ball.id);
             ball.isMoribund = true;
+            ball.DeleteFromBoxes();
+            ball.mPark = null;
         }
         this._balls.clear();
         this.moribundBalls.clear();
@@ -682,9 +697,9 @@ export class CjsBallparkController
         let tx = other.x - ball.x, ty = other.y - ball.y, tz = other.z - ball.z;
         if (g_useNewOrbit)
         {
-            tx += other.vx * this._dt;
-            ty += other.vy * this._dt;
-            tz += other.vz * this._dt;
+            tx += other.vx * this.dt;
+            ty += other.vy * this.dt;
+            tz += other.vz * this.dt;
         }
         const dist = Math.sqrt(tx * tx + ty * ty + tz * tz);
         if (dist > 0)
@@ -736,7 +751,7 @@ export class CjsBallparkController
     EvolveNewStyleOrbit(ball, currentTime)
     {
         const cruiseVelocity = ball.speedFraction * ball.maxVelocity;
-        const tau = (ball.mass * ball.agility) / this._friction;
+        const tau = (ball.mass * ball.agility) / this.mFriction;
         const maxThrust = cruiseVelocity / tau;
         const other = ball._followPtr;
         const r = ball.followRange + ball.radius + other.radius;
@@ -761,7 +776,7 @@ export class CjsBallparkController
         if (dist < 0.1) dist = 0.1;
         const maxVelocity = Math.sqrt(dist * maxThrust);
         const estimatedVelocity = maxVelocity < maxSpeed ? maxVelocity : maxSpeed;
-        const estimatedDistance = estimatedVelocity * this._dt;
+        const estimatedDistance = estimatedVelocity * this.dt;
         let px, py, pz, vx, vy, vz;
         if (Math.abs(angle) < 1e-10)
         {
@@ -818,7 +833,7 @@ export class CjsBallparkController
     @meta.adapted
     OrbitThrust(ball, x, y, z)
     {
-        const f = this._friction / (ball.mass * ball.agility);
+        const f = this.mFriction / (ball.mass * ball.agility);
         const maxAccel = f * ball.speedFraction * ball.maxVelocity;
         if (maxAccel <= 0)
         {
@@ -863,14 +878,14 @@ export class CjsBallparkController
             else this.GotoThrust(ball, x, y, z);
             return;
         }
-        const f = this._friction / (ball.mass * ball.agility);
+        const f = this.mFriction / (ball.mass * ball.agility);
         const maxAccel = f * ball.speedFraction * ball.maxVelocity;
         if (maxAccel <= 0)
         {
             ball._lastGx = ball._lastGy = ball._lastGz = 0;
             return;
         }
-        const tf = ball._timeFactor, inversePosition = 1 / (this._dt * f - (1 - tf));
+        const tf = ball._timeFactor, inversePosition = 1 / (this.dt * f - (1 - tf));
         let ax = ((x - ball.x) * f - ball.vx * (1 - tf)) * f * inversePosition;
         let ay = ((y - ball.y) * f - ball.vy * (1 - tf)) * f * inversePosition;
         let az = ((z - ball.z) * f - ball.vz * (1 - tf)) * f * inversePosition;
@@ -957,7 +972,7 @@ export class CjsBallparkController
         let transverse = radialFactor * cosine + (determinant > 0 ? Math.sqrt(determinant) : 0);
         transverse *= dist - r >= 0 ? 1 : -1;
         const cruiseVelocity = ball.speedFraction * ball.maxVelocity;
-        const maxThrust = this._friction * cruiseVelocity / (ball.mass * ball.agility);
+        const maxThrust = this.mFriction * cruiseVelocity / (ball.mass * ball.agility);
         ball._lastGx = (radialFactor * rx + transverse * tx) * maxThrust;
         ball._lastGy = (radialFactor * ry + transverse * ty) * maxThrust;
         ball._lastGz = (radialFactor * rz + transverse * tz) * maxThrust;
@@ -1000,8 +1015,8 @@ export class CjsBallparkController
         const dy = y - ball.y;
         const dz = z - ball.z;
         const length2 = dx * dx + dy * dy + dz * dz;
-        const dist = ball.speedFraction * ball.maxVelocity * this._dt;
-        let thrust = this._friction * ball.speedFraction * ball.maxVelocity / (ball.mass * ball.agility);
+        const dist = ball.speedFraction * ball.maxVelocity * this.dt;
+        let thrust = this.mFriction * ball.speedFraction * ball.maxVelocity / (ball.mass * ball.agility);
         if (length2 < dist * dist)
         {
             const coefficient = length2 / (dist * dist);
@@ -1026,8 +1041,8 @@ export class CjsBallparkController
     Integrate(ball)
     {
         const m = ball.mass * ball.agility;
-        const k = this._friction;
-        const t = this._dt;
+        const k = this.mFriction;
+        const t = this.dt;
         const factor = ball._timeFactor;
         const k2 = k * k;
         const inverseK2 = 1 / k2;
@@ -1293,7 +1308,7 @@ export class CjsBallparkController
     SetBallTimeFactor(ball)
     {
         const mass = ball.mass * ball.agility;
-        ball._timeFactor = mass <= 0 ? 0 : Math.exp(-this._friction * this._dt / mass);
+        ball._timeFactor = mass <= 0 ? 0 : Math.exp(-this.mFriction * this.dt / mass);
     }
 
     /**

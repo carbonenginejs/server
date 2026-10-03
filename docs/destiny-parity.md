@@ -75,7 +75,7 @@ The new tests translate donor `test_actions.py` fixtures and cover stamp/order
 semantics, adjacent tuple deduplication, local position metadata, pending state,
 and queued-versus-direct movement application. The action checkpoint had 38
 passing tests, including the original 17 movement
-metadata/trajectory tests; the current suite has 234 passing tests.
+metadata/trajectory tests; the current suite has 250 passing tests.
 
 ## Validation and remaining work
 
@@ -99,7 +99,7 @@ The geometry subpath implements `AABB`, `Planed`, `Triangle`, and all six
 The 44 tests from `TestAABB.cpp`, `TestPlane.cpp`, `TestTriangle.cpp` and
 `TestCollision.cpp` are transcribed with their native names and expectations.
 Seven additional cases cover aliasing, partial output writes, large coordinates,
-swept spheres and source quirks. There are 234 passing tests in the current suite.
+swept spheres and source quirks. There are 250 passing tests in the current suite.
 See [geometry](destiny-geometry.md) for the exact value/reference adaptations.
 
 `BoxShape.h:7-67` and `BoxShape.cpp:8-306` now supply shared corner/side enums,
@@ -234,11 +234,34 @@ Forty tests cover the donor TestPartition hash fixture, source-derived ordering,
 membership, traversal and filtering, and an independent cell-volume overlap
 oracle. A native-header MSVC 14.50 x64 probe confirms two Windows integer hash
 values; it does not validate the complete native partition implementation.
-The complete JS suite has 234 passing tests. JS Map iteration is insertion order,
+That checkpoint had 234 passing tests. JS Map iteration is insertion order,
 whereas the native unordered-map order is unspecified. Sorted candidate discovery
 retains source ordering and appends to caller output without a final sort.
 
-The movement Ball/Controller does not yet use Partitionable or the partition.
-Tests use native-shaped records to isolate this kernel. Shared Ball state,
-swept-bound membership, bubble transitions and collision consumers remain open.
+Those kernel tests use native-shaped records to isolate partition behavior.
+The Ball integration checkpoint below adds shared state and native membership;
+automatic Ballpark insertion, bubble transitions and collision consumers remain open.
 Runtime remains unchanged; schema machinery is not used in the simulation.
+
+
+## Ball spatial state and neighborhood membership
+
+Ball.cpp:228-238,812-863,2354-2526 supplies the seven membership/radius methods.
+Ball.h:77-191 and Partitionable.h:15-41 define the inherited state; Ball's
+constructor sets its new position to [1e10,1e10,1e10]. Blue scalar properties now
+forward to native fields/vectors, rather than retaining duplicate values.
+The old private movement helpers also forward to their native fields.
+Ball's shadowed mPark/mHandled and their base members become one logical JS slot
+per name; no native object-layout contract is promised.
+
+Ballpark.cpp:3349-3350,3446-3449,5564-5567,5903-5907 supplies replacement cleanup,
+park assignment and detachment. These lifecycle portions now operate on real
+Ball memberships. Automatic insertion at AddBall/Evolve, bubble counts and
+transitions remain unfinished. The controller uses native dt/mFriction names;
+the former private _dt/_friction fields have been removed.
+
+Sixteen source-derived tests cover native default/shared state, cached inflation,
+strict tangency, insertion order, master/replica restoration, huge-radius and
+unchanged-key cache behavior, live candidates and removal. A separate small-cell
+bounding-volume oracle checks membership sets. All 250 JS tests pass, including
+unchanged donor movement trajectories. No native membership executable ran.

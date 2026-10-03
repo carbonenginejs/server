@@ -25,8 +25,9 @@ operations receive explicit destinations. No alternate vector library or global
 allocation-mode change is introduced. Source functions keep their native owners.
 
 The partition owns keys, sorted membership, cell lifecycle and candidate filters.
-Partitionable/StaticCollidable retain native shared ownership; the movement Ball
-has not yet been connected to them. See the [partition guide](../destiny/partition/README.md)
+Ball inherits Partitionable and shares native vector/identity storage with its
+existing scalar accessors. Ball and static objects implement membership; automatic
+Ballpark insertion and bubble ownership remain pending. See the [partition guide](../destiny/partition/README.md)
 for integer, allocation, ordering and reference-output adaptations.
 
 Current implementation boundaries and remaining native families are listed in

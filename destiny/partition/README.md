@@ -3,7 +3,7 @@
 Status: Evolving
 Scope: Native Partition, Box, ordering and static membership prerequisites
 Audience: Simulation maintainers
-Summary: Standalone spatial indexing, with Ballpark integration still pending.
+Summary: Spatial indexing and shared Ball membership, with bubble lifecycle still pending.
 
 Import the classes from `@carbonenginejs/server/destiny/partition`. Their
 `CjsDestiny` names identify the temporary port; metadata names each Carbon donor.
@@ -17,10 +17,18 @@ Removing the final occupant can synchronously release an entire ancestor chain.
 Partitionable supplies shared spatial state and abstract obligations;
 StaticCollidable implements both directions of static-shape membership.
 
-The current movement Ball/Controller does not yet consume these owners. Candidate
-tests use explicit native-shaped records, not a second live Ball implementation.
-Connecting them requires one authoritative Ball state, swept-bound insertion,
-bubble lifecycle and collision consumers. Those remain unfinished.
+Ball inherits Partitionable and uses native vector/identity storage. Existing
+scalar accessors forward to that storage, so movement and candidates observe the
+same values. Ball implements its native neighborhood insertion method, inflated
+radius, activity mask and reciprocal cleanup. Each controller owns a partition;
+replacement/removal clears memberships. Automatic Ballpark insertion, bubble
+lifecycle and collision consumers remain unfinished. Kernel tests use native-shaped
+records; separate integration tests now enumerate actual live Balls.
+
+Native Ball shadows Partitionable's mPark and mHandled members; the JS port
+deliberately uses one logical slot for each. Native object layout is not exposed.
+Bare Ball construction now has the native position [1e10,1e10,1e10]; AddBall still
+assigns the requested position. Old/new vectors remain independent per instance.
 
 ## JavaScript representation
 
@@ -69,6 +77,14 @@ for the native partition implementation or the complete simulation.
 
 The source quirks retained include zero-grid lower-first key clamping, removal
 on an empty-set miss, edge-clamped neighbor self-aliases, and top-level-only
-traversal reset. Capsule/OrientedBox insertion, Ball spatial ownership, actual
+traversal reset. Capsule/OrientedBox insertion, automatic Ballpark insertion, actual
 bubble transitions/activity and the native Python integration trajectories are
 still required before calling the spatial simulation complete.
+
+Sixteen additional Ball tests cover shared state, strict tangency, native
+insertion order, master bubble restoration, deferred cleanup and an independent
+small-cell overlap oracle. The native membership cache compares only the base
+key and boundary modifiers: it can retain eight memberships after a physical
+radius change would otherwise select the 27-cell branch. The port preserves
+that early return, including its skipped activity repair and bubble restoration.
+The full JS suite has 250 passing tests.

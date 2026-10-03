@@ -11,11 +11,13 @@ export class CjsDestinyPartitionable
     mOldPos = [0, 0, 0];
     mNewBubble = -1;
     mOldBubble = -1;
+    @meta.type.boolean
     isInteractive = false;
     mBoxes = [];
     mMyBox = null;
     mPark = null;
     mEffectStamp = 0;
+    @meta.type.boolean
     isMoribund = false;
 
     /**

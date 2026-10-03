@@ -187,11 +187,11 @@ test("tickInterval changes retain native cached dt and drag until their own refr
     const factor = moving._timeFactor;
     park.tickInterval = 250;
     park.Evolve();
-    assert.equal(park._dt, 1);
+    assert.equal(park.dt, 1);
     park.OnTick(0, 2500000 - 1, null);
-    assert.equal(park._dt, 1);
+    assert.equal(park.dt, 1);
     park.OnTick(0, 2500000, null);
-    assert.equal(park._dt, 0.25);
+    assert.equal(park.dt, 0.25);
     assert.equal(moving._timeFactor, factor);
     park.SetBallMass(1, moving.mass);
     assert.equal(moving._timeFactor, Math.exp(-1000000 * 0.25 / (moving.mass * moving.agility)));

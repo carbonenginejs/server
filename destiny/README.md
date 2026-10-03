@@ -36,8 +36,18 @@ flags directly does not emit gameplay events or cancel existing commands.
 The ball exposes scalar `x/y/z`, `vx/vy/vz`, `gotoX/gotoY/gotoZ`, `mode`,
 `followId`, `followRange`, physical parameters and flags. `agility` follows org
 camelCase naming; native Blue also exposes it under `Agility`.
-Private `_` fields contain previous tick state, forces, cached drag and target links.
+These are accessors over native fields: position is `mNewPos`, velocity is
+`mNewVel`, and identity is inherited `mId`. The retained private `_` accessors
+forward previous tick state, forces, cached drag and target links to native storage.
 Use controller methods for mutation; this subset does not install native property hooks.
+
+Ball now inherits Partitionable and implements native radius queries and cell
+membership operations. Each park owns `mPartition`, `mFriction` and cached `dt`;
+the former private `_friction`/`_dt` names have been replaced. AddBall assigns the
+owning park. Replacement, final removal and ClearAll remove existing membership;
+deferred removal retains it until final cleanup. Automatic neighborhood updates,
+bubble ownership and activity counts are still pending, so ordinary movement
+does not yet maintain the partition. See the [partition guide](partition/README.md).
 
 `CjsDestinyBall.DSTBALLMODE` retains all thirteen source enum members and values.
 Only GOTO, FOLLOW, STOP, and ORBIT are supported movement modes. Both orbit
