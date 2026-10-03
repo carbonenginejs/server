@@ -1,4 +1,9 @@
 import { meta } from "@carbonenginejs/runtime/schema";
+import { BlueList } from "@carbonenginejs/runtime/blue";
+import { CjsDestinyMiniBall } from "./CjsDestinyMiniBall.js";
+import { CjsDestinyMiniCapsule } from "./CjsDestinyMiniCapsule.js";
+import { CjsDestinyMiniBox } from "./CjsDestinyMiniBox.js";
+import { vec3d } from "./math/vec3d.js";
 import { CjsDestinyPartitionable } from "./partition/CjsDestinyPartitionable.js";
 import { CjsDestinyBox } from "./partition/CjsDestinyBox.js";
 import { CjsDestinyBoxSortComparer } from "./partition/SortedSets/CjsDestinyBoxSortComparer.js";
@@ -28,6 +33,12 @@ const boxComparer = new CjsDestinyBoxSortComparer();
 @meta.define({ className: "CjsDestinyBall", modelledOn: "Ball" })
 export class CjsDestinyBall extends CjsDestinyPartitionable
 {
+    mMiniBalls = new BlueList(CjsDestinyMiniBall);
+
+    mMiniCapsules = new BlueList(CjsDestinyMiniCapsule);
+
+    mMiniBoxes = new BlueList(CjsDestinyMiniBox);
+
     mMaxAngVel = 1;
 
     mRoll = 0;
@@ -384,7 +395,7 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Evolves Carbon's velocity-directed, mass-damped legacy orientation.
      * Adaptation: scalar components replace temporary Vector3d objects. Warp
      * orientation remains unavailable with the unported warp simulation. Detached
-     * reporting uses console instead of the native optional Python callback.
+     * reporting uses the native shared callback through a direct JS function.
      * Source: destiny/src/Ball.cpp:335-460.
      * @param {boolean} [snap=false] Bypass damping and clear roll state.
      * @returns {void} Updates native old/new angles and roll speed.
@@ -395,7 +406,7 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
         if (!this.mPark)
         {
             this.mNewYaw = this.mNewPitch = this.mNewRoll = 0;
-            console.warn("Ball is not in a ballpark", this.mId);
+            this.RegisterBallNotInPark();
             return;
         }
         if (this.mMode === CjsDestinyBall.DSTBALLMODE.DSTBALL_WARP)
@@ -1442,6 +1453,339 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     }
 
     /**
+     * Reads the owned native MiniBall descriptor list.
+     * Adaptation: runtime BlueList replaces RootParentLock ownership; the list remains mutable.
+     * Source: destiny/src/Ball.h:170-175; destiny/src/Ball_Blue.cpp:444-452.
+     * @returns {BlueList<CjsDestinyMiniBall>} Descriptors, not materialized Ball objects.
+     */
+    @meta.adapted
+    get miniBalls() { return this.mMiniBalls; }
+
+    /**
+     * Reads the owned native MiniCapsule descriptor list.
+     * Adaptation: runtime BlueList replaces RootParentLock ownership; the list remains mutable.
+     * Source: destiny/src/Ball_Blue.cpp:453-460.
+     * @returns {BlueList<CjsDestinyMiniCapsule>} Local descriptors, independent of world copies.
+     */
+    @meta.adapted
+    get miniCapsules() { return this.mMiniCapsules; }
+
+    /**
+     * Reads the owned native MiniBox descriptor list.
+     * Adaptation: runtime BlueList replaces RootParentLock ownership; the list remains mutable.
+     * Source: destiny/src/Ball_Blue.cpp:461-468.
+     * @returns {BlueList<CjsDestinyMiniBox>} Local descriptors, independent of world copies.
+     */
+    @meta.adapted
+    get miniBoxes() { return this.mMiniBoxes; }
+
+    /**
+     * Materializes every MiniBall descriptor when this parent is fixed.
+     * Source: destiny/src/Ball.cpp:1634-1652.
+     * @returns {void} Retains descriptors and replaces their IDs after each creation.
+     */
+    @meta.implemented
+    AddMiniBalls()
+    {
+        if (this.isFree) return;
+        const size = this.mMiniBalls.GetSize();
+        for (let i = 0; i < size; ++i) this.AddActualMiniball(this.mMiniBalls.GetAt(i));
+    }
+
+    /**
+     * Removes descriptor-named MiniBall objects in forward list order.
+     * Source: destiny/src/Ball.cpp:1654-1665.
+     * @returns {void} Does not clear descriptors or reset their IDs.
+     */
+    @meta.implemented
+    RemoveMiniBalls()
+    {
+        const size = this.mMiniBalls.GetSize();
+        for (let i = 0; i < size; ++i) this.mPark.RemoveBall(this.mMiniBalls.GetAt(i).mId);
+    }
+
+    /**
+     * Creates a fixed MiniBall translated by the parent's current position only.
+     * Adaptation: JS references replace native pointers and shared callback state.
+     * Source: destiny/src/Ball.cpp:1667-1686.
+     * @param {CjsDestinyMiniBall} b Local descriptor; its ID changes after insertion returns.
+     * @returns {void} Free parents do nothing; repeated calls leave prior colliders alive.
+     */
+    @meta.adapted
+    AddActualMiniball(b)
+    {
+        if (this.isFree) return;
+        if (!this.mPark) { this.RegisterBallNotInPark(); return; }
+        const ball = this.mPark.AddMiniball(this.mId, this.mMass, b.mRadius,
+            this.mNewPos[0] + b.mPos[0], this.mNewPos[1] + b.mPos[1], this.mNewPos[2] + b.mPos[2]);
+        b.mId = ball.mId;
+    }
+
+    /**
+     * Appends a local MiniBall descriptor, then attaches it if the parent is fixed.
+     * Adaptation: GC replaces native allocation/Unlock; radius narrows to native float32.
+     * Source: destiny/src/Ball.cpp:1688-1709.
+     * @param {number} x Local center X.
+     * @param {number} y Local center Y.
+     * @param {number} z Local center Z.
+     * @param {number} r Descriptor radius; the actual Ball clamps negative values.
+     * @returns {void} The descriptor is accessible through miniBalls.
+     */
+    @meta.blue.method
+    @meta.adapted
+    AddMiniBall(x, y, z, r)
+    {
+        const b = new CjsDestinyMiniBall();
+        vec3.set(b.mPos, x, y, z);
+        b.mRadius = f32(r);
+        this.mMiniBalls.Insert(-1, b);
+        if (!this.isFree) this.AddActualMiniball(b);
+    }
+
+    /**
+     * Materializes every MiniCapsule descriptor when this parent is fixed.
+     * Source: destiny/src/Ball.cpp:1711-1728.
+     * @returns {void} Retains descriptors and replaces IDs after creation.
+     */
+    @meta.implemented
+    AddMiniCapsules()
+    {
+        if (this.isFree) return;
+        const size = this.mMiniCapsules.GetSize();
+        for (let i = 0; i < size; ++i) this.AddActualMinicapsule(this.mMiniCapsules.GetAt(i));
+    }
+
+    /**
+     * Removes descriptor-named capsules in forward list order.
+     * Source: destiny/src/Ball.cpp:1730-1741.
+     * @returns {void} Does not clear descriptors or reset IDs.
+     */
+    @meta.implemented
+    RemoveMiniCapsules()
+    {
+        const size = this.mMiniCapsules.GetSize();
+        for (let i = 0; i < size; ++i) this.mPark.RemoveCapsule(this.mMiniCapsules.GetAt(i).mId);
+    }
+
+    /**
+     * Creates a capsule from translated endpoints without applying parent rotation.
+     * Adaptation: direct JS arguments replace vector fields and native pointers.
+     * Source: destiny/src/Ball.cpp:1743-1767.
+     * @param {CjsDestinyMiniCapsule} c Descriptor whose saved parent ID is passed through.
+     * @returns {void} Updates the descriptor ID after world insertion.
+     */
+    @meta.adapted
+    AddActualMinicapsule(c)
+    {
+        if (this.isFree) return;
+        if (!this.mPark) { this.RegisterBallNotInPark(); return; }
+        const capsule = this.mPark.AddCapsule(-1n, c.mParentBallID,
+            this.mNewPos[0] + c.mHemisphereA[0], this.mNewPos[1] + c.mHemisphereA[1], this.mNewPos[2] + c.mHemisphereA[2],
+            this.mNewPos[0] + c.mHemisphereB[0], this.mNewPos[1] + c.mHemisphereB[1], this.mNewPos[2] + c.mHemisphereB[2], c.mRadius);
+        c.mId = capsule.mId;
+    }
+
+    /**
+     * Appends a local capsule descriptor, attaching it immediately for fixed parents.
+     * Adaptation: GC replaces native allocation/Unlock; radius narrows to float32.
+     * This C++ entry point has no positive-radius check; PyAddMiniCapsule does.
+     * Source: destiny/src/Ball.cpp:1769-1796.
+     * @param {number} ax First endpoint local X.
+     * @param {number} ay First endpoint local Y.
+     * @param {number} az First endpoint local Z.
+     * @param {number} bx Second endpoint local X.
+     * @param {number} by Second endpoint local Y.
+     * @param {number} bz Second endpoint local Z.
+     * @param {number} r Native descriptor radius.
+     * @returns {void} Appends to miniCapsules before attempting attachment.
+     */
+    @meta.adapted
+    AddMiniCapsule(ax, ay, az, bx, by, bz, r)
+    {
+        const c = new CjsDestinyMiniCapsule();
+        c.mParentBallID = this.mId;
+        vec3.set(c.mHemisphereA, ax, ay, az);
+        vec3.set(c.mHemisphereB, bx, by, bz);
+        c.mRadius = f32(r);
+        this.mMiniCapsules.Insert(-1, c);
+        if (!this.isFree) this.AddActualMinicapsule(c);
+    }
+
+    /**
+     * Appends a box descriptor from the four native Vector3d arguments.
+     * Adaptation: copies caller-owned vector views into retained factory storage;
+     * GC replaces native allocation/Unlock. PyAddMiniBox accepts the scalar form.
+     * Source: destiny/src/Ball.cpp:1798-1821.
+     * @param {Float64Array|number[]} corner Local corner.
+     * @param {Float64Array|number[]} localX First edge vector.
+     * @param {Float64Array|number[]} localY Second edge vector.
+     * @param {Float64Array|number[]} localZ Third edge vector.
+     * @returns {void} Appends to miniBoxes before attempting attachment.
+     */
+    @meta.adapted
+    AddMiniBox(corner, localX, localY, localZ)
+    {
+        const b = new CjsDestinyMiniBox();
+        b.mParentBallID = this.mId;
+        vec3.copy(b.mCorner, corner);
+        vec3.copy(b.mLocalX, localX);
+        vec3.copy(b.mLocalY, localY);
+        vec3.copy(b.mLocalZ, localZ);
+        this.mMiniBoxes.Insert(-1, b);
+        if (!this.isFree) this.AddActualMiniBox(b);
+    }
+
+    /**
+     * Materializes every MiniBox descriptor when the parent is fixed.
+     * Source: destiny/src/Ball.cpp:1823-1840.
+     * @returns {void} Retains descriptors and overwrites their IDs after insertion.
+     */
+    @meta.implemented
+    AddMiniBoxes()
+    {
+        if (this.isFree) return;
+        const size = this.mMiniBoxes.GetSize();
+        for (let i = 0; i < size; ++i) this.AddActualMiniBox(this.mMiniBoxes.GetAt(i));
+    }
+
+    /**
+     * Removes descriptor-named oriented boxes in forward list order.
+     * Source: destiny/src/Ball.cpp:1842-1853.
+     * @returns {void} Does not clear descriptors or reset IDs.
+     */
+    @meta.implemented
+    RemoveMiniBoxes()
+    {
+        const size = this.mMiniBoxes.GetSize();
+        for (let i = 0; i < size; ++i) this.mPark.RemoveOrientedBox(this.mMiniBoxes.GetAt(i).mId);
+    }
+
+    /**
+     * Creates an oriented box using a translated corner and unchanged local axes.
+     * Adaptation: direct JS arguments replace native vector fields and pointers.
+     * Source: destiny/src/Ball.cpp:1855-1879.
+     * @param {CjsDestinyMiniBox} b Descriptor whose parent ID is retained.
+     * @returns {void} Updates its ID after world insertion; free parents do nothing.
+     */
+    @meta.adapted
+    AddActualMiniBox(b)
+    {
+        if (this.isFree) return;
+        if (!this.mPark) { this.RegisterBallNotInPark(); return; }
+        const box = this.mPark.AddOrientedBox(-1n, b.mParentBallID,
+            b.mCorner[0] + this.mNewPos[0], b.mCorner[1] + this.mNewPos[1], b.mCorner[2] + this.mNewPos[2],
+            b.mLocalX[0], b.mLocalX[1], b.mLocalX[2], b.mLocalY[0], b.mLocalY[1], b.mLocalY[2],
+            b.mLocalZ[0], b.mLocalZ[1], b.mLocalZ[2]);
+        b.mId = box.mId;
+    }
+
+    /**
+     * Applies the Python MiniBall entry point using typed JS scalar arguments.
+     * Adaptation: direct arguments and undefined return replace tuple parsing/Py_None.
+     * Source: destiny/src/Ball.cpp:2129-2141.
+     * @param {number} x Local center X.
+     * @param {number} y Local center Y.
+     * @param {number} z Local center Z.
+     * @param {number} r Native float radius.
+     * @returns {void} Delegates to AddMiniBall.
+     */
+    @meta.adapted
+    PyAddMiniBall(x, y, z, r) { this.AddMiniBall(x, y, z, f32(r)); }
+
+    /**
+     * Applies the Python entry point's positive-radius check before appending.
+     * Adaptation: typed JS arguments replace tuple parsing; RangeError represents ValueError.
+     * Source: destiny/src/Ball.cpp:2143-2166.
+     * @param {number} ax First local endpoint X.
+     * @param {number} ay First local endpoint Y.
+     * @param {number} az First local endpoint Z.
+     * @param {number} bx Second local endpoint X.
+     * @param {number} by Second local endpoint Y.
+     * @param {number} bz Second local endpoint Z.
+     * @param {number} r Radius checked after float32 narrowing.
+     * @returns {void} Delegates to the unchecked native entry point.
+     * @throws {RangeError} If the narrowed radius is nonpositive; native NaN passes.
+     */
+    @meta.adapted
+    PyAddMiniCapsule(ax, ay, az, bx, by, bz, r)
+    {
+        r = f32(r);
+        if (r <= 0) throw new RangeError("Radius must be positive");
+        this.AddMiniCapsule(ax, ay, az, bx, by, bz, r);
+    }
+
+    /**
+     * Adapts the Python scalar box entry point to four native vector arguments.
+     * Adaptation: typed JS arguments replace tuple parsing; pooled f64 values
+     * replace C++ stack vectors and remain borrowed until nested attachment returns.
+     * Source: destiny/src/Ball.cpp:2168-2189.
+     * @param {number} c0 Local corner X.
+     * @param {number} c1 Local corner Y.
+     * @param {number} c2 Local corner Z.
+     * @param {number} x0 First edge X.
+     * @param {number} x1 First edge Y.
+     * @param {number} x2 First edge Z.
+     * @param {number} y0 Second edge X.
+     * @param {number} y1 Second edge Y.
+     * @param {number} y2 Second edge Z.
+     * @param {number} z0 Third edge X.
+     * @param {number} z1 Third edge Y.
+     * @param {number} z2 Third edge Z.
+     * @returns {void} Appends through the native AddMiniBox method.
+     */
+    @meta.adapted
+    PyAddMiniBox(c0, c1, c2, x0, x1, x2, y0, y1, y2, z0, z1, z2)
+    {
+        const vec3d_0 = vec3d.alloc(), vec3d_1 = vec3d.alloc(), vec3d_2 = vec3d.alloc(), vec3d_3 = vec3d.alloc();
+        try
+        {
+            vec3.set(vec3d_0, c0, c1, c2); vec3.set(vec3d_1, x0, x1, x2);
+            vec3.set(vec3d_2, y0, y1, y2); vec3.set(vec3d_3, z0, z1, z2);
+            this.AddMiniBox(vec3d_0, vec3d_1, vec3d_2, vec3d_3);
+        }
+        finally
+        {
+            vec3d.unalloc(vec3d_3); vec3d.unalloc(vec3d_2); vec3d.unalloc(vec3d_1); vec3d.unalloc(vec3d_0);
+        }
+    }
+
+    /**
+     * Invokes Carbon's process-global detached-ball callback when one is registered.
+     * Adaptation: shared JS backing avoids a Ball-to-Ballpark module cycle; the
+     * park exposes the native static name. JS exceptions propagate instead of
+     * remaining as an unchecked CPython error. Callback return values are ignored.
+     * Source: destiny/src/Ball.cpp:144-155.
+     * @returns {void} No action when the callback is null or undefined.
+     */
+    @meta.adapted
+    RegisterBallNotInPark()
+    {
+        const callback = CjsDestinyBall._ballNotInParkCallback;
+        if (callback !== null && callback !== undefined) callback(this);
+    }
+
+    /**
+     * Sends mode-change events before storing the new native movement mode.
+     * Adaptation: the attached park's injected PyOS supplies native events; a
+     * detached ball has no global PyOS bridge. Host exceptions propagate in JS.
+     * Source: destiny/src/Ball.cpp:905-938.
+     * @param {number} mode Native DSTBALLMODE value.
+     * @returns {void} Equal modes store again without emitting events.
+     */
+    @meta.adapted
+    SetMode(mode)
+    {
+        const pyOS = this.mPark && this.mPark._pyOS;
+        if (mode !== this.mMode && pyOS)
+        {
+            if (mode !== CjsDestinyBall.DSTBALLMODE.DSTBALL_WARP && this.mMode === CjsDestinyBall.DSTBALLMODE.DSTBALL_WARP)
+                if (!pyOS.PostEvent(this.mPark, "Destiny::OnExitWarp", "OnExitWarp", "Li", this.mId, 0)) pyOS.PyError();
+            if (!pyOS.SendEvent(this, "Destiny::Ball::DoModeChange", "DoModeChange", null, "ii", this.mMode, mode)) pyOS.PyError();
+        }
+        this.mMode = mode;
+    }
+
+    /**
      * Converts a native signed-int64 primitive without losing identity or time precision.
      * JS adaptation: Number cannot represent the whole ID/Be::Time domain. This
      * internal binding helper accepts BigInt or safe integer Numbers, rejects
@@ -1581,6 +1925,9 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
         const half = f32(angle / 2), sine = f32(Math.sin(half));
         return quat.set(out, f32(sine * x), f32(sine * y), f32(sine * z), f32(Math.cos(half)));
     }
+
+    // JS module-cycle adaptation; Ballpark.s_ballNotInParkCallback forwards here.
+    static _ballNotInParkCallback = null;
 
     static scratch = {
         vec3_0: vec3.create(), vec3_1: vec3.create(),

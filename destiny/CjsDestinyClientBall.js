@@ -119,7 +119,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Samples absolute double-precision motion using the park's fractional integrator.
      * Adaptation: output follows time, and scratch storage is reused. Warp
      * sampling throws until its native implementation is ported.
-     * Detached-ball reporting uses console instead of a Python callback.
+     * Detached-ball reporting invokes the shared native callback as a JS function.
      * @param {number|bigint} time Scene clock in elapsed 100ns ticks.
      * @param {Float64Array} out Caller-owned absolute position.
      * @returns {Float64Array} The supplied output.
@@ -130,7 +130,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
         time = CjsDestinyBall._toInt64(time);
         if (!this.mPark)
         {
-            console.warn("ClientBall is not in a ballpark", this.mId);
+            this.RegisterBallNotInPark();
             return vec3.set(out, 0, -3.4028234663852886e38, 0);
         }
         const shiftedTime = this.GetShiftedTime(time);
@@ -181,7 +181,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Samples float32 position relative to the park reference, or native rotation.
      * Adaptation: time-first and output-length dispatch replace C++ overloads;
      * safe Number/BigInt ticks share the scene epoch. Seconds overloads are not exposed.
-     * Missing-park reporting uses console instead of Python callbacks.
+     * Missing-park reporting invokes the shared native callback as a JS function.
      * @param {number|bigint} time Scene clock in elapsed 100ns ticks.
      * @param {Float32Array} out Length-three position or length-four quaternion.
      * @returns {Float32Array} The supplied output.
@@ -194,7 +194,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
         if (out.length !== 3) throw new RangeError("ClientBall output must be a vec3 or quaternion");
         if (!this.mPark)
         {
-            console.warn("ClientBall is not in a ballpark", this.mId);
+            this.RegisterBallNotInPark();
             return vec3.set(out, 0, -3.4028234663852886e38, 0);
         }
         const ego = this.mPark.GetEgo();
@@ -237,7 +237,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Returns native last velocity, or leaves quaternion derivative output untouched.
      * Adaptation: output length selects the C++ overload and Number ticks are accepted.
      * Velocity is absolute mLastVel, not relative ego velocity. Detached reporting
-     * uses console instead of the native Python callback.
+     * invokes the shared native callback as a JS function.
      * @param {number|bigint} time Scene clock in elapsed 100ns ticks.
      * @param {Float32Array} out Length-three velocity or length-four unchanged output.
      * @returns {Float32Array} The supplied output.
@@ -250,7 +250,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
         if (out.length !== 3) throw new RangeError("ClientBall output must be a vec3 or quaternion");
         if (!this.mPark)
         {
-            console.warn("ClientBall is not in a ballpark", this.mId);
+            this.RegisterBallNotInPark();
             return vec3.set(out, 0, 0, 0);
         }
         this.InterpolatedPosition(time, this.mLastPos);
@@ -271,7 +271,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
     {
         if (!this.mPark)
         {
-            console.warn("ClientBall is not in a ballpark", this.mId);
+            this.RegisterBallNotInPark();
             return quat.set(out, 0, 0, 0, -1);
         }
         const shiftedTime = this.GetShiftedTime(time);
@@ -373,7 +373,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
     /**
      * Returns native finite-difference acceleration, or preserves quaternion output.
      * Adaptation: output length selects the native overload; Number ticks are
-     * checked but do not trigger interpolation. Console replaces detached reporting.
+     * checked but do not trigger interpolation. Detached reporting uses the shared JS callback.
      * Source: destiny/src/Ball.cpp:1469-1487; destiny/src/Ball.h:552-560.
      * @param {number|bigint} time Scene ticks, unused by the native calculation.
      * @param {Float32Array} out Three-component acceleration or unchanged quaternion.
@@ -387,7 +387,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
         if (out.length !== 3) throw new RangeError("ClientBall output must be a vec3 or quaternion");
         if (!this.mPark)
         {
-            console.warn("ClientBall is not in a ballpark", this.mId);
+            this.RegisterBallNotInPark();
             return vec3.set(out, 0, 0, 0);
         }
         const inverseTime = 1 / this.mPark.dt;

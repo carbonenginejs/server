@@ -88,7 +88,7 @@ These are donor/source-derived JS checks, not native-executable bubble evidence.
 Conflict resolution, proximity notifications,
 AdditionsAndDeletions, transition batches and server/client tickers remain open.
 The native conflict-resolution call in OnTick is commented out; the port does
-not invent an automatic replacement. Legacy/iterative collision response and static ownership work; compound-shape ownership remains unported.
+not invent an automatic replacement. Legacy/iterative collision response and static ownership work; [Mini ownership](destiny-minis.md) is now implemented.
 
 Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
 Native definitions: Ballpark.h:60,124-129,150; Ballpark.cpp:86-150,417-660,

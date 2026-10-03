@@ -53,7 +53,7 @@ The matching five native test files provide 69 copied fixtures. Additional
 independent/source-derived cases cover precision, aliases, partial writes and
 quadratic/swept-sphere behavior. No native binary was executed. Static shape
 wrappers and their direct response methods are described below; Ballpark collision
-scheduling and compound mini-shapes remain unported.
+scheduling and [Mini ownership](destiny-minis.md) are now implemented.
 
 ## Box and rectangle composition
 
@@ -179,13 +179,12 @@ Partition and Gradient. Ordinary balls record collision IDs; the native Evolve
 dispatch site is missile-specific, not a general collision event.
 
 Thirteen donor trajectories cover three sphere, four capsule and six box cases.
-Static fixtures use world-space equivalents of zero-transform Mini wrappers;
-Mini construction/attachment is not validated. Expected coordinates are copied
+Static fixtures now use their native fixed-parent Mini wrappers. Expected coordinates are copied
 literally from Python. JS uses an absolute 5e-5 bound instead of comparing separately
 rounded four-decimal coordinates. Fifteen additional tests cover force/filter
 ordering and ownership. That checkpoint had 321 passing tests. Collision-location
-histories and iterative propagation are now implemented; warp, Mini attachment
-and missile event integration remain open.
+histories, iterative propagation and [Mini attachment](destiny-minis.md) are now
+implemented; warp and missile event integration remain open.
 No native executable ran for this checkpoint.
 
 ## Double-precision temporary storage

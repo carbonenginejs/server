@@ -419,23 +419,29 @@ test("donor fixed collision precedes an otherwise reachable free ball", () =>
     assert.ok(a.z < b.z);
 });
 
+function miniParent(park, id, radius = 0)
+{
+    // Source: destiny/python/destiny/test/ballpark/evolve/test_iterative_collision.py:403-408,604-610.
+    return park.AddBall(id, 0, radius, 0, false, false, false, false, false,
+        0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 for (const shape of ["capsule", "box"]) test(`donor ${shape} approach retains clearance over twenty ticks`, () =>
 {
     // Source: destiny/python/destiny/test/ballpark/evolve/test_iterative_collision.py:418-437,619-639.
-    // Adaptation: world-space shapes equal the donor's zero-transform Mini wrappers.
-    // This validates contact geometry, not the still-unported Mini ownership APIs.
+    // Exercise the actual native fixed-parent Mini ownership path.
     enable();
     const park = new Park();
     let ball;
     if (shape === "capsule")
     {
-        park.AddCapsule(100, 99, 100, 100, 0, 200, 100, 0, 10);
+        miniParent(park, 99, 500).PyAddMiniCapsule( 100, 100, 0, 200, 100, 0, 10);
         ball = add(park, 1, { x: 80, y: 100 });
         park.GotoPoint(ball.id, 300, 100, 0);
     }
     else
     {
-        park.AddOrientedBox(100, 99, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 100);
+        miniParent(park, 99).PyAddMiniBox( 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 100);
         ball = add(park, 1, { x: -10, y: 50, z: 50 });
         park.GotoPoint(ball.id, 50, 50, 50);
     }
@@ -607,11 +613,11 @@ for (const [name, position, target, reference, direction, tolerances] of [
 ]) test(`donor capsule ${name} approach`, () =>
 {
     // Source: destiny/python/destiny/test/ballpark/evolve/test_iterative_collision.py:439-523.
-    // World-space equivalents of zero-transform MiniCapsules, without claiming wrapper parity.
+    // Exercise actual fixed-parent MiniCapsule materialization.
     enable();
     const park = new Park();
-    park.AddCapsule(100, 99, 100, 100, 0, 200, 100, 0, 10);
-    if (name === "zero-length") park.AddCapsule(101, 99, 100, 0, 0, 100, 0, 0, 2);
+    miniParent(park, 99, 500).PyAddMiniCapsule( 100, 100, 0, 200, 100, 0, 10);
+    if (name === "zero-length") miniParent(park, 98, 500).PyAddMiniCapsule( 100, 0, 0, 100, 0, 0, 2);
     const ball = add(park, 1, { x: position[0], y: position[1], z: position[2] });
     park[direction ? "GotoDirection" : "GotoPoint"](ball.id, ...target);
     for (let tick = 0; tick < 20; ++tick)
@@ -628,7 +634,7 @@ for (const name of ["oblique", "inside cylinder", "inside hemisphere"]) test(`do
     // Source: destiny/python/destiny/test/ballpark/evolve/test_iterative_collision.py:525-570.
     enable();
     const park = new Park();
-    park.AddCapsule(100, 99, 100, 100, 0, 200, 100, 0, 10);
+    miniParent(park, 99, 500).PyAddMiniCapsule( 100, 100, 0, 200, 100, 0, 10);
     const hemisphere = name === "inside hemisphere", oblique = name === "oblique";
     const ball = add(park, 1, { x: oblique ? 170 : hemisphere ? 95 : 160,
         y: oblique ? 80 : hemisphere ? 100 : 95, agility: oblique ? 0.3 : 0.9 });
@@ -659,10 +665,10 @@ for (const [name, position, reference, ticks, tolerance, axis] of [
 ]) test(`donor box ${name} approach`, () =>
 {
     // Source: destiny/python/destiny/test/ballpark/evolve/test_iterative_collision.py:641-745.
-    // World-space equivalent of the donor's zero-transform MiniBox.
+    // Exercise actual fixed-parent MiniBox materialization.
     enable();
     const park = new Park();
-    park.AddOrientedBox(100, 99, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 100);
+    miniParent(park, 99).PyAddMiniBox( 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 100);
     const ball = add(park, 1, { x: position[0], y: position[1], z: position[2] });
     park.GotoPoint(ball.id, 50, 50, 50);
     for (let tick = 0; tick < ticks; ++tick)
@@ -678,7 +684,7 @@ test("donor oblique box contact retains clearance across three reused-body phase
     // Source: destiny/python/destiny/test/ballpark/evolve/test_iterative_collision.py:747-789.
     enable();
     const park = new Park();
-    park.AddOrientedBox(100, 99, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 100);
+    miniParent(park, 99).PyAddMiniBox( 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 100);
     const ball = add(park, 1, { maxVelocity: 100, agility: 0.5 });
     for (const [position, velocity, exitAxis, contactAxis, stillAxis] of [
         [[0, 50, -50], [0.1, 0, 90], 0, 2, 1],
@@ -705,7 +711,7 @@ test("donor sphere starting inside a box exits and decays toward rest", () =>
     // Source: destiny/python/destiny/test/ballpark/evolve/test_iterative_collision.py:791-805.
     enable();
     const park = new Park();
-    park.AddOrientedBox(100, 99, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 100);
+    miniParent(park, 99).PyAddMiniBox( 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 100);
     const ball = add(park, 1, { x: 20, y: 60, z: 30, vx: -10, agility: 0.01 });
     for (let tick = 0; tick < 100; ++tick)
     {
@@ -720,8 +726,8 @@ test("donor adjacent boxes stop a fast sphere at their shared face edge", () =>
     // Source: destiny/python/destiny/test/ballpark/evolve/test_iterative_collision.py:807-827.
     enable();
     const park = new Park();
-    park.AddOrientedBox(100, 99, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 100);
-    park.AddOrientedBox(101, 98, -100, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 100);
+    miniParent(park, 99).PyAddMiniBox( 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 100);
+    miniParent(park, 98).PyAddMiniBox( -100, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 100);
     const ball = add(park, 1, { y: 50, z: -10, vz: 1000, maxVelocity: 1000, agility: 0.5 });
     park.GotoDirection(ball.id, 0, 0, 1);
     for (let tick = 0; tick < 100; ++tick)

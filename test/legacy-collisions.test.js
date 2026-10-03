@@ -15,10 +15,14 @@ const close = (a, b, tolerance = 1e-10) => assert.ok(Math.abs(a - b) < tolerance
 for (const fixture of fixtures) test(`donor ${fixture.class}.${fixture.name}`, () =>
 {
     const park = new Park();
-    // World-space equivalents of the donor's zero-transform Mini wrappers.
-    // Parent is nonmassive; its wrapper creation itself is not validated by this fixture.
-    if (fixture.class === "TestSimpleCapsuleCollision") park.AddCapsule(100n, 99n, 100, 100, 0, 200, 100, 0, 1);
-    if (fixture.class === "TestSimpleBoxCollision") park.AddOrientedBox(100n, 99n, 0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 100);
+    // Actual native Mini ownership for the donor's fixed, nonmassive parent.
+    if (fixture.class === "TestSimpleCapsuleCollision" || fixture.class === "TestSimpleBoxCollision")
+    {
+        const owner = park.AddBall(99n, 0, 500, 0, false, false, false, false, false,
+            0, 0, 0, 0, 0, 0, 0, 0);
+        if (fixture.class === "TestSimpleCapsuleCollision") owner.PyAddMiniCapsule(100, 100, 0, 200, 100, 0, 1);
+        if (fixture.class === "TestSimpleBoxCollision") owner.PyAddMiniBox(0, 0, 0, 100, 0, 0, 0, 100, 0, 0, 0, 100);
+    }
     const balls = {}, keys = Object.keys(fixture.balls);
     keys.forEach((key, i) => { balls[key] = add(park, i + 1, fixture.balls[key]); });
     for (const [key, target] of Object.entries(fixture.goto)) park.GotoPoint(balls[key].id, ...target);

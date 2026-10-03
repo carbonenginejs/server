@@ -30,7 +30,7 @@ const ORBITAL_PRECESSION = 0.001;
  * The cached evolution step defaults to one second. Native global settings select
  * legacy/new orbit. Spatial membership and bubble activity are maintained;
  * legacy/iterative collision response and dynamic orientation are available;
- * compound-shape ownership and wire replication remain unported.
+ * wire replication and the remaining movement modes remain unported.
  */
 @meta.define({ className: "CjsBallparkController", modelledOn: "Ballpark" })
 @meta.blue.inherit(IBlueEvents)
@@ -1724,6 +1724,47 @@ export class CjsBallparkController
     }
 
     /**
+     * Creates a fresh fixed MiniBall with owner and mode set before insertion.
+     * Adaptation: JS allocation/GC replace native Blue construction and Unlock;
+     * checked BigInt IDs replace signed-int64 arguments. This deliberately does
+     * not reuse AddBall, whose agility repair and duplicate handling differ.
+     * Source: destiny/src/Ballpark.cpp:3559-3636.
+     * @param {bigint|number} parentObjectId Owner identity used for spatial ordering.
+     * @param {number} mass Parent mass; negative values clamp to zero.
+     * @param {number} radius Native float radius; negative values clamp to zero.
+     * @param {number} x Absolute center X.
+     * @param {number} y Absolute center Y.
+     * @param {number} z Absolute center Z.
+     * @returns {CjsDestinyBall} New fixed Ball or ClientBall, even for a duplicate generated ID.
+     */
+    @meta.adapted
+    AddMiniball(parentObjectId, mass, radius, x, y, z)
+    {
+        parentObjectId = CjsDestinyBall._toInt64(parentObjectId);
+        const id = this.GetIDForCollisionObject(-1n);
+        if (this._balls.has(id)) console.error("Ballpark.AddMiniball: Ball already exists for new ID", id);
+        const ball = this.isMaster ? new CjsDestinyBall() : new CjsDestinyClientBall();
+        ball.mId = id;
+        ball.mPark = this;
+        vec3.set(ball.mNewPos, x, y, z);
+        vec3.copy(ball.mOldPos, ball.mNewPos);
+        radius = f32(radius);
+        ball.mRadius = radius < 0 ? 0 : radius;
+        ball.mMass = mass < 0 ? 0 : mass;
+        ball.mOwnerId = parentObjectId;
+        vec3.zero(ball.mNewVel); vec3.zero(ball.mOldVel);
+        ball.mMaxVel = ball.mAgility = ball.mSpeedFraction = 0;
+        ball.isFree = ball.isGlobal = ball.isInteractive = ball.isSpaceJunk = false;
+        ball.isMassive = true;
+        quat.identity(ball.mNewRot); quat.identity(ball.mOldRot);
+        vec3.zero(ball.mNewAngVel); vec3.zero(ball.mOldAngVel);
+        this.SetBallTimeFactor(ball);
+        ball.SetMode(Mode.DSTBALL_MINIBALL);
+        this.InsertBallInBoxes(ball);
+        return ball;
+    }
+
+    /**
      * Creates or reuses a native capsule ID and inserts it into the partition.
      * Adaptation: JS Map/GC replace unordered ownership and Blue allocation.
      * Existing IDs deliberately ignore new geometry and retain moribund state.
@@ -1936,7 +1977,7 @@ export class CjsBallparkController
      * Detaches follower orders, then removes the ball now or queues native delayed cleanup.
      * Adaptation: JS retains object references and uses an optional PyOS bridge for
      * DoFinalCleanup. Cell membership is removed during final cleanup;
-     * mini-shape ownership remains unported. Collision caches are erased only
+     * fixed-parent mini colliders are removed before delay handling. Collision caches are erased only
      * while iterative collisions are enabled, preserving the native settings quirk.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
@@ -1952,6 +1993,25 @@ export class CjsBallparkController
         this.Stop(id);
         this.StopAllFollowers(ball);
         ball.isMoribund = true;
+        // Source: destiny/src/Ballpark.cpp:5496-5528. Fixed-parent children ignore its delay.
+        let size = ball.mMiniBalls.GetSize();
+        if (size > 0 && !ball.isFree)
+        {
+            for (let i = size - 1; i >= 0; --i) this.RemoveBall(ball.mMiniBalls.GetAt(i).mId);
+            ball.mMiniBalls.Remove(-1);
+        }
+        size = ball.mMiniCapsules.GetSize();
+        if (size > 0 && !ball.isFree)
+        {
+            for (let i = size - 1; i >= 0; --i) this.RemoveCapsule(ball.mMiniCapsules.GetAt(i).mId);
+            ball.mMiniCapsules.Remove(-1);
+        }
+        size = ball.mMiniBoxes.GetSize();
+        if (size > 0 && !ball.isFree)
+        {
+            for (let i = size - 1; i >= 0; --i) this.RemoveOrientedBox(ball.mMiniBoxes.GetAt(i).mId);
+            ball.mMiniBoxes.Remove(-1);
+        }
         if (this.inEvolve || delay > 0)
         {
             ball.isMassive = false;
@@ -3085,7 +3145,9 @@ export class CjsBallparkController
     }
 
     /**
-     * Adaptation: ID overload; no formation slots/network state. Velocity is retained.
+     * Stops the ball through the native mode-change callback path, retaining velocity.
+     * Adaptation: ID overload; formation-slot and network-state cleanup remain unported.
+     * Source: destiny/src/Ballpark.cpp:4556-4643.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @returns {void} No return value.
@@ -3103,7 +3165,7 @@ export class CjsBallparkController
             ball.followId = 0n;
             ball.followRange = 0;
         }
-        ball.mode = Mode.DSTBALL_STOP;
+        ball.SetMode(Mode.DSTBALL_STOP);
     }
 
     /**
@@ -3339,7 +3401,8 @@ export class CjsBallparkController
     }
 
     /**
-     * Adaptation: updates the ordered free-ball collection and spatial membership without mini-shapes;
+     * Updates native free membership and removes/recreates fixed-parent mini colliders.
+     * Adaptation: JS ordered collections replace native maps and pointer ownership;
      * checked BigInt timestamp subtraction rejects signed overflow before changing the flag.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
@@ -3352,12 +3415,15 @@ export class CjsBallparkController
     {
         const ball = this.GetBall(id);
         if (!ball || ball.isFree === Boolean(isFree)) return;
-        const newTime = isFree ? CjsDestinyBall._toInt64(this.time - CjsBallparkController._tickTime(this.tickInterval)) : ball.mNewTime;
+        if (isFree) CjsDestinyBall._toInt64(this.time - CjsBallparkController._tickTime(this.tickInterval));
         ball.isFree = Boolean(isFree);
         if (ball.isFree)
         {
             this._insertFreeBall(ball);
-            ball.mNewTime = newTime;
+            ball.RemoveMiniBalls();
+            ball.RemoveMiniCapsules();
+            ball.RemoveMiniBoxes();
+            ball.mNewTime = CjsDestinyBall._toInt64(this.time - CjsBallparkController._tickTime(this.tickInterval));
         }
         else
         {
@@ -3366,6 +3432,9 @@ export class CjsBallparkController
             this._removeFreeBall(ball.mId);
             this.InsertBallInBoxes(ball);
             ball._lastGx = ball._lastGy = ball._lastGz = 0;
+            ball.AddMiniBalls();
+            ball.AddMiniCapsules();
+            ball.AddMiniBoxes();
         }
     }
 
@@ -3670,6 +3739,21 @@ export class CjsBallparkController
     }
 
     /**
+     * Replaces the process-global callback used by detached Ball operations.
+     * Adaptation: a direct JS value replaces Python tuple/refcount handling;
+     * native registration does not require callability. Null disables it.
+     * Source: destiny/src/Ballpark.cpp:6730-6742.
+     * @param {Function|null} callback Callback receiving the detached Ball.
+     * @returns {void} Affects every park and detached Ball, not only this instance.
+     */
+    @meta.blue.method
+    @meta.adapted
+    SetBallNotInParkCallback(callback)
+    {
+        CjsBallparkController.s_ballNotInParkCallback = callback;
+    }
+
+    /**
      * Finds a lower/upper bound in the controller's native signed-ID order.
      * JavaScript has no ordered Map primitive, so binary lookup indexes its owned key array.
      *
@@ -3737,6 +3821,26 @@ export class CjsBallparkController
         vec3.zero(frame.collisionItem.normal);
         return frame; // pool-return: caller owns the frame until finally.
     }
+
+    /**
+     * Reads the native process-global detached-ball callback.
+     * Adaptation: Ball owns private backing to avoid the circular module edge
+     * through ClientBall; the native Ballpark field remains the public owner.
+     * Source: destiny/src/Ballpark.h:84; destiny/src/Ballpark.cpp:56.
+     * @returns {Function|null} Current callback, or any value supplied by the native permissive setter.
+     */
+    @meta.adapted
+    static get s_ballNotInParkCallback() { return CjsDestinyBall._ballNotInParkCallback; }
+
+    /**
+     * Writes the native process-global callback through shared JS backing.
+     * Adaptation: avoids a Ball-to-Ballpark module cycle without registry lookups.
+     * Native destruction clears it; deterministic park teardown remains unported.
+     * @param {Function|null} value New callback; null disables reporting.
+     * @returns {void} Replaces the callback for all parks and Ball subclasses.
+     */
+    @meta.adapted
+    static set s_ballNotInParkCallback(value) { CjsDestinyBall._ballNotInParkCallback = value; }
 
     static collisionFrames = [];
 

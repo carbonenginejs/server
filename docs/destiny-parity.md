@@ -298,7 +298,7 @@ Twenty-three direct source-derived fixtures brought the suite to 293. The
 subsequent ownership/legacy checkpoint added 28 tests for a total of 321 at that point.
 See the [geometry guide](destiny-geometry.md#ballpark-ownership-and-legacy-collisions)
 for ownership, Gradient/Potential, scheduling and the 13 donor trajectories.
-Compound Mini attachment and warp remain open; iterative propagation is now implemented. No native
+[Mini attachment](destiny-minis.md) and iterative propagation are implemented; warp remains open. No native
 executable validation is claimed.
 
 ## ClientBall renderer subset

@@ -7,7 +7,7 @@ Summary: Current implementation and the families still required for completion.
 
 The target is the whole public Destiny donor, not only features used by a racing
 demo. Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
-The current server suite has 458 passing CPU tests against runtime alpha.9.
+The current server suite has 485 passing CPU tests against runtime alpha.9.
 
 | Family | Current status |
 |---|---|
@@ -17,10 +17,10 @@ The current server suite has 458 passing CPU tests against runtime alpha.9.
 | Clock/host boundary | Separate time/currentTime, Start/Pause, OnTick, AdjustTimes and deferred ball/capsule cleanup implemented; ClientBall sample caches shift with the clock; network batches pending |
 | BoxShape/RectangleShape | Numeric geometry implemented; all 25 native fixtures and 18 additional cases |
 | Capsules/oriented boxes | Geometry, Blue aliases, memberships, response, Ballpark ownership and legacy scheduling implemented; native cleanup quirks retained |
-| Mini-shapes | Pending |
+| Mini-shapes | Descriptors, typed BlueLists, native/Python-shaped add methods, fixed-parent attachment and lifecycle implemented; Python constructors and full IRoot/persistence pending |
 | Partition/Partitionable/Box/StaticCollidable | Keys/hash, cells, ordering, filters and static membership implemented; Ball shares state and implements neighborhoods/cleanup; automatic Ballpark insertion implemented |
 | Bubbles and activity | Insertion, initialization, delta bookkeeping, subscriptions and activity implemented; conflict resolution and network batches pending |
-| Legacy and iterative collision response | Fractional integration, both response paths, collision records, discovery, impulses, recursive invalidation, scheduling and conditional cache cleanup implemented; warp/Mini integration pending |
+| Legacy and iterative collision response | Fractional integration, both response paths, collision records, discovery, impulses, recursive invalidation, scheduling and conditional cache cleanup implemented; warp integration pending |
 | New orbit | Both orientation paths implemented; all four native scenarios pass; physical-heading fallback implemented |
 | Orientation, warp, missiles, formations and remaining modes | Legacy and dynamic steering/evolution/sampling, impact rotation, native oriented creation and angular setters implemented; remaining movement modes pending |
 | Visibility, range/volume queries, sensors and relative motion | Pending |

@@ -116,7 +116,8 @@ This is one region with movement, native clock phases, deferred ball/capsule cle
 legacy and iterative sphere/static-shape collision response and a separate movement-command queue.
 Massive moving balls use native partition candidates and collision forces.
 Optional dynamical orientation supplies steering, angular integration and client sampling.
-Visibility, mini-shapes, Python creation dispatch, warp, missiles, formations,
+[Mini shape ownership](docs/destiny-minis.md) supports fixed-parent colliders.
+Visibility, Python creation dispatch, warp, missiles, formations,
 replication, combat, and drone command policy are not implemented. Unsupported
 mobile movement modes throw before advancing the tick.
 

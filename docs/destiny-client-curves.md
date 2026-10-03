@@ -123,9 +123,8 @@ Sources: `destiny/src/Ball.cpp:1194-1200,1469-1487,1927-1998,2102-2124`,
 
 This is a renderer-method subset, not complete native interface registration.
 Warp remains explicitly unsupported. Its sampling branch throws rather than substituting
-legacy motion. Iterative collision records can be consumed, but their production
-is not implemented. The optional native Python callback for detached balls is
-represented by console reporting. Relative-motion methods, complete interface mapping, snapshots, networking and
+legacy motion. Iterative collision records are produced and consumed. Detached methods use
+the shared native-shaped JS callback; see [Mini lifecycle](destiny-minis.md). Relative-motion methods, complete interface mapping, snapshots, networking and
 replay remain open in the full port plan.
 
 Tests cover Number and BigInt ticks, large-coordinate subtraction, velocity,

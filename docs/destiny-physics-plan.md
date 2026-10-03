@@ -40,15 +40,15 @@ native fixtures plus source-derived ray, overlap and alias cases. Static Capsule
 and OrientedBox now implement geometry, membership and direct response methods,
 with the native fractional integrator. Ballpark ownership and legacy collision
 scheduling now work. Iterative discovery, scheduling, impulses and conditional
-cache cleanup are implemented. Mini attachment and warp collision integration
-remain pending; this does not complete either solver phase.
+cache cleanup and [Mini ownership](destiny-minis.md) are implemented. Warp collision
+integration remains pending; this does not complete either solver phase.
 
 Partition, Box, Key/KeyHash, all three sorted-set comparers and the
 Partitionable/StaticCollidable membership bases now work independently. Forty
 tests verify this kernel. Ball now shares native storage and implements its full
 neighborhood insertion method, with sixteen further tests for membership and
 cleanup. Automatic Ballpark insertion, initialization, delta tracking, subscriptions
-and activity are now implemented. Conflict resolution, compound-shape ownership,
+and activity are now implemented. Conflict resolution,
 proximity and replication consumers still require integration.
 
 ## What can run without the client
@@ -236,7 +236,7 @@ CollisionBallProperties now provide native ordered history and sampling. Contact
 approximation, static/free impulses and recursive invalidation are implemented.
 Earliest impact discovery, scheduling and conditional cache cleanup now run through
 Evolve. Native sphere/capsule/box scenarios and source-derived ordering, settings,
-pooling and lifecycle tests cover this path. Warp and compound-shape integration
+pooling and lifecycle tests cover this path. Warp integration
 remain unfinished, so this phase is still partial.
 
 Add collision location/impact records and their ordered intervals. Port earliest

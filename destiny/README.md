@@ -58,7 +58,7 @@ Internal native-named evolution methods are exposed for source correspondence,
 but callers should drive the simulation with `Evolve()` so all forces observe the
 same tick's positions. The Blue host owns pumping; the park creates no background timer.
 ClientBall interpolation and iterative collision response are implemented;
-replication and compound-shape ownership remain unported.
+[Mini ownership](../docs/destiny-minis.md) is implemented; replication remains unported.
 
 ## Clock and host boundaries
 
@@ -94,8 +94,10 @@ allocate. Controller methods own identity and follower bookkeeping; do not
 mutate stored IDs or follower sets directly.
 
 The optional PyOS bridge supplies synchronous SendEvent(target, context, name,
-null, format, ...args) and PyError(). The only formats used here are `(i)`
-for pre/post tick counters and `()` for final cleanup. A missing handler is
+null, format, ...args) and PyError(). Formats are `(i)` for pre/post tick
+counters, `()` for final cleanup and `ii` for mode changes. Leaving warp also
+uses PostEvent(park, context, name, "Li", id, 0). MiniBall creation and Stop
+route through SetMode; remaining movement assignments still need event wiring. A missing handler is
 successful dispatch; handler return values do not determine dispatch success.
 The host catches handler exceptions and returns false; the park calls PyError
 and continues. A null bridge means no Python subscribers. Async handlers are
