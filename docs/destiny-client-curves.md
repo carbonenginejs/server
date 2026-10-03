@@ -1,7 +1,7 @@
 # ClientBall renderer curves
 
 Status: Evolving
-Scope: Implemented ClientBall position and legacy rotation sampling
+Scope: Implemented ClientBall position, legacy rotation and impact sampling
 Audience: Demo and renderer integrators
 Summary: Tick clock, caller-owned outputs, reference frames and remaining native work.
 
@@ -72,17 +72,64 @@ The same-time reference cache survives ego changes, removal and AdjustTimes.
 AdjustTimes shifts ClientBall position/rotation cache timestamps even when zero,
 while zero motion-endpoint timestamps retain their native sentinel behavior.
 
+## Impact rotation and additional queries
+
+`ApplyImpulsiveForceAtPosition(impactForce, pos)` accepts float32 vectors. `pos`
+is a local lever arm from the center, not an absolute world coordinate. The
+method updates derived client rotation only; it does not alter authoritative
+position, velocity or collision forces. The next legacy quaternion sample applies
+impact growth and recovery through `ProcessImpact` and
+`ApplyAngularVelocityToRotation` (`destiny/src/Ball.cpp:2000-2100`).
+
+The native inverse inertia is cached as `5 / (2 * mass * radius)`, without radius
+squared. It is calculated before the strict minimum-angular-velocity test.
+Repeated impulses retarget the current velocity; growth and recovery can both run
+in one sample. Even a zero-time sample advances the minimum deterioration. The
+rotation cap is the nonlinear `angle * maxAngle / (angle + maxAngle)`. Zero physical
+parameters can produce nonfinite quaternions, as in Carbon. Native ordered clamp
+comparisons are preserved; JavaScript Math.min/max NaN propagation is not substituted.
+
+Public Blue aliases `maxAngle`, `maxAngularVelocity`, `speedModifier` and
+`minimumAngularVelocity` preserve float32 assignments without adding validation.
+The implementation uses reusable scratch and owner-local adapters where runtime
+quaternion behavior differs: native slerp threshold and linear branch, scaled
+axis normalization, and unguarded zero-quaternion normalization. Quaternion products
+reverse Carbon's operand order; shared runtime products have double intermediates
+and float32 output, so this is not a claim of native bitwise identity.
+
+Additional native methods now work:
+
+- `GetValueDoubleDotAt(time, out)` computes endpoint velocity difference divided by
+  park dt for a vec3; quaternion output is untouched. It does not interpolate.
+- `GetDelta(time, out)` samples position, then writes cached mDeltaPos. Fixed/ego
+  paths can therefore return a stale delta.
+- `GetReferencePoint(time, out)` delegates to the park; a detached ball leaves
+  output unchanged. `UpdateValue(seconds)` remains Carbon's intentional no-op.
+- `centerDist`/`surfaceDist` call their native distance getters. Uncached center
+  distance uses endpoints without populating the cache. Negative ego IDs permit
+  center distance but force surface distance to zero. Uncached detached center
+  access throws where native code dereferences a null park; surface access returns zero.
+- `GetPartitionBoxes()` returns owned endpoint-relative geometry/flags.
+  `showBoxes` enables `DoPartition` events during interpolation, relative to the
+  sampled position. The optional PyOS bridge receives the native event and reused
+  flag list; absent a bridge, there are no subscribers. Position sampling snapshots
+  reference components before dispatch, so a nested callback sampling another ball
+  cannot overwrite the outer reference scratch.
+
+Sources: `destiny/src/Ball.cpp:1194-1200,1469-1487,1927-1998,2102-2124`,
+`destiny/src/Ball.h:516,552-560` and `destiny/src/Ball_Blue.cpp:538-616`.
+
 ## Remaining work
 
 This is a renderer-method subset, not complete native interface registration.
-Warp, dynamical orientation, impact rotation and partition debug dispatch remain
-explicitly unsupported. Their sampling branches throw rather than substituting
+Warp and dynamical orientation remain explicitly unsupported. Their sampling branches throw rather than substituting
 legacy motion. Iterative collision records can be consumed, but their production
 is not implemented. The optional native Python callback for detached balls is
-represented by console reporting. Additional reference/derivative/relative-motion
-methods, snapshots, networking and replay remain open in the full port plan.
+represented by console reporting. Relative-motion methods, complete interface mapping, snapshots, networking and
+replay remain open in the full port plan.
 
 Tests cover Number and BigInt ticks, large-coordinate subtraction, velocity,
 reference caches, fixed/global paths, legacy rotation, time rebasing, output reuse
-and absence of float64 factory/pool calls during repeated sampling. These are
+impact growth/recovery, noncommuting composition, distance/debug queries and
+absence of vector/quaternion factory or pool calls during repeated sampling. These are
 headless tests; renderer and weapons-demo integration have not been exercised.

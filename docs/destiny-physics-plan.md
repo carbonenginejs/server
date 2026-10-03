@@ -289,9 +289,10 @@ LOS remains outside the native visibility claim.
 ## Phase 8 Headless interpolation and replay
 
 Current: ClientBall tick position/velocity and legacy rotation sampling, native
-reference caching, two-tick delay and cache-time rebasing are implemented.
+reference caching, two-tick delay, cache-time rebasing, impact rotation/decay,
+acceleration/delta helpers, distance getters and partition debugging are implemented.
 [ClientBall curves](destiny-client-curves.md) records the Number clock contract
-and the remaining warp/dynamical/impact/interface work.
+and the remaining warp/dynamical/interface work.
 
 Port the numeric subset of ClientBall as its own donor-backed class, rather than
 mixing presentation state into the authoritative Ball. Add timestamp shifting,

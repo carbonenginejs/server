@@ -311,5 +311,14 @@ select position/rotation by output length and fill caller-owned buffers. Float64
 state and distinct class scratch slots protect nested ego-reference sampling.
 See [ClientBall curves](destiny-client-curves.md) for per-contract donor ranges,
 cache quirks and explicitly unsupported native branches. Complete native interface
-registration, impact/dynamical/warp sampling and additional curve methods remain
+registration, dynamical/warp sampling and relative-motion methods remain
 open; no runtime files were changed to introduce this renderer-method subset.
+
+ClientBall impact rotation now retains the native cached inverse-inertia formula,
+strict impulse threshold, goal-angle cap, independent growth/recovery phases and
+soft rotation limit. Owner-local quaternion adapters preserve the native slerp
+threshold, axis normalization and zero-quaternion behavior without changing runtime
+math. Runtime quaternion products reverse Carbon operands and still use JavaScript
+double intermediates with float32 results. Ordered comparisons preserve native
+std::min/max selection for NaN deterioration. Extra curve helpers, distance getters
+and partition debugging retain their native cache and detached-call asymmetries.
