@@ -7,6 +7,7 @@ import { CollisionBallProperties } from "./CollisionBallProperties.js";
 import { CjsDestinyPartition } from "./partition/Partition/CjsDestinyPartition.js";
 import { CjsDestinyCapsule } from "./geometry/CjsDestinyCapsule.js";
 import { CjsDestinyOrientedBox } from "./geometry/CjsDestinyOrientedBox.js";
+import { CjsDestinyTriangle } from "./geometry/CjsDestinyTriangle.js";
 import { CollideTwoSpheres } from "./geometry/Collision.js";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { quat } from "@carbonenginejs/runtime/math/quat";
@@ -4609,6 +4610,431 @@ export class CjsBallparkController
     }
 
     /**
+     * Gets the native bubble dictionary without filtering its pending action values.
+     * Adaptation: Map replaces PyDict; missing storage/null input throw JS errors.
+     * The -1 bubble creates an empty Map; an absent named bubble returns null.
+     * Source: destiny/src/Thunkers.cpp:1615-1641.
+     * @param {CjsDestinyBall|null} ball Reference ball.
+     * @returns {Map|null} Borrowed bubble or an owned empty sentinel bubble.
+     */
+    @meta.adapted
+    GetActiveBubbleForBall(ball)
+    {
+        if (!ball) throw new Error("GetActiveBubbleForBall: Ball is NULL");
+        if (!this.bubbles) throw new Error("GetActiveBubbleForBall: bubbles not initialized yet");
+        if (ball.mNewBubble === -1) return new Map();
+        return this.bubbles.get(ball.mNewBubble) ?? null;
+    }
+
+    /**
+     * Resolves a bubble key and excludes missing, moribund and reference objects only.
+     * Adaptation: out.ball replaces the pointer reference; checked ID conversion
+     * failures are skipped like native Python key errors. Valid -1 remains an ID.
+     * Source: destiny/src/Thunkers.cpp:1643-1669.
+     * @param {bigint|number} ballID Bubble key.
+     * @param {object} out Mutable record receiving ball after successful ID conversion.
+     * @param {CjsDestinyBall|null} refBall Reference object to exclude by identity.
+     * @returns {boolean} Whether the resolved ball is eligible.
+     */
+    @meta.adapted
+    BallIsValidForIteration(ballID, out, refBall)
+    {
+        try { ballID = CjsDestinyBall._toInt64(ballID); }
+        catch (error)
+        {
+            if (error instanceof TypeError || error instanceof RangeError) return false;
+            throw error;
+        }
+        out.ball = this.GetBall(ballID);
+        return Boolean(out.ball && !out.ball.isMoribund && out.ball !== refBall);
+    }
+
+    /**
+     * Advances to the next live aggregate ball named by a bubble entry.
+     * Adaptation: a Map entry iterator replaces PyDict plus its position reference;
+     * out.key/value/ball replace native output references. Values are not filters.
+     * Source: destiny/src/Thunkers.cpp:1671-1691.
+     * @param {Iterator} iterator Iterator over bubble entries, retained by the caller.
+     * @param {object} out Mutable key/value/ball output record.
+     * @param {CjsDestinyBall|null} refBall Object excluded by identity.
+     * @returns {number} One for a valid ball, zero at exhaustion; outputs otherwise remain.
+     */
+    @meta.adapted
+    GetNextValidBallInBubble(iterator, out, refBall)
+    {
+        for (let item = iterator.next(); !item.done; item = iterator.next())
+        {
+            out.key = item.value[0]; out.value = item.value[1];
+            if (this.BallIsValidForIteration(out.key, out, refBall)) return 1;
+        }
+        return 0;
+    }
+
+    /**
+     * Queries a bubble by ball/range or coordinate/range, optionally returning distances.
+     * Adaptation: scalar arguments expose the Blue alias; (argsArray, includeDist)
+     * preserves the native helper entry. JS arrays replace lists/tuples, Map order
+     * replaces PyDict order, and coordinate lookup uses class scratch without callbacks.
+     * Source: destiny/src/Thunkers.cpp:1344-1461.
+     * @param {...unknown} input (id,range[,includeCloaked]), (x,y,z,range[,includeCloaked]), or helper tuple/flag.
+     * @returns {Array} IDs or [squared center distance, ID] pairs; no sorting.
+     */
+    @meta.blue.method
+    @meta.adapted
+    GetBallIdsInRange(...input)
+    {
+        const helper = Array.isArray(input[0]);
+        if (helper && input.length > 2) throw new TypeError("GetBallIdsInRange helper requires a tuple and optional distance flag");
+        const args = helper ? input[0] : input, includeDist = helper ? Boolean(input[1]) : false;
+        if (args.length < 2 || args.length > 5) throw new TypeError("GetBallIdsInRange requires 2 to 5 arguments");
+        const useBall = args.length < 4;
+        const flagIndex = useBall ? 2 : 4;
+        let includeCloaked = args.length > flagIndex ? args[flagIndex] : 0;
+        if (typeof includeCloaked === "boolean") includeCloaked = Number(includeCloaked);
+        if (!Number.isInteger(includeCloaked) || includeCloaked < 0 || includeCloaked > 255)
+            throw new RangeError("includeCloaked must fit an unsigned byte");
+        let refBall = null, bubbleID = -1, x, y, z, range;
+        if (useBall)
+        {
+            refBall = this.GetBall(args[0]);
+            if (!refBall) throw new Error("GetBallIdsInRange: Ball not in park");
+            x = refBall.mNewPos[0]; y = refBall.mNewPos[1]; z = refBall.mNewPos[2];
+            bubbleID = refBall.mNewBubble; range = args[1];
+        }
+        else
+        {
+            [x, y, z, range] = args;
+            const { vec3d_0 } = CjsBallparkController.scratch;
+            vec3.set(vec3d_0, x, y, z);
+            const top = this.mPartition.GetExistingTopBox(vec3d_0);
+            if (top) bubbleID = top.mBubble;
+        }
+        if (!this.bubbles) throw new Error("GetBallIdsInRange: bubbles not initialized yet");
+        const result = [];
+        if (bubbleID === -1) return result;
+        const bubble = this.bubbles.get(bubbleID);
+        if (!bubble) return result;
+        const iterator = bubble.entries(), out = {};
+        while (this.GetNextValidBallInBubble(iterator, out, refBall))
+        {
+            const ball = out.ball;
+            if (ball.isCloaked && !includeCloaked) continue;
+            const dx = ball.mNewPos[0] - x, dy = ball.mNewPos[1] - y, dz = ball.mNewPos[2] - z;
+            const distance2 = dx * dx + dy * dy + dz * dz, limit = range + ball.mRadius;
+            if (distance2 <= limit * limit) result.push(includeDist ? [distance2, ball.mId] : ball.mId);
+        }
+        return result;
+    }
+
+    /**
+     * Exposes the native IDs-only range wrapper.
+     * Adaptation: bounded JS arguments replace a Python tuple.
+     * Source: destiny/src/Thunkers.cpp:1329-1335.
+     * @param {...unknown} args Ball/range or coordinate/range arguments.
+     * @returns {bigint[]} Matching identities in bubble order.
+     */
+    @meta.adapted
+    PyGetBallIdsInRange(...args) { return this.GetBallIdsInRange(args, false); }
+
+    /**
+     * Exposes the native range wrapper returning squared center distances.
+     * Adaptation: JS arrays replace Python lists and nested tuples.
+     * Source: destiny/src/Thunkers.cpp:1337-1342.
+     * @param {...unknown} args Ball/range or coordinate/range arguments.
+     * @returns {Array} [distanceSquared, ID] pairs in bubble order.
+     */
+    @meta.adapted
+    PyGetBallIdsAndDistInRange(...args) { return this.GetBallIdsInRange(args, true); }
+
+    /**
+     * Exposes the Blue alias of the distance-bearing range wrapper.
+     * Adaptation: direct delegation replaces native Blue method registration.
+     * Source: destiny/src/Ballpark_Blue.cpp:583-588.
+     * @param {...unknown} args Ball/range or coordinate/range arguments.
+     * @returns {Array} [distanceSquared, ID] pairs.
+     */
+    @meta.blue.method
+    @meta.adapted
+    GetBallIdsAndDistInRange(...args) { return this.GetBallIdsInRange(args, true); }
+
+    /**
+     * Finds bubble balls within an inflated triangle anchored at the source center.
+     * Adaptation: scalar arguments replace the Python tuple; class-owned triangle
+     * and f64 output scratch are safe because iteration calls no host callbacks.
+     * Source: destiny/src/Thunkers.cpp:1463-1520.
+     * @param {bigint|number} id Source identity.
+     * @param {number} ux First edge X.
+     * @param {number} uy First edge Y.
+     * @param {number} uz First edge Z.
+     * @param {number} vx Second edge X.
+     * @param {number} vy Second edge Y.
+     * @param {number} vz Second edge Z.
+     * @param {number} range Inflated surface range; negative values are not clamped.
+     * @returns {bigint[]} Matching identities, including cloaked candidates.
+     */
+    @meta.blue.method
+    @meta.adapted
+    GetBallIdsInRangeOfTriangle(id, ux, uy, uz, vx, vy, vz, range)
+    {
+        if (arguments.length !== 8) throw new TypeError("GetBallIdsInRangeOfTriangle requires 8 arguments");
+        const refBall = this.GetBall(id);
+        if (!refBall) throw new Error("GetBallIdsInRangeOfTriangle: Ball not in park");
+        const bubble = this.GetActiveBubbleForBall(refBall), result = [];
+        if (!bubble) return result;
+        const { triangle_0, vec3d_0 } = CjsBallparkController.scratch;
+        vec3.copy(triangle_0.a, refBall.mNewPos);
+        const x = triangle_0.a[0], y = triangle_0.a[1], z = triangle_0.a[2];
+        vec3.set(triangle_0.b, x + ux, y + uy, z + uz);
+        vec3.set(triangle_0.c, x + vx, y + vy, z + vz);
+        const iterator = bubble.entries(), out = {};
+        while (this.GetNextValidBallInBubble(iterator, out, refBall))
+        {
+            const ball = out.ball;
+            triangle_0.GetClosestPoint(vec3d_0, ball.mNewPos);
+            const dx = ball.mNewPos[0] - vec3d_0[0], dy = ball.mNewPos[1] - vec3d_0[1], dz = ball.mNewPos[2] - vec3d_0[2];
+            const limit = range + ball.mRadius;
+            if (dx * dx + dy * dy + dz * dz <= limit * limit) result.push(ball.mId);
+        }
+        return result;
+    }
+
+    /**
+     * Tests bubble spheres against the native rounded cone and strict angular boundary.
+     * Adaptation: double scalars replace Vector3d temporaries; radius squared is
+     * explicitly float32 before widening. Map order replaces Python dictionary order.
+     * Source: destiny/src/Thunkers.cpp:1523-1613.
+     * @param {bigint|number} id Source identity.
+     * @param {number} vx Cone vector X; vector length supplies height.
+     * @param {number} vy Cone vector Y.
+     * @param {number} vz Cone vector Z.
+     * @param {number} angle Native half-angle in radians, not halved by this query.
+     * @returns {bigint[]} Matching sphere identities, including cloaked candidates.
+     */
+    @meta.blue.method
+    @meta.adapted
+    GetBallIdsInCone(id, vx, vy, vz, angle)
+    {
+        if (arguments.length !== 5) throw new TypeError("GetBallIdsInCone requires 5 arguments");
+        const refBall = this.GetBall(id);
+        if (!refBall) throw new Error("GetBallIdsInCone: Ball not in park");
+        const bubble = this.GetActiveBubbleForBall(refBall), result = [];
+        const height = Math.sqrt(vx * vx + vy * vy + vz * vz);
+        if (height !== 0) { const reciprocal = 1 / height; vx *= reciprocal; vy *= reciprocal; vz *= reciprocal; }
+        if (!bubble) return result;
+        const sin = Math.sin(angle), cos = Math.cos(angle), sinReciprocal = sin > 0 ? 1 / sin : 0;
+        const sinSq = sin * sin, cosSq = cos * cos;
+        const x = refBall.mNewPos[0], y = refBall.mNewPos[1], z = refBall.mNewPos[2];
+        const iterator = bubble.entries(), out = {};
+        while (this.GetNextValidBallInBubble(iterator, out, refBall))
+        {
+            const ball = out.ball, radius = ball.mRadius, radius2 = f32(radius * radius), maxDist = height + radius;
+            const bx = ball.mNewPos[0], by = ball.mNewPos[1], bz = ball.mNewPos[2];
+            const dx = bx - x, dy = by - y, dz = bz - z, distance2 = dx * dx + dy * dy + dz * dz;
+            if (maxDist * maxDist < distance2) continue;
+            const shift = radius * sinReciprocal;
+            const qx = bx - (x - vx * shift), qy = by - (y - vy * shift), qz = bz - (z - vz * shift);
+            const e = vx * qx + vy * qy + vz * qz;
+            if (e > 0 && e * e > (qx * qx + qy * qy + qz * qz) * cosSq)
+            {
+                const back = -(vx * dx + vy * dy + vz * dz);
+                if (back > 0 && back * back >= distance2 * sinSq && distance2 > radius2) continue;
+                result.push(ball.mId);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Finds bubble spheres intersecting an inflated source-to-source-plus-vector segment.
+     * Adaptation: scalar binding and retained f64 scratch replace Python/stack values;
+     * no host callback occurs while the segment is held in class scratch.
+     * Source: destiny/src/Thunkers.cpp:1722-1772.
+     * @param {bigint|number} id Source identity.
+     * @param {number} vx Segment X offset.
+     * @param {number} vy Segment Y offset.
+     * @param {number} vz Segment Z offset.
+     * @param {number} radius Capsule radius, without clamping.
+     * @returns {bigint[]} Matching identities, including cloaked candidates.
+     */
+    @meta.blue.method
+    @meta.adapted
+    GetBallIdsInCapsule(id, vx, vy, vz, radius)
+    {
+        if (arguments.length !== 5) throw new TypeError("GetBallIdsInCapsule requires 5 arguments");
+        const refBall = this.GetBall(id);
+        if (!refBall) throw new Error("GetBallIdsInCapsule: Ball not in park");
+        const bubble = this.GetActiveBubbleForBall(refBall), result = [];
+        if (!bubble) return result;
+        const { vec3d_0, vec3d_1 } = CjsBallparkController.scratch;
+        vec3.copy(vec3d_0, refBall.mNewPos); vec3.set(vec3d_1, vx, vy, vz);
+        const iterator = bubble.entries(), out = {};
+        while (this.GetNextValidBallInBubble(iterator, out, refBall))
+        {
+            const ball = out.ball, limit = radius + ball.mRadius;
+            if (CjsBallparkController.getSquaredDistanceFromClosestPointOnLineSegment(vec3d_0, vec3d_1, ball.mNewPos) <= limit * limit)
+                result.push(ball.mId);
+        }
+        return result;
+    }
+
+    /**
+     * Returns physical center distance, or null when either identity is absent.
+     * Adaptation: JS arguments/null replace tuple parsing/Python None.
+     * Source: destiny/src/Thunkers.cpp:1774-1796.
+     * @param {bigint|number} first First identity.
+     * @param {bigint|number} second Second identity.
+     * @returns {number|null} Double center distance; bubble membership is irrelevant.
+     */
+    @meta.adapted
+    PyGetCenterDist(first, second)
+    {
+        if (arguments.length !== 2) throw new TypeError("PyGetCenterDist requires 2 arguments");
+        first = CjsDestinyBall._toInt64(first); second = CjsDestinyBall._toInt64(second);
+        const a = this.GetBall(first), b = this.GetBall(second);
+        if (!a || !b) return null;
+        const x = a.mNewPos[0] - b.mNewPos[0], y = a.mNewPos[1] - b.mNewPos[1], z = a.mNewPos[2] - b.mNewPos[2];
+        return Math.sqrt(x * x + y * y + z * z);
+    }
+
+    /**
+     * Exposes the native Blue center-distance alias.
+     * Adaptation: JS delegation replaces Blue registration.
+     * Source: destiny/src/Ballpark_Blue.cpp:611-616.
+     * @param {...unknown} args Exactly two ball identities.
+     * @returns {number|null} Center distance or missing sentinel.
+     */
+    @meta.blue.method
+    @meta.adapted
+    GetCenterDist(...args)
+    {
+        if (args.length !== 2) throw new TypeError("GetCenterDist requires 2 arguments");
+        return this.PyGetCenterDist(...args);
+    }
+
+    /**
+     * Returns physical center distance minus each radius, allowing negative overlap.
+     * Adaptation: JS values/null replace Python tuple parsing and None.
+     * Source: destiny/src/Thunkers.cpp:1798-1820.
+     * @param {bigint|number} first First identity.
+     * @param {bigint|number} second Second identity.
+     * @returns {number|null} Unclamped surface distance or missing sentinel.
+     */
+    @meta.adapted
+    PyGetSurfaceDist(first, second)
+    {
+        if (arguments.length !== 2) throw new TypeError("PyGetSurfaceDist requires 2 arguments");
+        const distance = this.PyGetCenterDist(first, second);
+        return distance === null ? null : distance - this.GetBall(first).mRadius - this.GetBall(second).mRadius;
+    }
+
+    /**
+     * Exposes the native Blue surface-distance alias.
+     * Adaptation: JS delegation replaces Blue registration.
+     * Source: destiny/src/Ballpark_Blue.cpp:605-610.
+     * @param {...unknown} args Exactly two ball identities.
+     * @returns {number|null} Unclamped surface distance or missing sentinel.
+     */
+    @meta.blue.method
+    @meta.adapted
+    GetSurfaceDist(...args)
+    {
+        if (args.length !== 2) throw new TypeError("GetSurfaceDist requires 2 arguments");
+        return this.PyGetSurfaceDist(...args);
+    }
+
+    /**
+     * Scans aggregate ball centers, independently of bubble-sphere cone queries.
+     * Adaptation: scalar doubles replace stack vectors and Map order replaces PyDict.
+     * Native filters exclude only own ID, negative IDs and cloak. The input angle is
+     * halved; sphere mode requires an input strictly greater than two pi.
+     * Source: destiny/src/Thunkers.cpp:2379-2461.
+     * @param {bigint|number} id Source identity.
+     * @param {number} angle Full angle in radians.
+     * @param {number} range Inclusive center range; nonpositive returns null.
+     * @param {number} x Direction X.
+     * @param {number} y Direction Y.
+     * @param {number} z Direction Z.
+     * @returns {bigint[]|null} Matching IDs, or null for missing source/invalid direction/range.
+     */
+    @meta.adapted
+    PyScanCone(id, angle, range, x, y, z)
+    {
+        if (arguments.length !== 6) throw new TypeError("PyScanCone requires 6 arguments");
+        id = CjsDestinyBall._toInt64(id);
+        const source = this.GetBall(id);
+        if (range <= 0 || !source) return null;
+        const norm = Math.sqrt(x * x + y * y + z * z);
+        if (norm !== 0) { const reciprocal = 1 / norm; x *= reciprocal; y *= reciprocal; z *= reciprocal; }
+        if (x * x + y * y + z * z < 0.5) return null;
+        const result = [], range2 = range * range;
+        angle *= 0.5;
+        const cos2 = Math.cos(angle) * Math.cos(angle), sphere = angle > Math.PI;
+        for (const ball of this._balls.values())
+        {
+            if (ball.mId === id || ball.mId < 0n || ball.isCloaked) continue;
+            const dx = ball.mNewPos[0] - source.mNewPos[0], dy = ball.mNewPos[1] - source.mNewPos[1], dz = ball.mNewPos[2] - source.mNewPos[2];
+            const dot = x * dx + y * dy + z * dz, length2 = dx * dx + dy * dy + dz * dz;
+            if ((sphere || (dot >= 0 && dot * dot >= cos2 * length2)) && length2 <= range2) result.push(ball.mId);
+        }
+        return result;
+    }
+
+    /**
+     * Exposes the native Blue ScanCone alias.
+     * Adaptation: bounded scalar arguments delegate to the Python-shaped wrapper.
+     * Source: destiny/src/Ballpark_Blue.cpp:617-622.
+     * @param {...unknown} args Source ID, full angle, range and direction components.
+     * @returns {bigint[]|null} Center-query result, independent of bubble membership.
+     */
+    @meta.blue.method
+    @meta.adapted
+    ScanCone(...args)
+    {
+        if (args.length !== 6) throw new TypeError("ScanCone requires 6 arguments");
+        return this.PyScanCone(...args);
+    }
+
+    /**
+     * Computes the native unit-ray sphere roots without normalizing the supplied ray.
+     * Adaptation: optional {value} records replace scalar pointers and preserve
+     * partial writes. Scalar arithmetic keeps (2*ray) dot delta evaluation order.
+     * Source: destiny/src/Ballpark.cpp:5368-5413.
+     * @param {Float64Array|number[]} origin Ray origin.
+     * @param {Float64Array|number[]} ray Unit ray direction; no validation or normalization.
+     * @param {Float64Array|number[]} sphere Sphere center.
+     * @param {number} radius Sphere radius.
+     * @param {object|null} [first=null] Receives value for one/two roots.
+     * @param {object|null} [second=null] Receives value only for two roots.
+     * @returns {number} Native root count 0, 1 or 2.
+     */
+    @meta.adapted
+    GetIntersection(origin, ray, sphere, radius, first = null, second = null)
+    {
+        const x = origin[0] - sphere[0], y = origin[1] - sphere[1], z = origin[2] - sphere[2];
+        const b = (2 * ray[0]) * x + (2 * ray[1]) * y + (2 * ray[2]) * z;
+        const c = x * x + y * y + z * z - radius * radius;
+        let det = b * b - 4 * c;
+        if (det < 0) return 0;
+        if (det === 0) { if (first) first.value = -b * 0.5; return 1; }
+        det = Math.sqrt(det);
+        if (first || second)
+        {
+            const near = (-b - det) * 0.5, far = (-b + det) * 0.5;
+            if (near > 0)
+            {
+                if (first) first.value = near;
+                if (second) second.value = far;
+            }
+            else
+            {
+                if (second) second.value = near;
+                if (first) first.value = far;
+            }
+        }
+        return 2;
+    }
+
+    /**
      * Cloaks a ball after installing the normal master sensor and stopping followers.
      * Adaptation: JS bit operations reproduce the selected native signed-char ABI;
      * the optional range follows the Python wrapper. IDs remain checked BigInt.
@@ -5294,6 +5720,33 @@ export class CjsBallparkController
     @meta.adapted
     static set s_ballNotInParkCallback(value) { CjsDestinyBall._ballNotInParkCallback = value; }
 
+    /**
+     * Measures squared distance from a point to the native clamped segment.
+     * Adaptation: this Thunkers free helper lives on its Ballpark owner; scalar
+     * double arithmetic replaces stack vectors without allocating temporary arrays.
+     * Source: destiny/src/Thunkers.cpp:1693-1720.
+     * @param {Float64Array|number[]} a Segment start.
+     * @param {Float64Array|number[]} ab Segment offset, not endpoint.
+     * @param {Float64Array|number[]} p Query point.
+     * @returns {number} Squared distance; a zero segment uses its start.
+     */
+    @meta.adapted
+    static getSquaredDistanceFromClosestPointOnLineSegment(a, ab, p)
+    {
+        const x = p[0] - a[0], y = p[1] - a[1], z = p[2] - a[2];
+        const c1 = x * ab[0] + y * ab[1] + z * ab[2];
+        if (c1 <= 0) return x * x + y * y + z * z;
+        const c2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
+        if (c2 <= c1)
+        {
+            const dx = p[0] - (a[0] + ab[0]), dy = p[1] - (a[1] + ab[1]), dz = p[2] - (a[2] + ab[2]);
+            return dx * dx + dy * dy + dz * dz;
+        }
+        const b = c1 / c2;
+        const dx = a[0] + b * ab[0] - p[0], dy = a[1] + b * ab[1] - p[1], dz = a[2] + b * ab[2] - p[2];
+        return dx * dx + dy * dy + dz * dz;
+    }
+
     static collisionFrames = [];
 
     static warpConstants = [];
@@ -5301,7 +5754,8 @@ export class CjsBallparkController
     static scratch = {
         dataView_0: new DataView(new ArrayBuffer(8)),
         orbitalNormal: { orbitalVector: vec3d.create(), toVector: vec3d.create(), dist: 0 },
-        gradientBalls: [], gradientStatics: [], vec3d_0: vec3d.create(),
+        gradientBalls: [], gradientStatics: [], vec3d_0: vec3d.create(), vec3d_1: vec3d.create(),
+        triangle_0: new CjsDestinyTriangle(vec3d.create(), vec3d.create(), vec3d.create()),
         vec3_0: vec3.create(), vec3_1: vec3.create(), vec3_2: vec3.create(),
         vec3_3: vec3.create(), vec3_4: vec3.create(),
         quat_0: quat.create(), quat_1: quat.create(), quat_2: quat.create(), mat4_0: mat4.create(),

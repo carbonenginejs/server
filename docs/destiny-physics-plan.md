@@ -295,7 +295,8 @@ wrapper and core algorithm. Preserve sorting, boundary inclusion, sentinels,
 cloaking/global/interactive filters and center-versus-surface semantics. The
 [native sphere-only visibility function](destiny-visibility.md) is implemented
 with its actual return codes and strict near-root test, including source-inside
-and tangent behavior. General query families remain open.
+and tangent behavior. [Range, triangle, cone, capsule, scan and distance queries](destiny-queries.md)
+are implemented with their distinct filters and native boundary rules.
 
 Notification ranges, target tracking events and periodic sensors now work,
 including entered/exited sets, dead-bubble handling and callback cleanup.

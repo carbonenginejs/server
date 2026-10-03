@@ -626,3 +626,18 @@ cases, sensor/follower ordering, mode transitions, byte conversion, proper warp,
 visibility edges, large translated coordinates and exact IDs. The suite has 652
 passing tests. Destiny remains 114e89f; supporting Blue byte conversion was
 reviewed at blueexposure 086a6948fa29e568cbe10f239910cdef70defa61.
+
+## Spatial query boundaries
+
+[Spatial queries](destiny-queries.md) implement native range, triangle, cone,
+capsule, full-map scan, center/surface distance and ray-sphere roots. Bubble
+queries retain live entries awaiting cleanup and ignore map values; ScanCone
+instead scans all balls and excludes negative IDs and cloaked state. Cone angle,
+radius arithmetic and boundary tests remain specific to each native algorithm.
+
+Forty-seven tests bring the suite to 699, including the donor query/distance
+fixtures, an independent grid oracle, output aliasing, float32 boundaries and
+stale bubble entries. Two donor cone fixtures omitted bubble initialization;
+tests preserve those literal cases and add initialized counterparts. Fixed-size
+geometry scratch comes from factories on the class; returned lists are owned.
+Destiny remains 114e89f. No runtime changes or native executable oracle.
