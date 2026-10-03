@@ -7,7 +7,7 @@ Summary: Current implementation and the families still required for completion.
 
 The target is the whole public Destiny donor, not only features used by a racing
 demo. Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
-The current server suite has 266 passing CPU tests against runtime alpha.9.
+The current server suite has 270 passing CPU tests against runtime alpha.9.
 
 | Family | Current status |
 |---|---|

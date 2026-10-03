@@ -61,8 +61,12 @@ therefore see no registered ball for the new ID. The free-ball map uses native
 insert-if-absent semantics, including reentrant creation of the same ID.
 Evolution traverses free balls in signed-ID order. Integration stages vector
 results until each ball's commit so callbacks see the same phase boundary as
-Carbon. The current JS live ordered traversal rescans a Map and is quadratic;
-it preserves mutation semantics but needs the planned container/performance pass.
+Carbon. A sorted BigInt key index now supplies live upper-bound lookup after each
+yield. A complete traversal costs O(n log n); inserting/removing a key can shift
+O(n) array entries. The Map owns Ball references, and the index stores only keys.
+Only the controller's lifecycle methods mutate this internal collection.
+Removal of the currently yielded node safely continues in JS, whereas it
+invalidates the native iterator; that continuation is an explicit adaptation.
 
 ## Retained quirks and unfinished work
 
@@ -76,7 +80,9 @@ signed overflow has no defined result.
 
 Sixteen bubble tests include both native initialization fixtures, the native
 two-region distribution, activity changes, delta acknowledgment, callbacks,
-reentrant registration and staged movement. The complete suite has 266 tests.
+reentrant registration and staged movement. Four additional ordered-iteration
+tests cover wide signed IDs, live changes and lifecycle cleanup. The complete
+suite has 270 tests.
 These are donor/source-derived JS checks, not native-executable bubble evidence.
 
 Conflict resolution, proximity notifications, static-shape Ballpark ownership,

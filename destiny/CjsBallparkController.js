@@ -225,6 +225,7 @@ export class CjsBallparkController
     mBubbleSubscriptions = new Map();
     mGlobals = new Map();
     mFreeBalls = new Map();
+    _freeBallIds = [];
 
     /**
      * Exposes the native read-only Blue subscription dictionary alias.
@@ -552,28 +553,74 @@ export class CjsBallparkController
 
     /**
      * Iterates free balls in native signed-ID order, including later-ID insertions.
-     * JS Map has no ordered iterator; rescanning retains native live membership semantics.
-     * This correctness-first implementation is quadratic and awaits the container performance pass.
+     * JS Map has no ordered iterator; a sorted key index supplies live upper-bound lookup.
+     * Re-reading the index after each yield observes insertions/removals without a stale snapshot.
+     * Current-node removal safely continues in JS; the corresponding native iterator is invalid.
      *
      * @returns {Generator<CjsDestinyBall>} Live ascending-ID traversal.
      */
     @meta.ours
     *_iterateFreeBalls()
     {
-        let previous = null;
-        while (true)
+        let index = 0;
+        while (index < this._freeBallIds.length)
         {
-            let next = null, nextId = null;
-            for (const [id, ball] of this.mFreeBalls)
-                if ((previous === null || id > previous) && (next === null || id < nextId))
-                {
-                    next = ball;
-                    nextId = id;
-                }
-            if (!next) return;
-            previous = nextId;
-            yield next;
+            const id = this._freeBallIds[index];
+            yield this.mFreeBalls.get(id);
+            index = CjsBallparkController._freeBallIndex(this._freeBallIds, id, true);
         }
+    }
+
+    /**
+     * Inserts native free-map membership without replacing an existing ID.
+     * JS Map lacks ordered keys, so its owner maintains an acceleration index alongside it.
+     *
+     * @param {CjsDestinyBall} ball Ball with its native signed-int64 identity.
+     * @returns {void} Existing representatives are retained.
+     */
+    @meta.ours
+    _insertFreeBall(ball)
+    {
+        if (this.mFreeBalls.has(ball.mId)) return;
+        const index = CjsBallparkController._freeBallIndex(this._freeBallIds, ball.mId, false);
+        this.mFreeBalls.set(ball.mId, ball);
+        this._freeBallIds.splice(index, 0, ball.mId);
+    }
+
+    /**
+     * Erases native free-map membership and its ordered key index together.
+     * The index supplies std::map ordering unavailable from JavaScript Map.
+     *
+     * @param {bigint} id Native signed-int64 map key.
+     * @returns {void} Missing keys are ignored like native erase-by-key.
+     */
+    @meta.ours
+    _removeFreeBall(id)
+    {
+        if (!this.mFreeBalls.delete(id)) return;
+        this._freeBallIds.splice(CjsBallparkController._freeBallIndex(this._freeBallIds, id, false), 1);
+    }
+
+    /**
+     * Finds a lower/upper bound in the controller's native signed-ID order.
+     * JavaScript has no ordered Map primitive, so binary lookup indexes its owned key array.
+     *
+     * @param {bigint[]} ids Sorted signed-int64 keys.
+     * @param {bigint} id Search key.
+     * @param {boolean} after Whether equality must be skipped.
+     * @returns {number} First qualifying index or the array length.
+     */
+    @meta.ours
+    static _freeBallIndex(ids, id, after)
+    {
+        let low = 0, high = ids.length;
+        while (low < high)
+        {
+            const mid = Math.floor((low + high) / 2);
+            if (ids[mid] < id || (after && ids[mid] === id)) low = mid + 1;
+            else high = mid;
+        }
+        return low;
     }
 
     /**
@@ -788,9 +835,9 @@ export class CjsBallparkController
         this.SetBallTimeFactor(ball);
         if (ball.isFree)
         {
-            if (!this.mFreeBalls.has(ball.mId)) this.mFreeBalls.set(ball.mId, ball);
+            this._insertFreeBall(ball);
         }
-        else if (!created) this.mFreeBalls.delete(ball.mId);
+        else if (!created) this._removeFreeBall(ball.mId);
         this.InsertBallInBoxes(ball);
         return ball;
     }
@@ -874,7 +921,7 @@ export class CjsBallparkController
         ball.mOldBubble = ball.mNewBubble;
         ball.mNewBubble = -1;
         this.AddToBubble(ball);
-        if (ball.isFree) this.mFreeBalls.delete(ball.mId);
+        if (ball.isFree) this._removeFreeBall(ball.mId);
         if (ball.isGlobal) this.mGlobals.delete(ball.mId);
         this._balls.delete(ball.id);
     }
@@ -902,6 +949,7 @@ export class CjsBallparkController
         this._balls.clear();
         this.mGlobals.clear();
         this.mFreeBalls.clear();
+        this._freeBallIds.length = 0;
         this.ClearBubbles();
         this.moribundBalls.clear();
         this.mLocalCnt = -1n;
@@ -1844,14 +1892,14 @@ export class CjsBallparkController
         ball.isFree = Boolean(isFree);
         if (ball.isFree)
         {
-            if (!this.mFreeBalls.has(ball.mId)) this.mFreeBalls.set(ball.mId, ball);
+            this._insertFreeBall(ball);
             ball.mNewTime = newTime;
         }
         else
         {
             this.Stop(id);
             this.SetBallVelocity(id, 0, 0, 0);
-            this.mFreeBalls.delete(ball.mId);
+            this._removeFreeBall(ball.mId);
             this.InsertBallInBoxes(ball);
             ball._lastGx = ball._lastGy = ball._lastGz = 0;
         }

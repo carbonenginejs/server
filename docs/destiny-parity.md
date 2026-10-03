@@ -75,7 +75,7 @@ The new tests translate donor `test_actions.py` fixtures and cover stamp/order
 semantics, adjacent tuple deduplication, local position metadata, pending state,
 and queued-versus-direct movement application. The action checkpoint had 38
 passing tests, including the original 17 movement
-metadata/trajectory tests; the current suite has 266 passing tests.
+metadata/trajectory tests; the current suite has 270 passing tests.
 
 ## Validation and remaining work
 
@@ -99,7 +99,7 @@ The geometry subpath implements `AABB`, `Planed`, `Triangle`, and all six
 The 44 tests from `TestAABB.cpp`, `TestPlane.cpp`, `TestTriangle.cpp` and
 `TestCollision.cpp` are transcribed with their native names and expectations.
 Seven additional cases cover aliasing, partial output writes, large coordinates,
-swept spheres and source quirks. There are 266 passing tests in the current suite.
+swept spheres and source quirks. There are 270 passing tests in the current suite.
 See [geometry](destiny-geometry.md) for the exact value/reference adaptations.
 
 `BoxShape.h:7-67` and `BoxShape.cpp:8-306` now supply shared corner/side enums,
@@ -273,7 +273,9 @@ Ballpark now maintains native insertion hooks, master/replica bubble assignment,
 activity/keep-alive sets, add/delete markers and subscriptions. It stages movement
 until the native commit pass and traverses the live free-ball map by signed ID.
 The [bubble guide](destiny-bubbles.md) records exact source ranges, callback
-ordering, retained equal-ID bookkeeping quirks and the current quadratic ordered
-iterator adaptation. Sixteen new tests bring the suite to 266. Native networking
+ordering and retained equal-ID bookkeeping quirks. Sixteen bubble tests brought
+the suite to 266; the subsequent ordered-index checkpoint adds four more cases.
+The live free-ball iterator now uses a sorted key index and binary upper bounds,
+retaining callback mutation behavior without a whole-map scan for every ball. Native networking
 recipient batches, conflict resolution and collision/proximity consumers remain
 unported; these tests do not establish full server replication or native execution.
