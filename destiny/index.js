@@ -1,5 +1,6 @@
 export { CjsDestinyBall } from "./CjsDestinyBall.js";
 export { CjsDestinyClientBall } from "./CjsDestinyClientBall.js";
+export { CjsDestinyStream } from "./CjsDestinyStream.js";
 export { CjsDestinyMiniBall } from "./CjsDestinyMiniBall.js";
 export { CjsDestinyMiniCapsule } from "./CjsDestinyMiniCapsule.js";
 export { CjsDestinyMiniBox } from "./CjsDestinyMiniBox.js";
@@ -10,4 +11,4 @@ export { CollisionImpact, CollisionItem, BallLocation } from "./CollisionStructu
 export { CollisionBallProperties } from "./CollisionBallProperties.js";
 export { ProximitySensor } from "./ProximitySensor.js";
 export { MapOfLongLongs } from "./MapOfLongLongs.js";
-export { DSTCONSTANTS } from "./consts.js";
+export { DSTCONSTANTS, DESTINYPACKETS, BALLFLAGS } from "./consts.js";

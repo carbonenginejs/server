@@ -329,6 +329,8 @@ resulting positions and rotations.
 
 Port available full-state and ball-stream formats when needed to prove restart
 equivalence, using existing organization binary I/O facilities where appropriate.
+[State writers](destiny-streams.md) and the seekable byte adapter are implemented;
+the native restoration lifecycle and AddBall replacement correction remain open.
 Review `python/destiny/net` for action timing and replica sequencing. Provide an
 in-process replay harness; this does not require live network transport or EVE
 protocol compatibility. Native snapshots may omit future-affecting transient

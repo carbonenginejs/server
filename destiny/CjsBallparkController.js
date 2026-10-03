@@ -13,7 +13,7 @@ import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { quat } from "@carbonenginejs/runtime/math/quat";
 import { mat4 } from "@carbonenginejs/runtime/math/mat4";
 import { vec3d } from "./math/vec3d.js";
-import { DSTCONSTANTS } from "./consts.js";
+import { DSTCONSTANTS, DESTINYPACKETS, BALLFLAGS } from "./consts.js";
 
 import { g_useIterativeCollision, g_useDynamicalOrientation, g_useNewOrbit, g_collisionMaxIterations,
     g_disableDynamicalOrientationForMissiles } from "./Settings/CjsDestinyGlobalSettings.js";
@@ -4607,6 +4607,218 @@ export class CjsBallparkController
         if (arguments.length !== 3) throw new TypeError("PySetTargetTracking requires 3 arguments");
         id = CjsDestinyBall._toInt64(id); targetId = CjsDestinyBall._toInt64(targetId);
         this.SetTargetTracking(id, targetId, range);
+    }
+
+    /**
+     * Writes one native state record at the supplied stream position.
+     * Adaptation: typed stream methods replace pointer writes with explicit Windows
+     * little-endian widths. Diagnostic byteCount is omitted. Counts narrow before
+     * flag selection; unsupported native modes retain their prefix and return.
+     * Scalar snapshots preserve native stack values across stream method reentry.
+     * Source: destiny/src/Thunkers.cpp:3180-3377; destiny/src/Ballpark.h:1139.
+     * @param {CjsDestinyBall} ball Source ball; moribund balls emit nothing.
+     * @param {CjsDestinyStream} stream Writable Destiny byte adapter.
+     * @returns {void} Appends or overwrites native fields without rewinding.
+     */
+    @meta.adapted
+    WriteBallToStream(ball, stream)
+    {
+        if (ball.isMoribund) return;
+        const id = ball.mId, mass = ball.mMass, radius = ball.mRadius, cloak = ball.isCloaked;
+        const x = ball.mNewPos[0], y = ball.mNewPos[1], z = ball.mNewPos[2];
+        const miniBallCnt = ball.mMiniBalls.GetSize() & 0xffff;
+        const miniCapsuleCnt = ball.mMiniCapsules.GetSize() & 0xffff;
+        const miniBoxCnt = ball.mMiniBoxes.GetSize() & 0xffff;
+        const mode = ball.mMode & 0xff;
+        const flags = (ball.isFree ? BALLFLAGS.DSTBALL_ISFREE : 0) |
+            (ball.isGlobal ? BALLFLAGS.DSTBALL_ISGLOBAL : 0) |
+            (ball.isMassive ? BALLFLAGS.DSTBALL_ISMASSIVE : 0) |
+            (ball.isInteractive ? BALLFLAGS.DSTBALL_ISINTERACTIVE : 0) |
+            (ball.isSpaceJunk ? BALLFLAGS.DSTBALL_ISSPACEJUNK : 0) |
+            (miniBallCnt ? BALLFLAGS.DSTBALL_HASMINIBALLS : 0) |
+            (miniCapsuleCnt ? BALLFLAGS.DSTBALL_HASMINICAPSULES : 0) |
+            (miniBoxCnt ? BALLFLAGS.DSTBALL_HASMINIBOXES : 0);
+        const maxVel = ball.mMaxVel, agility = ball.mAgility, speedFraction = ball.mSpeedFraction;
+        const vx = ball.mNewVel[0], vy = ball.mNewVel[1], vz = ball.mNewVel[2];
+        const rx = ball.mNewRot[0], ry = ball.mNewRot[1], rz = ball.mNewRot[2], rw = ball.mNewRot[3];
+        const wx = ball.mNewAngVel[0], wy = ball.mNewAngVel[1], wz = ball.mNewAngVel[2];
+        const maxAngVel = ball.mMaxAngVel, rotAgility = ball.mRotAgility;
+        stream.WriteInt64(id); stream.WriteUint8(mode); stream.WriteFloat32(radius);
+        stream.WriteFloat64(x); stream.WriteFloat64(y); stream.WriteFloat64(z); stream.WriteUint8(flags);
+        if (mode !== Mode.DSTBALL_RIGID)
+        {
+            stream.WriteFloat64(mass); stream.WriteUint8(cloak);
+            stream.WriteInt64(ball.mHarmonic); stream.WriteInt32(ball.mCorporationID); stream.WriteInt32(ball.mAllianceID);
+        }
+        if (flags & BALLFLAGS.DSTBALL_ISFREE)
+        {
+            stream.WriteFloat32(maxVel); stream.WriteFloat64(vx); stream.WriteFloat64(vy); stream.WriteFloat64(vz);
+            stream.WriteFloat32(agility); stream.WriteFloat32(speedFraction);
+            if (g_useDynamicalOrientation)
+            {
+                stream.WriteFloat32(rx); stream.WriteFloat32(ry); stream.WriteFloat32(rz); stream.WriteFloat32(rw);
+                stream.WriteFloat32(maxAngVel);
+                stream.WriteFloat32(wx); stream.WriteFloat32(wy); stream.WriteFloat32(wz);
+                stream.WriteFloat32(rotAgility);
+            }
+        }
+        stream.WriteUint8(ball.mFormationID);
+        const effectStamp = ball.mEffectStamp;
+        switch (mode)
+        {
+            case Mode.DSTBALL_FOLLOW:
+            case Mode.DSTBALL_ORBIT:
+                stream.WriteInt64(ball.mFollowId); stream.WriteFloat32(ball.mFollowRange);
+                break;
+
+            case Mode.DSTBALL_FORMATION:
+                stream.WriteInt64(ball.mFollowId); stream.WriteFloat32(ball.mFollowRange); stream.WriteInt32(effectStamp);
+                break;
+
+            case Mode.DSTBALL_MISSILE:
+                stream.WriteInt64(ball.mFollowId); stream.WriteFloat32(ball.mFollowRange);
+                stream.WriteInt64(ball.mOwnerId); stream.WriteInt32(effectStamp); stream.WriteVector3d(ball.mGoto);
+                break;
+
+            case Mode.DSTBALL_GOTO:
+                stream.WriteVector3d(ball.mGoto);
+                break;
+
+            case Mode.DSTBALL_WARP:
+                stream.WriteVector3d(ball.mGoto); stream.WriteInt32(effectStamp);
+                stream.WriteFloat64(ball.mLastCollision); stream.WriteInt64(ball.mFollowId); stream.WriteInt64(ball.mOwnerId);
+                break;
+
+            case Mode.DSTBALL_MUSHROOM:
+            {
+                const span = ball.mGoto[0];
+                stream.WriteFloat32(ball.mFollowRange); stream.WriteFloat64(span);
+                stream.WriteInt32(effectStamp); stream.WriteInt64(ball.mOwnerId);
+                break;
+            }
+
+            case Mode.DSTBALL_TROLL:
+                stream.WriteInt32(effectStamp);
+                break;
+
+            case Mode.DSTBALL_STOP:
+            case Mode.DSTBALL_FIELD:
+            case Mode.DSTBALL_RIGID:
+                break;
+
+            default:
+                console.error("WriteBallToStream: Unknown ball mode", mode);
+                return;
+        }
+        if (miniBallCnt) stream.WriteUint16(miniBallCnt);
+        for (let i = 0; i < miniBallCnt; ++i)
+        {
+            const mini = ball.mMiniBalls.GetAt(i);
+            stream.WriteVector3d(mini.mPos); stream.WriteFloat32(mini.mRadius);
+        }
+        if (miniCapsuleCnt) stream.WriteUint16(miniCapsuleCnt);
+        for (let i = 0; i < miniCapsuleCnt; ++i)
+        {
+            const mini = ball.mMiniCapsules.GetAt(i);
+            stream.WriteVector3d(mini.mHemisphereA); stream.WriteVector3d(mini.mHemisphereB); stream.WriteFloat32(mini.mRadius);
+        }
+        if (miniBoxCnt) stream.WriteUint16(miniBoxCnt);
+        for (let i = 0; i < miniBoxCnt; ++i)
+        {
+            const mini = ball.mMiniBoxes.GetAt(i);
+            stream.WriteVector3d(mini.mCorner); stream.WriteVector3d(mini.mLocalX);
+            stream.WriteVector3d(mini.mLocalY); stream.WriteVector3d(mini.mLocalZ);
+        }
+    }
+
+    /**
+     * Writes a full-state packet, optionally filtered to a master's source bubble.
+     * Adaptation: a seekable JS byte adapter replaces Blue; Map insertion order
+     * replaces native dictionary order. Rewinds preserve an existing trailing suffix.
+     * Source: destiny/src/Thunkers.cpp:2145-2200.
+     * @param {CjsDestinyStream} stream Destination stream, overwritten from zero.
+     * @param {bigint|number} [srcID=-1n] Optional existing source; missing disables filtering.
+     * @returns {void} Rewinds to zero after all eligible records are written.
+     */
+    @meta.adapted
+    PyWriteFullStateToStream(stream, srcID = -1n)
+    {
+        if (arguments.length < 1 || arguments.length > 2) throw new TypeError("PyWriteFullStateToStream requires 1 or 2 arguments");
+        srcID = CjsDestinyBall._toInt64(srcID);
+        stream.Seek(0); stream.WriteUint8(DESTINYPACKETS.DESTINY_FULLSTATE); stream.WriteInt32(this.currentTime);
+        const source = srcID === -1n ? null : this.GetBall(srcID);
+        for (const ball of this._balls.values())
+        {
+            if (ball.mId < BigInt(DSTCONSTANTS.DSTLOCALBALLS)) continue;
+            if (source && this.isMaster)
+            {
+                if (source.mNewBubble !== ball.mNewBubble && !ball.isGlobal) continue;
+                if (ball.isCloaked && ball !== source) continue;
+            }
+            this.WriteBallToStream(ball, stream);
+        }
+        stream.Seek(0);
+    }
+
+    /**
+     * Exposes the native Blue full-state writer name.
+     * Adaptation: bounded JS delegation replaces method registration.
+     * Source: destiny/src/Ballpark_Blue.cpp:492-499.
+     * @param {...unknown} args Stream and optional source identity.
+     * @returns {void} Writes through the native-shaped wrapper.
+     */
+    @meta.blue.method
+    @meta.adapted
+    WriteFullStateToStream(...args)
+    {
+        if (args.length < 1 || args.length > 2) throw new TypeError("WriteFullStateToStream requires 1 or 2 arguments");
+        this.PyWriteFullStateToStream(...args);
+    }
+
+    /**
+     * Writes selected records in list order, preserving duplicates and local IDs.
+     * Adaptation: JS Array replaces PyList, checked ID failures are skipped, and
+     * the byte adapter retains the native overwrite-without-truncation behavior.
+     * Source: destiny/src/Thunkers.cpp:2202-2257.
+     * @param {Array} ballList Candidate IDs; malformed and absent entries are skipped.
+     * @param {CjsDestinyStream} stream Destination overwritten from zero.
+     * @returns {void} Rewinds after writing the header and eligible records.
+     */
+    @meta.adapted
+    PyWriteBallsToStream(ballList, stream)
+    {
+        if (arguments.length !== 2 || !Array.isArray(ballList)) throw new TypeError("PyWriteBallsToStream requires a list and stream");
+        stream.Seek(0); stream.WriteUint8(DESTINYPACKETS.DESTINY_BALLS); stream.WriteInt32(this.currentTime);
+        const count = ballList.length;
+        for (let i = 0; i < count; ++i)
+        {
+            let id;
+            try { id = CjsDestinyBall._toInt64(ballList[i]); }
+            catch (error)
+            {
+                if (error instanceof TypeError || error instanceof RangeError) continue;
+                throw error;
+            }
+            const ball = this.GetBall(id);
+            if (ball) this.WriteBallToStream(ball, stream);
+        }
+        stream.Seek(0);
+    }
+
+    /**
+     * Exposes the native Blue selected-ball writer name.
+     * Adaptation: direct JS delegation replaces Blue method registration.
+     * Source: destiny/src/Ballpark_Blue.cpp:500-506.
+     * @param {Array} ballList Candidate identities.
+     * @param {CjsDestinyStream} stream Destination stream.
+     * @returns {void} Writes through the native-shaped wrapper.
+     */
+    @meta.blue.method
+    @meta.adapted
+    WriteBallsToStream(ballList, stream)
+    {
+        if (arguments.length !== 2) throw new TypeError("WriteBallsToStream requires 2 arguments");
+        this.PyWriteBallsToStream(ballList, stream);
     }
 
     /**

@@ -659,3 +659,18 @@ Twenty-one tests bring the suite to 720, including all seven donor accuracy
 fixtures, independent relative-motion examples, cached curves, nested sampling,
 exception pool balance, precision and reference aliasing. Donor remains 114e89f;
 runtime remains untouched. Interfaces, streams, network batches and replay stay open.
+
+## Native state packet writing
+
+[State streams](destiny-streams.md) implement full and selected packet writers,
+all supported mode payloads, native integer narrowing, Mini section order/count
+wrapping, filtering and overwrite without truncation. BOID/MINIBALL retain the
+native incomplete-prefix behavior. CjsDestinyStream wraps the existing runtime
+bounded reader with owned storage, seek/write and exact-width scalar operations;
+it avoids float normalization and does not change runtime.
+
+Nineteen tests bring the suite to 739. Independent literal/field-offset fixtures
+verify wire layout rather than relying on self-round-trip. Reader restoration
+remains open, including the native AddBall replacement behavior documented in
+the stream guide. Scalar snapshots preserve native stack values across nested
+stream calls. No native executable oracle, transport or restart parity is claimed.
