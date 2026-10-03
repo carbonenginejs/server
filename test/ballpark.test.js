@@ -37,7 +37,7 @@ test("CCP GotoDirection trajectory", () =>
     const ball = spaceBall(park, 1);
     park.GotoDirection(1, 10, 20, 30);
     compareTrajectory(park, ball, fixtures.test_goto_direction);
-    assert.equal(park.time, 10);
+    assert.equal(park.currentTime, 10);
 });
 
 test("CCP GotoPoint trajectory including inertial overshoot", () =>
@@ -235,11 +235,11 @@ test("unsupported mode and zero mobile mass fail before any tick mutation", () =
     second.mode = Mode.DSTBALL_WARP;
     assert.throws(() => park.Evolve(), /not implemented/);
     assert.equal(first.x, 0);
-    assert.equal(park.time, 0);
+    assert.equal(park.currentTime, 0);
     park.Stop(2);
     second.mass = 0;
     assert.throws(() => park.Evolve(), /positive finite/);
-    assert.equal(park.time, 0);
+    assert.equal(park.currentTime, 0);
     assert.throws(() => spaceBall(park, 2 ** 53), /safe integers/);
 });
 

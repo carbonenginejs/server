@@ -80,6 +80,11 @@ export class CjsDestinyBall
     @meta.type.boolean
     isMoribund = false;
 
+    // Native state timestamps and the mode/deletion stamp.
+    mNewTime = 0;
+    mOldTime = 0;
+    mEffectStamp = 0;
+
     // Native mOldPos/mOldVel and mLastG, expanded into f64 scalars.
     _oldX = 0;
     _oldY = 0;

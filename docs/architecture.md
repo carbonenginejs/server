@@ -28,3 +28,8 @@ Current implementation boundaries and remaining native families are listed in
 [port status](port-status.md). Native DLL loading, refcounts and operating-system
 integration need explicit JavaScript dispositions; absent emulable behavior
 remains unfinished port work.
+
+The movement park now consumes an injected Blue tick host and optional native-shaped
+PyOS event bridge. It owns counter/timestamp separation and native tick/cleanup
+ordering; the host owns clock sampling and event-handler failures. Full replication,
+ClientBall clocks and spatial lifecycle remain outside the implemented boundary.

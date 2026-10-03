@@ -43,8 +43,9 @@ has been introduced. Nothing was promoted from generated source or regenerated.
 - IDs must be safe JS integers. Full signed 64-bit IDs and automatic native local-ID
   allocation are outside this temporary model. Explicit negative safe IDs are ordinary
   map keys here; Blue-specific negative-target rejection is not implemented.
-- There is a single implicit region, immediate removal, and no Blue callbacks,
-  collision forces, tombstones, networking, orientation, interpolation or notifications.
+- There is a single implicit region. Removal supports native delay/buffering and
+  an optional injected PyOS bridge for tick/final-cleanup callbacks. Collision
+  forces, networking, orientation, interpolation and spatial notifications are absent.
   Boolean flags are retained as data; only `isFree`/`isMoribund` affect tick participation,
   and follow/orbit validate target cloaking/death when receiving a command.
 - Mobile balls with nonpositive or nonfinite mass/agility fail before tick mutation.
@@ -66,15 +67,15 @@ has been introduced. Nothing was promoted from generated source or regenerated.
 `Actions` now ports the movement-command subset of
 `python/destiny/net/server/_actions.py`. Its Python method spellings and history
 tuples are preserved. Native signals, unsupported commands, tick dispatch and
-replication remain excluded. The JS park's `time` and `GetBall` replace the
-native counter and dictionary access at explicitly annotated sites. See
+replication remain excluded. The JS park's `currentTime` and `GetBall` replace
+native counter access and the dictionary at explicitly annotated sites. See
 [Destiny action queue](destiny-actions.md) for exact behavior and adaptations.
 
 The new tests translate donor `test_actions.py` fixtures and cover stamp/order
 semantics, adjacent tuple deduplication, local position metadata, pending state,
 and queued-versus-direct movement application. The action checkpoint had 38
 passing tests, including the original 17 movement
-metadata/trajectory tests; the current suite has 89 passing tests.
+metadata/trajectory tests; the current suite has 112 passing tests.
 
 ## Validation and remaining work
 
@@ -98,7 +99,7 @@ The geometry subpath implements `AABB`, `Planed`, `Triangle`, and all six
 The 44 tests from `TestAABB.cpp`, `TestPlane.cpp`, `TestTriangle.cpp` and
 `TestCollision.cpp` are transcribed with their native names and expectations.
 Seven additional cases cover aliasing, partial output writes, large coordinates,
-swept spheres and source quirks. There are 89 passing tests in the current suite.
+swept spheres and source quirks. There are 112 passing tests in the current suite.
 See [geometry](destiny-geometry.md) for the exact value/reference adaptations.
 
 ## Donor update reviewed 2026-10-04
@@ -136,3 +137,21 @@ Validation after the baseline update: all 89 server tests pass against runtime
 alpha.9, source JSDoc has no gaps, and documentation/package-content checks pass.
 The six stored movement trajectories also match current donor literals exactly
 (68 points, 204 scalar values); this is a literal comparison, not native execution.
+
+## Clock and ball cleanup
+
+`Ballpark.cpp:219-330,3013-3032,4415-4441` supplies OnTick, Start/Pause and
+AdjustTimes. The Python zero-argument Evolve wrapper (`Thunkers.cpp:1244-1250`)
+uses timestamp zero; explicit timestamps follow `Ballpark.cpp:550-559`.
+Blue field mappings are `Ballpark_Blue.cpp:55-72,105-120`.
+`Ballpark.cpp:5415-5572,5699-5766` supplies follower transitions, delayed
+removal and buffered cleanup; capsule/box/bubble cleanup remains unported.
+The original metadata/trajectory tests now assert currentTime for counters.
+
+The clock/lifecycle tests include all five donor test_time.py cases, actual
+runtime manual-host integration, catch-up thresholds, timestamp sentinels, callback
+phase ordering/failure handling, drag-cache behavior, deferred cleanup and re-add.
+Native host globals become explicit injected interfaces; there is no new scheduler
+or event-bus implementation. See the [source-family guide](../destiny/README.md)
+for the host contract and the current Number timestamp limitation. Phase 1 remains
+incomplete until its state/settings, full-int64 and remaining lifecycle obligations land.

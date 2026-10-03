@@ -9,9 +9,12 @@ Import `CjsBallparkController` and `CjsDestinyBall` from
 | --- | --- |
 | `AddBall(id, mass, radius, maxVel, isFree, isGlobal, isMassive, isInteractive, isSpaceJunk, x, y, z, vx, vy, vz, agility, speedFraction)` | Creates a ball, or updates the same object for an existing ID; resets it to stop. |
 | `GetBall(id)` | Returns the live ball or `null`. |
-| `RemoveBall(id)` | Removes immediately and stops its followers/orbiters. |
+| `RemoveBall(id, delay = 0)` | Detaches followers; queues deletion when delayed or inside evolution. Interactive orbiters keep flying. |
 | `ClearAll()` | Removes all balls; simulation time is retained. |
-| `Evolve()` | Advances one second and increments `time` by one. |
+| `Evolve(timestamp = 0)` | Advances the cached step and increments `currentTime`; zero leaves ball timestamps unchanged. |
+| `Start()` / `Pause()` | Registers/unregisters the injected Blue host without resetting clocks. |
+| `OnTick(realTime, simTime, cookie)` | Cleans dead balls and evolves whole intervals from the 100ns simulation clock. |
+| `AdjustTimes(delta)` | Shifts park and nonzero ball timestamps without changing the counter. |
 | `GotoPoint(id, x, y, z)` | Accelerates toward a fixed point. Does not clamp arrival or eliminate overshoot. Restarts zero throttle at one. |
 | `GotoDirection(id, x, y, z)` | Normalizes direction and chooses a point `1e17` meters away. |
 | `FollowBall(id, targetId, range = 1)` | Keeps the specified surface separation, including both radii. |
@@ -42,5 +45,41 @@ not mean a behavior is implemented.
 
 Internal native-named evolution methods are exposed for source correspondence,
 but callers should drive the simulation with `Evolve()` so all forces observe the
-same tick's positions. There is no variable-delta update, wall-clock scheduler,
-interpolation API, collision, or replication in this pass.
+same tick's positions. The Blue host owns pumping; the park creates no background timer.
+Interpolation, collision response and replication remain unported.
+
+## Clock and host boundaries
+
+`new CjsBallparkController(blueOS = null, pyOS = null)` injects the native
+host boundaries. The existing runtime CjsBlueOS supplies tick registration and
+manual PumpOS; its elapsed Number clocks are not full native absolute-time parity.
+No simulation method calls schema APIs. The IBlueEvents declaration is metadata.
+
+`time` is the last simulation timestamp in 100ns units; `currentTime` is the
+integer simulation counter. Actions use the latter. `tickInterval` is in
+milliseconds (default 1000). Evolve uses cached dt; changing tickInterval refreshes
+dt only at an eligible OnTick, and does not refresh existing balls' cached drag.
+Mass/agility setters or AddBall refresh drag at their native sites. This donor
+quirk is intentional. Use safe integer Number timestamps for exact arithmetic;
+full signed-int64 representation remains pending.
+
+The optional PyOS bridge supplies synchronous SendEvent(target, context, name,
+null, format, ...args) and PyError(). The only formats used here are `(i)`
+for pre/post tick counters and `()` for final cleanup. A missing handler is
+successful dispatch; handler return values do not determine dispatch success.
+The host catches handler exceptions and returns false; the park calls PyError
+and continues. A null bridge means no Python subscribers. Async handlers are
+not part of this contract.
+
+The first eligible OnTick evolves once without pre/post events. Subsequent
+ticks emit DoPreTick before evolution and DoPostTick after the counter increments.
+A master drops backlogs of at least six whole intervals to one; a replica catches
+up all intervals. Pause only stops host registration, not direct method calls.
+Cleanup happens before interval eligibility, even for a subinterval tick.
+
+RemoveBall marks delayed balls moribund immediately, stopping their participation.
+Cleanup removes all overdue balls, plus up to seven within the two-counter buffer
+per call. Selection among equally eligible buffered balls uses JS Set insertion
+order instead of native unordered pointer hashing. Re-add cancels pending deletion.
+ClearAll releases references without final-cleanup callbacks or resetting clocks.
+Capsule cleanup, ClientBall timestamp caches and bubble lifecycle remain pending.

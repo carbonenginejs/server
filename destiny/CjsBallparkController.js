@@ -1,4 +1,5 @@
 import { meta } from "@carbonenginejs/runtime/schema";
+import { IBlueEvents } from "@carbonenginejs/runtime/blue";
 import { CjsDestinyBall } from "./CjsDestinyBall.js";
 
 const Mode = CjsDestinyBall.DSTBALLMODE;
@@ -10,15 +11,159 @@ const ORBITAL_PRECESSION = 0.001;
 // Source: destiny/src/Settings.h
 // Source: destiny/src/Thunkers.cpp
 /**
- * Temporary, single-region Ballpark movement subset. Evolve advances one second,
- * matching the donor default. Legacy orbit and non-dynamical orientation settings
+ * Temporary, single-region Ballpark movement subset with native clock phases.
+ * The cached evolution step defaults to one second. Legacy orbit and non-dynamical orientation settings
  * are fixed for this first pass. No collision, bubble, wire or gameplay processing.
  */
 @meta.define({ className: "CjsBallparkController", modelledOn: "Ballpark" })
+@meta.blue.inherit(IBlueEvents)
 export class CjsBallparkController
 {
-    @meta.type.int32
+    @meta.type.int64
     time = 0;
+    @meta.type.int32
+    currentTime = 0;
+    @meta.type.int32
+    tickInterval = 1000;
+    @meta.type.boolean
+    isMaster = false;
+
+    mHaveTicks = false;
+    mFirstTime = true;
+    inEvolve = false;
+    moribundBalls = new Set();
+    mMoribundBallRemovalCount = 7;
+    mMoribundBallRemovalBuffer = 2;
+    _blueOS = null;
+    _pyOS = null;
+
+    /**
+     * Supplies the native BeOS and PyOS boundaries explicitly instead of globals.
+     * Adaptation: no native lock object, CPython interpreter or automatic timer is
+     * created. With no PyOS bridge there are no Python event subscribers. Clock
+     * values remain Numbers in 100ns units; exact full-int64 timestamps are pending.
+     *
+     * @param {IBlueOS|null} [blueOS=null] Host with RegisterForTicks/UnregisterForTicks; required by Start.
+     * @param {Object|null} [pyOS=null] Optional native-shaped SendEvent/PyError bridge. SendEvent reports handler errors as false.
+     * @returns {CjsBallparkController} An initially paused, empty simulation.
+     */
+    constructor(blueOS = null, pyOS = null)
+    {
+        this._blueOS = blueOS;
+        this._pyOS = pyOS;
+    }
+
+    /**
+     * Reads native mHaveTicks, independently of direct Evolve/OnTick calls.
+     *
+     * @returns {boolean} Whether Start has registered this park with its host.
+     */
+    @meta.type.boolean
+    @meta.implemented
+    get isRunning()
+    {
+        return this.mHaveTicks;
+    }
+
+    /**
+     * Registers for native Destiny::Tick delivery, once per Start/Pause cycle.
+     * Adaptation: the injected Blue host replaces native BeOS; no timer is owned here.
+     *
+     * @returns {void} No return value.
+     * @throws {Error} If no Blue host was supplied.
+     */
+    @meta.blue.method
+    @meta.adapted
+    Start()
+    {
+        if (this.mHaveTicks) return;
+        if (!this._blueOS) throw new Error("Start requires a Blue tick host");
+        this._blueOS.RegisterForTicks(this, "Destiny::Tick");
+        this.mHaveTicks = true;
+    }
+
+    /**
+     * Unregisters native tick delivery without resetting clocks or first-tick state.
+     * Adaptation: calls the injected Blue host. Direct Evolve/OnTick remain available.
+     *
+     * @returns {void} No return value.
+     */
+    @meta.blue.method
+    @meta.adapted
+    Pause()
+    {
+        if (!this.mHaveTicks) return;
+        this._blueOS.UnregisterForTicks(this, "Destiny::Tick");
+        this.mHaveTicks = false;
+    }
+
+    /**
+     * Advances whole tick intervals with native first-tick and master catch-up rules.
+     * Adaptation: the optional PyOS bridge replaces native Python event delivery;
+     * a false SendEvent result is reported through PyError and evolution continues.
+     * The host must catch handler exceptions and return false, as native PyOS does.
+     * Number timestamps retain exact integer arithmetic only within the safe range.
+     * Capsule cleanup, bubble activity and native profiling remain unported.
+     *
+     * @param {number} realTime Host real clock in 100ns units; unused by the donor.
+     * @param {number} simTime Host simulation clock in 100ns units.
+     * @param {*} cookie Registration cookie; unused by the donor.
+     * @returns {void} No return value.
+     */
+    @meta.blue.method
+    @meta.adapted
+    OnTick(realTime, simTime, cookie)
+    {
+        let lastDelta = simTime - this.time;
+        this.BringOutTheDeads();
+        if (lastDelta < this.tickInterval * 10000) return;
+        this._dt = this.tickInterval * 0.001;
+        // Native integer division: 5.9 intervals is still five, not a backlog reset.
+        if (this.isMaster && Math.trunc(lastDelta / (this.tickInterval * 10000)) > 5)
+        {
+            lastDelta = this.tickInterval * 10000;
+        }
+        if (this.mFirstTime)
+        {
+            this.Evolve(simTime);
+            lastDelta = 0;
+            this.mFirstTime = false;
+        }
+        else
+        {
+            const intervals = Math.trunc(lastDelta / (this.tickInterval * 10000));
+            for (let i = 0; i < intervals; i++)
+            {
+                if (this._pyOS && !this._pyOS.SendEvent(this, "Destiny::DoPreTick",
+                    "DoPreTick", null, "(i)", this.currentTime)) this._pyOS.PyError();
+                this.Evolve(simTime - lastDelta);
+                if (this._pyOS && !this._pyOS.SendEvent(this, "Destiny::DoPostTick",
+                    "DoPostTick", null, "(i)", this.currentTime)) this._pyOS.PyError();
+                lastDelta -= this.tickInterval * 10000;
+            }
+        }
+        this.time = simTime - lastDelta;
+    }
+
+    /**
+     * Shifts the simulation clock and nonzero ball timestamps, preserving zero sentinels.
+     * Adaptation: Number clocks replace native Be::Time. ClientBall position/rotation
+     * cache timestamps will be handled with that unported class, not guessed here.
+     *
+     * @param {number} timeDelta Signed clock adjustment in 100ns units.
+     * @returns {void} No return value.
+     */
+    @meta.blue.method
+    @meta.adapted
+    AdjustTimes(timeDelta)
+    {
+        this.time += timeDelta;
+        for (const ball of this._balls.values())
+        {
+            if (ball.mNewTime !== 0) ball.mNewTime += timeDelta;
+            if (ball.mOldTime !== 0) ball.mOldTime += timeDelta;
+        }
+    }
 
     _balls = new Map();
     _friction = 1000000;
@@ -103,6 +248,8 @@ export class CjsBallparkController
         ball.isInteractive = Boolean(isInteractive);
         ball.isSpaceJunk = Boolean(isSpaceJunk);
         ball.isMoribund = false;
+        this.moribundBalls.delete(ball);
+        ball.mEffectStamp = 0;
         ball.followId = 0;
         ball.followRange = 10;
         ball.mode = Mode.DSTBALL_STOP;
@@ -124,28 +271,71 @@ export class CjsBallparkController
     }
 
     /**
-     * Adaptation: immediate removal; no delayed network tombstone or bubble cleanup.
+     * Detaches followers; interactive orbiters and missiles retain their velocity direction.
+     * Adaptation: JS IDs and scalar velocities replace native map/vector arguments.
+     * The copied Set replaces a native unordered set; invalid links are removed
+     * without native logging. Missile steering itself remains unported.
+     *
+     * @param {CjsDestinyBall|null} ball Target whose incoming follower links are detached.
+     * @returns {void} No return value.
+     */
+    @meta.adapted
+    StopAllFollowers(ball)
+    {
+        if (!ball) return;
+        for (const id of Array.from(ball._followers))
+        {
+            const follower = this.GetBall(id);
+            if (!follower || follower.followId !== ball.id || follower._followPtr !== ball)
+            {
+                ball._followers.delete(id);
+                continue;
+            }
+            if (follower.mode === Mode.DSTBALL_MISSILE
+                || (follower.isInteractive && follower.mode === Mode.DSTBALL_ORBIT))
+            {
+                if (follower.mode === Mode.DSTBALL_MISSILE) follower.isMassive = false;
+                this.GotoDirection(id, follower.vx, follower.vy, follower.vz);
+            }
+            else this.Stop(id);
+        }
+    }
+
+    /**
+     * Detaches follower orders, then removes the ball now or queues native delayed cleanup.
+     * Adaptation: JS retains object references and uses an optional PyOS bridge for
+     * DoFinalCleanup. Mini-shapes, collision caches, boxes and bubbles remain unported.
      *
      * @param {number} id Safe-integer ball identity.
+     * @param {number} [delay=0] Tick delay before buffered cleanup.
      * @returns {void} No return value.
      */
     @meta.blue.method
     @meta.adapted
-    RemoveBall(id)
+    RemoveBall(id, delay = 0)
     {
         const ball = this.GetBall(id);
         if (!ball) return;
         this.Stop(id);
-        for (const followerId of ball._followers)
-        {
-            this.Stop(followerId);
-        }
+        this.StopAllFollowers(ball);
         ball.isMoribund = true;
+        if (this.inEvolve || delay > 0)
+        {
+            ball.isMassive = false;
+            ball.mEffectStamp = this.currentTime + delay;
+            this.moribundBalls.add(ball);
+            return;
+        }
+        if (this._pyOS && !this._pyOS.SendEvent(ball, "Destiny::Ball::DoFinalCleanup",
+            "DoFinalCleanup", null, "()")) this._pyOS.PyError();
+        this.moribundBalls.delete(ball);
         this._balls.delete(id);
     }
 
     /**
-     * Adaptation: clears this movement subset and detaches outstanding ball handles.
+     * Clears owned balls without final-cleanup events or changing the clocks.
+     * Adaptation: clears JS references, including pending deletions, and detaches
+     * outstanding handles; native owner/refcount teardown has no JS equivalent.
      *
      * @returns {void} No return value.
      */
@@ -153,20 +343,80 @@ export class CjsBallparkController
     @meta.adapted
     ClearAll()
     {
-        for (const id of this._balls.keys()) this.RemoveBall(id);
+        // ClearAll does not send per-ball final-cleanup events in Carbon.
+        // JS handles remain live, so detach their follower links explicitly.
+        for (const ball of this._balls.values())
+        {
+            this.Stop(ball.id);
+            ball.isMoribund = true;
+        }
+        this._balls.clear();
+        this.moribundBalls.clear();
+    }
+
+
+    /**
+     * Runs deferred cleanup before tick eligibility, unless evolution is active.
+     * Adaptation: only balls exist in this subset; capsule cleanup is unported.
+     *
+     * @returns {void} No return value.
+     */
+    @meta.adapted
+    BringOutTheDeads()
+    {
+        if (this.inEvolve) return;
+        this.BringOutDeadBalls();
     }
 
     /**
-     * Advances one native default tick. Forces are evaluated for every ball before
-     * any position changes. Adaptation: no collision forces, timestamps, orientation,
+     * Removes expired balls without a cap and buffered balls up to the configured limit (default seven).
+     * Adaptation: a JS Set replaces the native unordered pointer set; selection
+     * among equally eligible buffered balls follows insertion order. Invalid queue
+     * records are discarded without native logging. Shape cleanup remains unported.
+     *
+     * @returns {void} No return value.
+     */
+    @meta.adapted
+    BringOutDeadBalls()
+    {
+        let killCounter = 0;
+        const toDelete = [];
+        for (const ball of this.moribundBalls)
+        {
+            if (!ball || !ball.isMoribund || ball.mEffectStamp - this.currentTime < 0)
+            {
+                toDelete.push(ball);
+            }
+            else if (ball.mEffectStamp - this.currentTime - this.mMoribundBallRemovalBuffer < 0
+                && killCounter < this.mMoribundBallRemovalCount)
+            {
+                toDelete.push(ball);
+                killCounter++;
+            }
+        }
+        for (const ball of toDelete)
+        {
+            if (ball && ball.isMoribund) this.RemoveBall(ball.id);
+            this.moribundBalls.delete(ball);
+        }
+    }
+
+    /**
+     * Advances one cached simulation step and increments currentTime, not time.
+     * Forces are evaluated before positions. Adaptation: the default timestamp of
+     * zero follows the Python Evolve wrapper; no collision forces or orientation,
      * bubbles or notifications. Invalid mobile mass and unsupported modes fail
      * before changing the tick, rather than silently simulating another behavior.
+     * JS exceptions release inEvolve with finally so callbacks cannot strand cleanup.
      *
+     * @param {number} [timestamp=0] New ball timestamp in 100ns units; zero preserves ball timestamps.
+     * @throws {RangeError} If a mobile mass/agility is invalid.
+     * @throws {Error} If an active ball uses an unported mode.
      * @returns {void} No return value.
      */
     @meta.blue.method
     @meta.adapted
-    Evolve()
+    Evolve(timestamp = 0)
     {
         for (const ball of this._balls.values())
         {
@@ -182,15 +432,35 @@ export class CjsBallparkController
                 throw new Error(`Destiny mode ${ball.mode} is not implemented`);
             }
         }
-        for (const ball of this._balls.values())
+        this.inEvolve = true;
+        try
         {
-            if (ball.isFree && !ball.isMoribund) this.EvolveBehaviorForBall(ball);
+            for (const ball of this._balls.values())
+            {
+                if (ball.isFree && !ball.isMoribund) this.EvolveBehaviorForBall(ball);
+            }
+            for (const ball of this._balls.values())
+            {
+                if (ball.isFree && !ball.isMoribund) this.Integrate(ball);
+            }
+            // Carbon completes integration for every ball before updating timestamps.
+            if (timestamp !== 0)
+            {
+                for (const ball of this._balls.values())
+                {
+                    if (!ball.isFree || ball.isMoribund) continue;
+                    ball.mOldTime = ball.mNewTime === 0
+                        ? timestamp - this.tickInterval * 10000 : ball.mNewTime;
+                    ball.mNewTime = timestamp;
+                }
+            }
+            this.currentTime++;
         }
-        for (const ball of this._balls.values())
+        finally
         {
-            if (ball.isFree && !ball.isMoribund) this.Integrate(ball);
+            // JS callbacks can throw; never leave the deletion semaphore stuck.
+            this.inEvolve = false;
         }
-        this.time++;
     }
 
     /**
@@ -215,7 +485,7 @@ export class CjsBallparkController
                 this.EvolveFollow(ball);
                 break;
             case Mode.DSTBALL_ORBIT:
-                this.EvolveOrbit(ball, this.time);
+                this.EvolveOrbit(ball, this.currentTime);
                 break;
             case Mode.DSTBALL_STOP:
                 this.EvolveStop(ball);
@@ -704,7 +974,11 @@ export class CjsBallparkController
         const ball = this.GetBall(id);
         if (!ball || ball.isFree === Boolean(isFree)) return;
         ball.isFree = Boolean(isFree);
-        if (!ball.isFree)
+        if (ball.isFree)
+        {
+            ball.mNewTime = this.time - this.tickInterval * 10000;
+        }
+        else
         {
             this.Stop(id);
             this.SetBallVelocity(id, 0, 0, 0);

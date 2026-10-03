@@ -46,14 +46,14 @@ park.AddBall(
 
 park.Orbit(ship.id, 2, 500);
 for (let tick = 0; tick < 60; tick++) park.Evolve();
-console.log(park.time, ship.x, ship.y, ship.z);
+console.log(park.currentTime, ship.x, ship.y, ship.z);
 
 park.FollowBall(ship.id, 2, 100);
 park.GotoPoint(ship.id, 1000, 0, 0);
 park.Stop(ship.id); // Decelerates on subsequent ticks.
 ```
 
-Each `Evolve()` advances **one second**, the native default. The caller supplies
+Each `Evolve()` advances the cached step, **one second** by default. The caller supplies
 the clock; calling once per rendered frame would run the simulation too fast.
 Distances are meters, velocity is meters/second, and mass is kilograms.
 
@@ -92,7 +92,8 @@ queries; they are not yet wired into ballpark collision response.
 
 ## Current boundary
 
-This is one region with movement and a separate movement-command queue. Balls pass through one another, including
+This is one region with movement, native clock phases, deferred ball cleanup and
+a separate movement-command queue. Balls pass through one another, including
 when `isMassive` is true. Collision response, spatial partitions, visibility,
 mini-shapes, newer orbit, orientation, warp, missiles, formations, interpolation,
 replication, combat, and drone command policy are not implemented. Unsupported

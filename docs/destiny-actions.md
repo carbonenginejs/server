@@ -32,7 +32,7 @@ argument to `SetBallPosition`.
 | `set_ball_mass`, `set_ball_agility`, `set_ball_radius` | `SetBallMass`, `SetBallAgility`, `SetBallRadius` |
 | `set_speed_fraction`, `set_max_speed`, `set_ball_free` | `SetSpeedFraction`, `SetMaxSpeed`, `SetBallFree` |
 
-The initial stamp is zero when the park's `time` is zero, otherwise `time + 1`.
+The initial stamp is zero when the park's `currentTime` is zero, otherwise `currentTime + 1`.
 `set_stamp_for_system(stamp)` labels subsequent commands. Stamps are tick
 counters, not wall-clock times. This queue does not sort commands, defer arbitrary
 future stamps, discard old entries or provide a timer.
@@ -52,7 +52,7 @@ and preserve the donor's numeric zero when no matching action exists.
 
 This minimal caller illustrates Carbon's pre-tick phase order. It is not a
 port of the server `Ticker`, a remote-command dispatcher or a replication wire.
-The park's existing `Evolve()` still advances one second.
+The park's `Evolve()` advances its cached step, one second by default.
 
 ```js
 import { CjsBallparkController } from "@carbonenginejs/server/destiny";
@@ -67,7 +67,7 @@ actions.go_to_direction(1, 1, 0, 0);
 
 // Advance the stamp before detaching the prior batch. New inputs belong to
 // the next batch even if they arrive during application of the current one.
-actions.set_stamp_for_system(park.time + 1);
+actions.set_stamp_for_system(park.currentTime + 1);
 const history = actions.flush_history();
 for (const [, , [method, args]] of history)
 {
@@ -87,8 +87,8 @@ also owns failures: a flushed batch is detached, and execution is not transactio
 
 - Arrays represent Python tuples. They remain mutable, consistent with this
   package's data contract; the receiver owns a flushed batch.
-- The existing JS `time` and `GetBall` stand in for native
-  `currentTime`/`_currentTime` and the `balls` dictionary.
+- JS `currentTime` serves native `currentTime`/`_currentTime`; `GetBall` replaces
+  the `balls` dictionary. The separate `time` timestamp is never an action stamp.
 - Native weak-reference `Signal` is unported. Accessing either signal property
   throws explicitly. This subset omits enqueue notifications, including the
   notification Carbon sends for a suppressed duplicate.

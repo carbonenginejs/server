@@ -27,14 +27,14 @@ export class Actions
     }
 
     /**
-     * Adaptation: native currentTime/_currentTime is this subset's time field.
+     * Adaptation: native currentTime/_currentTime both read the explicit tick counter.
      *
      * @returns {number} Zero at startup, otherwise the next tick label.
      */
     @meta.adapted
     _get_initial_stamp_for_system()
     {
-        return this._park.time === 0 ? 0 : this._park.time + 1;
+        return this._park.currentTime === 0 ? 0 : this._park.currentTime + 1;
     }
 
     /**

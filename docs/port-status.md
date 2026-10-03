@@ -7,14 +7,14 @@ Summary: Current implementation and the families still required for completion.
 
 The target is the whole public Destiny donor, not only features used by a racing
 demo. Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
-The current server suite has 89 passing CPU tests against runtime alpha.9.
+The current server suite has 112 passing CPU tests against runtime alpha.9.
 
 | Family | Current status |
 |---|---|
 | Ball/Ballpark | Temporary movement subset: goto, follow, legacy orbit, stop and basic lifecycle/setters |
 | Actions | Movement commands, timestamps, adjacent deduplication and pending queries |
 | AABB/Planed/Triangle/Collision | Numeric primitives implemented; 44 native fixtures and seven additional cases |
-| Clock/host boundary | Pending; current time field still acts as a tick counter and must be separated from native timestamps |
+| Clock/host boundary | Separate time/currentTime, Start/Pause, OnTick, AdjustTimes and deferred ball cleanup implemented; ClientBall/capsule/bubble dependencies and full int64 remain pending |
 | BoxShape/RectangleShape, capsules/boxes and mini-shapes | Pending |
 | Partition/Partitionable/Box, bubbles and activity | Pending; use the new KeyHash donor at Partition.h:104-123 |
 | Legacy and iterative collision response | Pending |
