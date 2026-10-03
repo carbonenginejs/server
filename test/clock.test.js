@@ -335,10 +335,11 @@ test("all integrations precede timestamp updates, including when a later integra
     const park = new CjsBallparkController();
     const first = ball(park), second = ball(park, 2);
     const integrate = park.Integrate;
+    let integrations = 0;
     park.Integrate = function (...args)
     {
         assert.deepEqual([first.mNewTime, second.mNewTime], [0n, 0n]);
-        if (args[0] === second.mOldPos) throw new Error("synthetic integration failure");
+        if (++integrations === 2) throw new Error("synthetic integration failure");
         integrate.apply(this, args);
     };
     assert.throws(() => park.Evolve(STEP), /synthetic integration failure/);

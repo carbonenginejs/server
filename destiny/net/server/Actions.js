@@ -375,6 +375,41 @@ export class Actions
     }
 
     /**
+     * Queues native warp alignment with its minimum range and integer speed factor.
+     * Adaptation: checked BigInt IDs and arrays replace Python integers and tuples.
+     * Source: destiny/python/destiny/net/server/_actions.py:405-429.
+     * @param {bigint|number} src_id Signed-int64 ball identity.
+     * @param {number} x Destination X in meters.
+     * @param {number} y Destination Y in meters.
+     * @param {number} z Destination Z in meters.
+     * @param {number} minimum_range Distance to stop short in meters.
+     * @param {number} warp_speed Native integer warp factor.
+     * @returns {void} Appends the native WarpTo event.
+     */
+    @meta.adapted
+    warp_to(src_id, x, y, z, minimum_range, warp_speed)
+    {
+        this._add_to_system_history(src_id, "WarpTo", [x, y, z, minimum_range, warp_speed]);
+    }
+
+    /**
+     * Queues native warp-in with immediate entry and its historical five-tick offset.
+     * Adaptation: checked BigInt IDs and arrays replace Python integers and tuples.
+     * Source: destiny/python/destiny/net/server/_actions.py:431-450.
+     * @param {bigint|number} src_id Signed-int64 ball identity.
+     * @param {number} x Destination X in meters.
+     * @param {number} y Destination Y in meters.
+     * @param {number} z Destination Z in meters.
+     * @param {number} warp_speed Native integer warp factor.
+     * @returns {void} Appends the native EntityWarpIn event.
+     */
+    @meta.adapted
+    entity_warp_in(src_id, x, y, z, warp_speed)
+    {
+        this._add_to_system_history(src_id, "EntityWarpIn", [x, y, z, warp_speed]);
+    }
+
+    /**
      * Native weak-reference Signal delivery is not part of this queue subset.
      *
      * @returns {never} Throws until native Signal delivery is ported.

@@ -28,6 +28,7 @@ argument to `SetBallPosition`.
 |---|---|
 | `go_to_point`, `go_to_direction` | `GotoPoint`, `GotoDirection` |
 | `orbit`, `follow_ball`, `stop` | `Orbit`, `FollowBall`, `Stop` |
+| `warp_to`, `entity_warp_in` | `WarpTo`, `EntityWarpIn` |
 | `set_ball_velocity`, `set_ball_position` | `SetBallVelocity`, `SetBallPosition` |
 | `set_ball_mass`, `set_ball_agility`, `set_ball_radius` | `SetBallMass`, `SetBallAgility`, `SetBallRadius` |
 | `set_speed_fraction`, `set_max_speed`, `set_ball_free` | `SetSpeedFraction`, `SetMaxSpeed`, `SetBallFree` |
@@ -80,7 +81,7 @@ const history = actions.flush_history();
 for (const [, , [method, args]] of history)
 {
     // Only tuples produced by this trusted, in-process Actions instance.
-    // Supported movement methods have at most four arguments.
+    // Supported movement methods have at most six arguments.
     park[method](...args);
 }
 park.Evolve();
@@ -100,7 +101,7 @@ also owns failures: a flushed batch is detached, and execution is not transactio
 - Native weak-reference `Signal` is unported. Accessing either signal property
   throws explicitly. This subset omits enqueue notifications, including the
   notification Carbon sends for a suppressed duplicate.
-- Warp, angular controls, cloak, global/bubble actions, stream serialization,
+- Angular controls, cloak, global/bubble actions, stream serialization,
   follower cleanup and removal wrappers are not exported by this subset.
   Native `remove_ball` performs immediate removal and must not later be
   misrepresented as an ordinary queued action.

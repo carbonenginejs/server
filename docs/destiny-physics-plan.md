@@ -25,7 +25,7 @@ and its recorded adaptations are described in [destiny-parity.md](destiny-parity
 fixed one-second ticks, drag integration, goto point/direction, follow, legacy/new
 orbit, formation following and stopping. Seventeen tests passed when this plan was prepared,
 including six numeric donor trajectories. Automatic bubbles and legacy collisions
-now work; full orientation, queries, warp and replication remain unfinished.
+now work, together with dynamic orientation and warp; queries and replication remain unfinished.
 
 Preserve those fixtures while extending the implementation. The current scalar
 position/velocity representation retains double precision; native float fields
@@ -40,8 +40,8 @@ native fixtures plus source-derived ray, overlap and alias cases. Static Capsule
 and OrientedBox now implement geometry, membership and direct response methods,
 with the native fractional integrator. Ballpark ownership and legacy collision
 scheduling now work. Iterative discovery, scheduling, impulses and conditional
-cache cleanup and [Mini ownership](destiny-minis.md) are implemented. Warp collision
-integration remains pending; this does not complete either solver phase.
+cache cleanup, [Mini ownership](destiny-minis.md) and [warp integration](destiny-warp.md)
+are implemented. Remaining special movement modes still need their collision review.
 
 Partition, Box, Key/KeyHash, all three sorted-set comparers and the
 Partitionable/StaticCollidable membership bases now work independently. Forty
@@ -236,8 +236,8 @@ CollisionBallProperties now provide native ordered history and sampling. Contact
 approximation, static/free impulses and recursive invalidation are implemented.
 Earliest impact discovery, scheduling and conditional cache cleanup now run through
 Evolve. Native sphere/capsule/box scenarios and source-derived ordering, settings,
-pooling and lifecycle tests cover this path. Warp integration
-remain unfinished, so this phase is still partial.
+pooling and lifecycle tests cover this path, including both warp pass-through cases.
+Remaining special movement modes still need their collision review.
 
 Add collision location/impact records and their ordered intervals. Port earliest
 impact discovery, static and free-body responses, propagation to neighbors,
@@ -261,8 +261,9 @@ before imposing a new sort and calling it parity.
 
 Current: [formation loading, reservations and rotated following](destiny-formations.md)
 are implemented with both native formation trajectories. Existing goto/follow/orbit/stop
-commands now preserve native mode-event and follower-cleanup ordering. Warp, missiles
-and the other special movement modes remain unfinished.
+commands now preserve native mode-event and follower-cleanup ordering. Warp alignment,
+phases, exit, entity warp-in and client sampling are implemented. Missiles and the
+other special movement modes remain unfinished.
 
 Implement warp alignment and entry predicates, phase constants, distance/velocity
 evaluation, short and long warps, termination, entity warp-in and source destination
@@ -308,7 +309,7 @@ Current: ClientBall tick position/velocity and legacy rotation sampling, native
 reference caching, two-tick delay, cache-time rebasing, impact rotation/decay,
 acceleration/delta helpers, distance getters and partition debugging are implemented.
 [ClientBall curves](destiny-client-curves.md) records the Number clock contract
-and the remaining warp/dynamical/interface work.
+and implemented warp/dynamic sampling; interface registration and replay remain unfinished.
 
 Port the numeric subset of ClientBall as its own donor-backed class, rather than
 mixing presentation state into the authoritative Ball. Add timestamp shifting,

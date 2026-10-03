@@ -4,6 +4,7 @@ import { CjsDestinyMiniBall } from "./CjsDestinyMiniBall.js";
 import { CjsDestinyMiniCapsule } from "./CjsDestinyMiniCapsule.js";
 import { CjsDestinyMiniBox } from "./CjsDestinyMiniBox.js";
 import { vec3d } from "./math/vec3d.js";
+import { ProximitySensor } from "./ProximitySensor.js";
 import { CjsDestinyPartitionable } from "./partition/CjsDestinyPartitionable.js";
 import { CjsDestinyBox } from "./partition/CjsDestinyBox.js";
 import { CjsDestinyBoxSortComparer } from "./partition/SortedSets/CjsDestinyBoxSortComparer.js";
@@ -33,6 +34,8 @@ const boxComparer = new CjsDestinyBoxSortComparer();
 @meta.define({ className: "CjsDestinyBall", modelledOn: "Ball" })
 export class CjsDestinyBall extends CjsDestinyPartitionable
 {
+    mSensor = new ProximitySensor();
+
     mMiniBalls = new BlueList(CjsDestinyMiniBall);
 
     mMiniCapsules = new BlueList(CjsDestinyMiniCapsule);
@@ -397,8 +400,7 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
 
     /**
      * Evolves Carbon's velocity-directed, mass-damped legacy orientation.
-     * Adaptation: scalar components replace temporary Vector3d objects. Warp
-     * orientation remains unavailable with the unported warp simulation. Detached
+     * Adaptation: scalar components replace temporary Vector3d objects. Detached
      * reporting uses the native shared callback through a direct JS function.
      * Source: destiny/src/Ball.cpp:335-460.
      * @param {boolean} [snap=false] Bypass damping and clear roll state.
@@ -413,8 +415,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
             this.RegisterBallNotInPark();
             return;
         }
-        if (this.mMode === CjsDestinyBall.DSTBALLMODE.DSTBALL_WARP)
-            throw new Error("Warp orientation is not implemented");
         this.mOldPitch = this.mNewPitch;
         this.mOldYaw = this.mNewYaw;
         this.mOldRoll = this.mNewRoll;
@@ -428,6 +428,20 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
         let z = this.mGoto[2] - this.mNewPos[2];
         if (vel2 !== 0)
         {
+            let dx = 0, dy = 0, dz = 0;
+            if (this.IsWarpish())
+            {
+                // Native quirk: proper warp leaves this direction zero before goto bias.
+                // Source: destiny/src/Ball.cpp:381-397.
+                if (this.IsAligningForWarp())
+                {
+                    if (this.mCollisions.length === 0) { dx = x; dy = y; dz = z; }
+                    else { dx = vx; dy = vy; dz = vz; }
+                }
+                else if (massModifier < 1 && this.mPark.currentTime !== this.mEffectStamp)
+                    massModifier = Math.min(1, massModifier * Math.min(15, (this.mPark.currentTime - this.mEffectStamp) * 2));
+            }
+            else { dx = vx; dy = vy; dz = vz; }
             if (this.mMode !== CjsDestinyBall.DSTBALLMODE.DSTBALL_MISSILE && !snap)
             {
                 const length = Math.sqrt(x * x + y * y + z * z);
@@ -438,13 +452,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
                     z *= 1 / length;
                 }
                 const speed = Math.sqrt(vel2) * 0.3;
-                x = vx + speed * x;
-                y = vy + speed * y;
-                z = vz + speed * z;
+                x = dx + speed * x;
+                y = dy + speed * y;
+                z = dz + speed * z;
             }
             else
             {
-                x = vx; y = vy; z = vz;
+                x = dx; y = dy; z = dz;
             }
         }
         this.mNewYaw = Math.atan2(x, z);
@@ -786,8 +800,9 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     }
 
     /**
-     * Writes mMaxVel through maxVelocity.
-     * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
+     * Writes mMaxVel through maxVelocity, narrowing to the native float.
+     * Adaptation: a JS accessor performs the conversion made by Blue's float member.
+     * Source: destiny/src/Ball.h:126; destiny/src/Ball_Blue.cpp:48-54.
      *
      * @param {number} value New native value.
      * @returns {void} Updates the shared storage.
@@ -795,7 +810,7 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     @meta.adapted
     set maxVelocity(value)
     {
-        this.mMaxVel = value;
+        this.mMaxVel = f32(value);
     }
 
     /**
@@ -1758,6 +1773,80 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
             vec3d.unalloc(vec3d_3); vec3d.unalloc(vec3d_2); vec3d.unalloc(vec3d_1); vec3d.unalloc(vec3d_0);
         }
     }
+
+    /**
+     * Tests whether the ball is aligning or travelling in the native warp mode.
+     * Source: destiny/src/Ball.cpp:1885-1888.
+     * @returns {boolean} Whether its mode is WARP.
+     */
+    @meta.implemented
+    IsWarpish() { return this.mMode === CjsDestinyBall.DSTBALLMODE.DSTBALL_WARP; }
+
+    /**
+     * Tests the native negative alignment-counter phase.
+     * Source: destiny/src/Ball.cpp:1890-1893.
+     * @returns {boolean} Whether the ball is in WARP with a negative effect stamp.
+     */
+    @meta.implemented
+    IsAligningForWarp() { return this.IsWarpish() && this.mEffectStamp < 0; }
+
+    /**
+     * Tests the native proper-warp phase after alignment.
+     * Source: destiny/src/Ball.cpp:1895-1898.
+     * @returns {boolean} Whether WARP has a nonnegative start stamp.
+     */
+    @meta.implemented
+    IsWarping() { return this.IsWarpish() && !this.IsAligningForWarp(); }
+
+    /**
+     * Checks native heading/speed thresholds or the strict alignment-tick timeout.
+     * Adaptation: double scalar locals replace stack Vector3d values, preserving
+     * zero-length normalization and avoiding float32 storage.
+     * Source: destiny/src/Ball.cpp:1900-1923; destiny/src/Ball.h:23.
+     * @returns {boolean} Whether an aligning ball may begin proper warp.
+     */
+    @meta.adapted
+    IsAlignedForWarp()
+    {
+        if (!this.IsAligningForWarp()) return false;
+        let x = this.mGoto[0] - this.mNewPos[0], y = this.mGoto[1] - this.mNewPos[1], z = this.mGoto[2] - this.mNewPos[2];
+        let vx = this.mNewVel[0], vy = this.mNewVel[1], vz = this.mNewVel[2];
+        const speed2 = vx * vx + vy * vy + vz * vz;
+        let norm = Math.sqrt(x * x + y * y + z * z);
+        if (norm !== 0) { norm = 1 / norm; x *= norm; y *= norm; z *= norm; }
+        norm = Math.sqrt(speed2);
+        if (norm !== 0) { norm = 1 / norm; vx *= norm; vy *= norm; vz *= norm; }
+        if (Math.abs(1 - (vx * x + vy * y + vz * z)) < 0.01 && speed2 > 0.5625 * this.mMaxVel * this.mMaxVel) return true;
+        return Math.abs(this.mEffectStamp) > 180;
+    }
+
+    /**
+     * Reads the native readonly effect counter, also used as warp start/alignment state.
+     * Source: destiny/src/Ball_Blue.cpp:407-414.
+     * @returns {number} Native simulation counter value.
+     */
+    @meta.type.int32
+    @meta.implemented
+    get effectStamp() { return this.mEffectStamp; }
+
+    /**
+     * Reads the native owner identity, repurposed as an integer warp factor.
+     * Adaptation: signed-int64 BigInt preserves the native storage exactly.
+     * Source: destiny/src/Ball_Blue.cpp:395-405.
+     * @returns {bigint} Native owner/factor bits.
+     */
+    @meta.type.int64
+    @meta.adapted
+    get ownerId() { return this.mOwnerId; }
+
+    /**
+     * Writes the native owner field without additional notifications.
+     * Adaptation: safe Number inputs normalize to checked signed-int64 BigInt.
+     * @param {bigint|number} value Owner identity or warp factor.
+     * @returns {void} Updates the shared native backing field.
+     */
+    @meta.adapted
+    set ownerId(value) { this.mOwnerId = CjsDestinyBall._toInt64(value); }
 
     /**
      * Reads the native readonly Blue byte view of the signed-char formation identity.

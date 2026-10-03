@@ -7,7 +7,7 @@ Summary: Current implementation and the families still required for completion.
 
 The target is the whole public Destiny donor, not only features used by a racing
 demo. Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
-The current server suite has 513 passing CPU tests against runtime alpha.9.
+The current server suite has 540 passing CPU tests against runtime alpha.9.
 
 | Family | Current status |
 |---|---|
@@ -20,11 +20,11 @@ The current server suite has 513 passing CPU tests against runtime alpha.9.
 | Mini-shapes | Descriptors, typed BlueLists, native/Python-shaped add methods, fixed-parent attachment and lifecycle implemented; Python constructors and full IRoot/persistence pending |
 | Partition/Partitionable/Box/StaticCollidable | Keys/hash, cells, ordering, filters and static membership implemented; Ball shares state and implements neighborhoods/cleanup; automatic Ballpark insertion implemented |
 | Bubbles and activity | Insertion, initialization, delta bookkeeping, subscriptions and activity implemented; conflict resolution and network batches pending |
-| Legacy and iterative collision response | Fractional integration, both response paths, collision records, discovery, impulses, recursive invalidation, scheduling and conditional cache cleanup implemented; warp integration pending |
+| Legacy and iterative collision response | Fractional integration, both response paths, collision records, discovery, impulses, recursive invalidation, scheduling, conditional cache cleanup and warp integration implemented |
 | New orbit | Both orientation paths implemented; all four native scenarios pass; physical-heading fallback implemented |
 | Formations | Loading, 16-bit reservations, leader assignment, native follow transitions and rotated steering implemented; both donor trajectories pass |
-| Orientation, warp, missiles and remaining modes | Legacy and dynamic steering/evolution/sampling, impact rotation, native oriented creation and angular setters implemented; remaining movement modes pending |
-| Visibility, range/volume queries, sensors and relative motion | Pending |
+| Orientation, warp, missiles and remaining modes | Legacy and dynamic steering/evolution/sampling, impact rotation, native/Python oriented creation and angular setters implemented; warp alignment, phases, exit, entity warp-in and ShiftFromPlanets implemented; other special modes pending |
+| Visibility, range/volume queries, sensors and relative motion | ProximitySensor record and warp activity transitions implemented; scanning, notifications and other queries pending |
 | ClientBall interpolation, snapshots and binary streams | Number/BigInt tick position, velocity, acceleration, legacy/impact/dynamic rotation, deltas and ego reference implemented; interface registration, relative motion, snapshots and streams pending |
 | Server tickers, bubble updates and recipient batching | Pending |
 | Client history merging, wait rules, restore and replay | Pending |

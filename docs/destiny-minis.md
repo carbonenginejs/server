@@ -63,7 +63,7 @@ object and reports the collision, preserving the donor's displacement hazard.
 `SetMode` sends exit-warp before mode-change and stores the mode after callbacks
 (`Ball.cpp:905-938`). Creation, goto, follow, orbit, formation and `Stop` use it, including child removal.
 See [movement transitions](destiny-formations.md) for callback ordering.
-No warp behavior is implied by exposing the exit-warp notification.
+The [warp guide](destiny-warp.md) describes the implemented movement path using this notification.
 
 ## Lifecycle and callbacks
 
@@ -95,7 +95,7 @@ cycle; the public static remains `CjsBallparkController.s_ballNotInParkCallback`
 Donor local-coordinate and legacy MiniBall scenarios run through these APIs.
 Capsule/box legacy and iterative trajectories now use real Mini owners. Thirty
 active iterative scenarios pass, including the fixed-parent MiniBall-target case;
-warp remains the active gap and one further MiniBall case is disabled in the donor.
+the separate warp pass-through scenario also passes. One further MiniBall case is disabled in the donor.
 Additional tests cover pool reentry/throw balance, callback phase ordering,
 descriptor copies, repeated attachment and cleanup quirks. Expected trajectories
 come from donor assertions; no native executable oracle has run. Free-parent

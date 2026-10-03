@@ -36,6 +36,8 @@ const ORBITAL_PRECESSION = 0.001;
 @meta.blue.inherit(IBlueEvents)
 export class CjsBallparkController
 {
+    mWarpSpeed = 2;
+
     mFormations = [];
 
     mTime = 0n;
@@ -960,6 +962,62 @@ export class CjsBallparkController
         rotAgility = f32(rotAgility);
         ball.mMaxAngVel = maxAngVel < 0 ? 0 : maxAngVel;
         ball.mRotAgility = rotAgility <= 0 ? 1 : rotAgility;
+        return ball;
+    }
+
+    /**
+     * Dispatches the native Python creation entry by the live orientation setting.
+     * Adaptation: positional JS arguments replace the Python tuple; the selected
+     * wrapper checks its exact arity before spreading the bounded argument list.
+     * Source: destiny/src/Thunkers.cpp:150-159.
+     * @param {...unknown} args Seventeen legacy arguments, or nineteen dynamic arguments.
+     * @returns {CjsDestinyBall} Created or updated ball.
+     */
+    @meta.adapted
+    PyAddBall(...args)
+    {
+        const count = g_useDynamicalOrientation ? 19 : 17;
+        if (args.length !== count) throw new TypeError(`PyAddBall requires ${count} arguments`);
+        return g_useDynamicalOrientation ? this.PyAddDynamicallyOrientedBall(...args)
+            : this.PyAddOldStyleOrientedBall(...args);
+    }
+
+    /**
+     * Rejects Python-facing creation while the park is evolving.
+     * Adaptation: JS positional values replace tuple parsing and Error replaces
+     * Python RuntimeError. Scalar validation remains in the core creation path.
+     * Source: destiny/src/Thunkers.cpp:113-145.
+     * @param {...unknown} args The seventeen AddOldStyleOrientedBall arguments, in the same order.
+     * @returns {CjsDestinyBall} Created or updated ball after its legacy snap.
+     */
+    @meta.adapted
+    PyAddOldStyleOrientedBall(...args)
+    {
+        if (args.length !== 17) throw new TypeError("PyAddOldStyleOrientedBall requires 17 arguments");
+        if (this.inEvolve) throw new Error("Can not add ball during Evolve().");
+        return this.AddOldStyleOrientedBall(...args);
+    }
+
+    /**
+     * Creates identity/zero angular state and then snaps it to velocity, even for fixed balls.
+     * Adaptation: JS positional values replace tuple parsing and Error replaces
+     * Python RuntimeError. Scalar validation remains in the core creation path.
+     * Source: destiny/src/Thunkers.cpp:51-106.
+     * @param {...unknown} args The seventeen legacy creation arguments, followed by maxAngularSpeed and angularAgility.
+     * @returns {CjsDestinyBall} Created or updated ball after its unconditional dynamic snap.
+     */
+    @meta.adapted
+    PyAddDynamicallyOrientedBall(...args)
+    {
+        if (args.length !== 19) throw new TypeError("PyAddDynamicallyOrientedBall requires 19 arguments");
+        if (this.inEvolve) throw new Error("Can not add ball during Evolve().");
+        const [objectId, mass, radius, maxVel, isFree, isGlobal, isMassive,
+            isInteractive, isSpaceJunk, x, y, z, vx, vy, vz, agility, speedFraction,
+            maxAngularSpeed, angularAgility] = args;
+        const ball = this.AddDynamicallyOrientedBall(objectId, mass, radius, maxVel, maxAngularSpeed,
+            isFree, isGlobal, isMassive, isInteractive, isSpaceJunk, x, y, z, vx, vy, vz,
+            0, 0, 0, 1, 0, 0, 0, agility, angularAgility, speedFraction);
+        ball.SnapOrientation();
         return ball;
     }
 
@@ -2210,7 +2268,7 @@ export class CjsBallparkController
             }
             if (ball.mode !== Mode.DSTBALL_STOP && ball.mode !== Mode.DSTBALL_GOTO
                 && ball.mode !== Mode.DSTBALL_FOLLOW && ball.mode !== Mode.DSTBALL_ORBIT
-                && ball.mode !== Mode.DSTBALL_FORMATION)
+                && ball.mode !== Mode.DSTBALL_FORMATION && ball.mode !== Mode.DSTBALL_WARP)
             {
                 throw new Error(`Destiny mode ${ball.mode} is not implemented`);
             }
@@ -2237,23 +2295,53 @@ export class CjsBallparkController
                     ball.mLastCollision = -1;
                     this.Gradient(ball);
                 }
-                for (let q = 0; q < 3; ++q)
+                // Native stack vectors survive warp callbacks without exposing staged results.
+                // Source: destiny/src/Ballpark.cpp:474-520.
+                const p = vec3d.alloc(), v = vec3d.alloc();
+                try
                 {
-                    ball.mOldPos[q] = ball.mNewPos[q];
-                    ball.mOldVel[q] = ball.mNewVel[q];
-                }
-                // Native integration stages results in old vectors until the commit pass.
-                this.CalculateBallPositionVelocity(ball, this.dt, ball.mOldPos, ball.mOldVel);
-                if (g_useDynamicalOrientation && !DynamicalOrientationDisabledForBall(ball))
-                {
-                    quat.copy(ball.mOldRot, ball.mNewRot);
-                    vec3.copy(ball.mOldAngVel, ball.mNewAngVel);
-                    if (g_useIterativeCollision) this.CalculateBallRotationVelocity(ball, 1, ball.mOldRot, ball.mOldAngVel);
+                    vec3.copy(p, ball.mNewPos);
+                    vec3.copy(v, ball.mNewVel);
+                    if (ball.IsWarping())
+                    {
+                        this.WarpDistance(ball, p, v, (this.currentTime - ball.mEffectStamp) * this.dt, false);
+                        if (ball.mMode === Mode.DSTBALL_STOP)
+                        {
+                            vec3.copy(ball.mNewPos, p);
+                            vec3.copy(ball.mNewVel, v);
+                            const acceleration = vec3d.alloc();
+                            try
+                            {
+                                vec3.add(acceleration, ball.mLastG, ball.mLastC);
+                                this.Integrate(p, v, acceleration, ball.mMass * ball.mAgility,
+                                    this.mFriction, ball.mTimeFactor, this.dt);
+                            }
+                            finally { vec3d.unalloc(acceleration); }
+                            if (vec3.squaredLength(ball.mNewVel) < 0.1) this.InsertBallInBoxes(ball);
+                        }
+                    }
                     else
                     {
-                        const tau = f32(f32(f32(f32(ball.mMass) * ball.mAgility) * ball.mRotAgility) / f32(this.mFriction));
-                        this.ApplyTorque(ball.mOldRot, ball.mOldAngVel, ball.mTorque, ball.mRoll, tau, 1);
+                        this.CalculateBallPositionVelocity(ball, this.dt, p, v);
                     }
+                    if (g_useDynamicalOrientation && !DynamicalOrientationDisabledForBall(ball))
+                    {
+                        quat.copy(ball.mOldRot, ball.mNewRot);
+                        vec3.copy(ball.mOldAngVel, ball.mNewAngVel);
+                        if (g_useIterativeCollision) this.CalculateBallRotationVelocity(ball, 1, ball.mOldRot, ball.mOldAngVel);
+                        else
+                        {
+                            const tau = f32(f32(f32(f32(ball.mMass) * ball.mAgility) * ball.mRotAgility) / f32(this.mFriction));
+                            this.ApplyTorque(ball.mOldRot, ball.mOldAngVel, ball.mTorque, ball.mRoll, tau, 1);
+                        }
+                    }
+                    vec3.copy(ball.mOldPos, p);
+                    vec3.copy(ball.mOldVel, v);
+                }
+                finally
+                {
+                    vec3d.unalloc(v);
+                    vec3d.unalloc(p);
                 }
             }
             // Carbon completes integration for every ball before updating timestamps.
@@ -2321,7 +2409,7 @@ export class CjsBallparkController
      * Adaptation: supported modes write mLastG components in place.
      * Native heading/roll previews reshape thrust without committing physical
      * orientation; the tick's separate integration pass stages angular results.
-     * Warp and other unsupported movement modes still throw before this branch.
+     * Proper warp steers toward its destination without ordinary thrust.
      * Source: destiny/src/Ballpark.cpp:789-900.
      *
      * @param {CjsDestinyBall} ball Ball whose existing state is read or updated.
@@ -2338,6 +2426,10 @@ export class CjsBallparkController
         ball.mCollisions.length = 0;
         switch (ball.mode)
         {
+            case Mode.DSTBALL_WARP:
+                this.EvolveWarp(ball);
+                break;
+
             case Mode.DSTBALL_GOTO:
                 this.EvolveGoto(ball);
                 break;
@@ -2388,7 +2480,13 @@ export class CjsBallparkController
             }
             else
             {
-                vec3.zero(ball.mTorque);
+                if (ball.IsWarping())
+                {
+                    const { vec3_13 } = CjsBallparkController.scratch;
+                    vec3.subtract(vec3_13, ball.mGoto, ball.mNewPos);
+                    this.GotoTorqueBreaks(ball.mTorque, ball, vec3_13);
+                }
+                else vec3.zero(ball.mTorque);
                 ball.mRoll = this.GotoRollBreaks(ball, ball.mTorque);
             }
         }
@@ -2406,6 +2504,35 @@ export class CjsBallparkController
     CapAcceleration(ball, acceleration)
     {
         return;
+    }
+
+    /**
+     * Aligns with ordinary goto thrust, or announces entry before starting warp.
+     * Adaptation: mLastG replaces the native Vector3d return and is written after
+     * activation callbacks; an optional injected PyOS supplies event delivery.
+     * Source: destiny/src/Ballpark.cpp:915-946.
+     * @param {CjsDestinyBall} ball Ball in warp mode.
+     * @returns {void} Proper warp has zero ordinary acceleration.
+     */
+    @meta.adapted
+    EvolveWarp(ball)
+    {
+        if (ball.IsWarping())
+        {
+            vec3.zero(ball.mLastG);
+            return;
+        }
+        if (ball.IsAlignedForWarp())
+        {
+            if (this._pyOS && !this._pyOS.PostEvent(this, "Destiny::OnActivatingWarp", "OnActivatingWarp", "Li", ball.mId, this.currentTime)) this._pyOS.PyError();
+            this.RealWarp(ball);
+            vec3.zero(ball.mLastG);
+        }
+        else
+        {
+            --ball.mEffectStamp;
+            this.EvolveGoto(ball);
+        }
     }
 
     /**
@@ -3088,6 +3215,258 @@ export class CjsBallparkController
             vec3d.unalloc(work);
             vec3d.unalloc(savedMe);
             vec3d.unalloc(savedOther);
+        }
+    }
+
+    /**
+     * Reads Carbon's exposed warp-speed property, unused by trajectory calculations.
+     * Source: destiny/src/Ballpark.cpp:101; destiny/src/Ballpark_Blue.cpp:95-103.
+     * @returns {number} Stored native double value.
+     */
+    @meta.type.float64
+    @meta.implemented
+    get warpSpeed() { return this.mWarpSpeed; }
+
+    /**
+     * Writes the native property without altering active warp factors.
+     * Source: destiny/src/Ballpark_Blue.cpp:95-103.
+     * @param {number} value Native double field value.
+     * @returns {void} Updates only mWarpSpeed.
+     */
+    @meta.implemented
+    set warpSpeed(value) { this.mWarpSpeed = value; }
+
+    /**
+     * Orders alignment and warp, or a normal goto for destinations below 100 km.
+     * Adaptation: typed JS scalars replace the native overload/Python tuple; Python
+     * defaults are retained and invalid int32 factors throw. DataView preserves
+     * the native double-to-int64 bit reinterpretation in mFollowId. PyOS is injected.
+     * Source: destiny/src/Ballpark.cpp:4072-4137; destiny/src/Thunkers.cpp:360-382.
+     * @param {bigint|number} id Ball identity.
+     * @param {number} x Absolute destination X.
+     * @param {number} y Absolute destination Y.
+     * @param {number} z Absolute destination Z.
+     * @param {number} [minRange=20000] Minimum range, clamping negative values only.
+     * @param {number} [warpFactor=20] Signed-int32 milli-AU/s factor; nonpositive becomes one.
+     * @returns {void} Exact repeated destinations preserve the current warp command.
+     */
+    @meta.blue.method
+    @meta.adapted
+    WarpTo(id, x, y, z, minRange = 20000, warpFactor = 20)
+    {
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return;
+        if (!Number.isInteger(warpFactor) || warpFactor < -2147483648 || warpFactor > 2147483647)
+            throw new RangeError("Warp factor must fit native int32");
+        if (minRange < 0) minRange = 0;
+        if (warpFactor <= 0) warpFactor = 1;
+        const ball = this.GetBall(id);
+        if (!ball) return;
+        const dx = ball.mNewPos[0] - x, dy = ball.mNewPos[1] - y, dz = ball.mNewPos[2] - z;
+        if (dx * dx + dy * dy + dz * dz < 1e10)
+        {
+            const vec3d_0 = vec3d.alloc();
+            try { vec3.set(vec3d_0, x, y, z); this.GotoPoint(ball, vec3d_0); }
+            finally { vec3d.unalloc(vec3d_0); }
+            if (this._pyOS && !this._pyOS.PostEvent(this, "Destiny::OnExitWarp", "OnExitWarp", "Li", ball.mId, 1)) this._pyOS.PyError();
+            return;
+        }
+        if (ball.IsWarpish() && x === ball.mGoto[0] && y === ball.mGoto[1] && z === ball.mGoto[2]) return;
+        this.Stop(ball);
+        vec3.set(ball.mGoto, x, y, z);
+        ball.mEffectStamp = -1;
+        ball.mFollowRange = 0;
+        const { dataView_0 } = CjsBallparkController.scratch;
+        dataView_0.setFloat64(0, minRange, true);
+        ball.mFollowId = dataView_0.getBigInt64(0, true);
+        ball.mOwnerId = BigInt(warpFactor);
+        ball.SetMode(Mode.DSTBALL_WARP);
+    }
+
+    /**
+     * Enters proper warp after stopping followers and offsetting the destination.
+     * Adaptation: scalar double locals replace stack Vector3d values; DataView
+     * decodes the native aliased minimum-range bits after follower callbacks.
+     * Source: destiny/src/Ballpark.cpp:4145-4165.
+     * @param {CjsDestinyBall|null} ball Aligning ball, or null for a native no-op.
+     * @returns {void} Stamps the tick, saves distance and disables collision/sensor participation.
+     */
+    @meta.adapted
+    RealWarp(ball)
+    {
+        if (!ball) return;
+        this.StopAllFollowers(ball);
+        let x = ball.mNewPos[0] - ball.mGoto[0], y = ball.mNewPos[1] - ball.mGoto[1], z = ball.mNewPos[2] - ball.mGoto[2];
+        let norm = Math.sqrt(x * x + y * y + z * z);
+        if (norm !== 0) { norm = 1 / norm; x *= norm; y *= norm; z *= norm; }
+        const { dataView_0 } = CjsBallparkController.scratch;
+        dataView_0.setBigInt64(0, ball.mFollowId, true);
+        const range = dataView_0.getFloat64(0, true);
+        x = ball.mGoto[0] + range * x; y = ball.mGoto[1] + range * y; z = ball.mGoto[2] + range * z;
+        const dx = x - ball.mNewPos[0], dy = y - ball.mNewPos[1], dz = z - ball.mNewPos[2];
+        vec3.set(ball.mGoto, x, y, z);
+        ball.mEffectStamp = this.currentTime;
+        ball.mLastCollision = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        ball.isMassive = false;
+        ball.mSensor.active = false;
+    }
+
+    /**
+     * Computes the native three-phase exponential warp constants.
+     * Adaptation: one caller-owned record replaces nine double reference outputs.
+     * All intermediates remain doubles; ordered comparisons preserve std::min NaN behavior.
+     * Source: destiny/src/Ballpark.cpp:4167-4261; destiny/src/Ballpark.cpp:61-63.
+     * @param {number} warpFactor Native factor converted from ownerId.
+     * @param {number} warpDistance Total warp length.
+     * @param {Object} out Caller-owned record receiving native output names.
+     * @returns {Object} Supplied record; durations/distances are not clamped.
+     */
+    @meta.adapted
+    SetupWarpConstants(warpFactor, warpDistance, out)
+    {
+        let warpSpeed = warpFactor * 0.001 * AU;
+        const accelRate = warpFactor * (1 / 1000);
+        const decel = warpFactor * (1 / 3000), decelRate = 2 < decel ? 2 : decel;
+        const limit = (warpDistance + 1) * accelRate * decelRate / (accelRate + decelRate);
+        if (limit < warpSpeed) warpSpeed = limit;
+        const accelDuration = Math.log(warpSpeed / accelRate) / accelRate;
+        const cruiseDuration = warpDistance / warpSpeed - 1 / accelRate - 1 / decelRate + 1 / warpSpeed;
+        const decelDuration = Math.log(warpSpeed / decelRate) / decelRate;
+        out.accelDuration = accelDuration; out.cruiseDuration = cruiseDuration; out.decelDuration = decelDuration;
+        out.accelDistance = warpSpeed / accelRate; out.cruiseDistance = warpSpeed * cruiseDuration;
+        out.decelDistance = warpSpeed / decelRate - 1;
+        out.accelRate = accelRate; out.decelRate = decelRate; out.warpSpeed = warpSpeed;
+        return out;
+    }
+
+    /**
+     * Samples native warp position/velocity and optionally completes simulation warp.
+     * Adaptation: caller-owned vectors replace reference outputs; a pooled record
+     * replaces stack constants and is released before callbacks. Scalars survive
+     * reentry. PyOS/logging are explicit JS boundaries; no native profiling runs.
+     * Source: destiny/src/Ballpark.cpp:4263-4362.
+     * @param {CjsDestinyBall} ball Warp state and destination owner.
+     * @param {Float64Array|number[]} p In/out position used to derive warp direction.
+     * @param {Float64Array|number[]} v In/out velocity; faster acceleration input is retained.
+     * @param {number} t Seconds since proper warp started.
+     * @param {boolean} interpolating True suppresses simulation transitions and events.
+     * @returns {number} Native distance scalar; extended-warp fallback returns zero.
+     */
+    @meta.adapted
+    WarpDistance(ball, p, v, t, interpolating)
+    {
+        const constants = CjsBallparkController.warpConstants.pop() || {};
+        let accelDuration, cruiseDuration, decelDuration, accelDistance, cruiseDistance, decelDistance, accelRate, decelRate, warpSpeed;
+        try
+        {
+            this.SetupWarpConstants(Number(ball.mOwnerId), ball.mLastCollision, constants);
+            ({ accelDuration, cruiseDuration, decelDuration, accelDistance, cruiseDistance, decelDistance, accelRate, decelRate, warpSpeed } = constants);
+        }
+        finally { CjsBallparkController.warpConstants.push(constants); }
+        let x = ball.mGoto[0] - p[0], y = ball.mGoto[1] - p[1], z = ball.mGoto[2] - p[2];
+        let norm = Math.sqrt(x * x + y * y + z * z);
+        if (norm !== 0) { norm = 1 / norm; x *= norm; y *= norm; z *= norm; }
+        let distance, speed, ending = false;
+        if (t < accelDuration)
+        {
+            // Native quirk: exp(0) starts one meter along the path, even at time zero.
+            // Source: destiny/src/Ballpark.cpp:4291-4303.
+            speed = accelRate * Math.exp(accelRate * t);
+            const currentSpeed = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+            if (currentSpeed > speed) speed = currentSpeed;
+            distance = Math.exp(accelRate * t);
+        }
+        else if (t - accelDuration < cruiseDuration)
+        {
+            speed = warpSpeed;
+            distance = warpSpeed * (t - accelDuration) + accelDistance;
+        }
+        else if (t - cruiseDuration - accelDuration < decelDuration + 1)
+        {
+            speed = warpSpeed * Math.exp(-decelRate * (t - cruiseDuration - accelDuration));
+            distance = warpSpeed / decelRate - warpSpeed / decelRate * Math.exp(-decelRate * (t - cruiseDuration - accelDuration)) + accelDistance + cruiseDistance;
+            ending = speed < Math.min(ball.mMaxVel / 2, 100) && !interpolating;
+        }
+        else
+        {
+            console.error("Ship stuck in extended warp", ball.mId, Number(ball.mOwnerId), ball.mLastCollision, t, interpolating);
+            vec3.copy(p, ball.mGoto); vec3.zero(v);
+            distance = 0;
+            ending = !interpolating;
+        }
+        if (speed !== undefined)
+        {
+            const remaining = accelDistance + cruiseDistance + decelDistance - distance;
+            vec3.set(v, speed * x, speed * y, speed * z);
+            vec3.set(p, ball.mGoto[0] - remaining * x, ball.mGoto[1] - remaining * y, ball.mGoto[2] - remaining * z);
+        }
+        if (ending)
+        {
+            if (!this.isMaster && this._pyOS && !this._pyOS.PostEvent(this, "Destiny::OnDeactivatingWarp", "OnDeactivatingWarp", "Li", ball.mId, this.currentTime)) this._pyOS.PyError();
+            ball.isMassive = true;
+            ball.mSensor.active = true;
+            this.Stop(ball);
+        }
+        return distance;
+    }
+
+    /**
+     * Starts proper warp immediately using the native absolute-destination velocity.
+     * Adaptation: typed JS arguments replace the Python wrapper; scalar normalization
+     * preserves double arithmetic and injected PyOS owns activation notifications.
+     * Source: destiny/src/Ballpark.cpp:4370-4410; destiny/src/Thunkers.cpp:389-410.
+     * @param {bigint|number} id Ball identity, resolved again after WarpTo callbacks.
+     * @param {number} x Absolute destination X.
+     * @param {number} y Absolute destination Y.
+     * @param {number} z Absolute destination Z.
+     * @param {number} warpFactor Native signed-int32 warp factor.
+     * @returns {void} GOTO fallback does not enter warp.
+     */
+    @meta.blue.method
+    @meta.adapted
+    EntityWarpIn(id, x, y, z, warpFactor)
+    {
+        this.WarpTo(id, x, y, z, 0, warpFactor);
+        const ball = this.GetBall(id);
+        if (!ball || ball.mMode === Mode.DSTBALL_GOTO) return;
+        this.RealWarp(ball);
+        // Native quirk: this is absolute destination, not destination minus position.
+        // Source: destiny/src/Ballpark.cpp:4393-4394.
+        let norm = Math.sqrt(x * x + y * y + z * z);
+        if (norm !== 0) { norm = 1 / norm; x *= norm; y *= norm; z *= norm; }
+        vec3.set(ball.mNewVel, x * AU, y * AU, z * AU);
+        if (g_useDynamicalOrientation) ball.SnapOrientation();
+        ball.mEffectStamp = Math.max(this.currentTime - 5, 0);
+        const dx = ball.mNewPos[0] - ball.mGoto[0], dy = ball.mNewPos[1] - ball.mGoto[1], dz = ball.mNewPos[2] - ball.mGoto[2];
+        ball.mLastCollision = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (this.isMaster && this._pyOS && !this._pyOS.PostEvent(this, "Destiny::OnActivatingWarp", "OnActivatingWarp", "Li", ball.mId, this.currentTime)) this._pyOS.PyError();
+    }
+
+    /**
+     * Moves a point outside the first intersecting global ball's 1.1-radius shell.
+     * Adaptation: caller-owned float64 storage replaces Vector3d&, and Map insertion
+     * order replaces Python dictionary traversal when global spheres overlap.
+     * Native quirk: a point at the exact center stays there after zero normalization.
+     * This helper has no native WarpTo/RealWarp call site.
+     * Source: destiny/src/Ballpark.cpp:4443-4462; destiny/src/MapOfBalls.h:100-136.
+     * @param {Float64Array|number[]} p In/out absolute point.
+     * @returns {void} Stops after the first containing global sphere, even at its center.
+     */
+    @meta.adapted
+    ShiftFromPlanets(p)
+    {
+        for (const sphere of this._balls.values())
+        {
+            if (!sphere.isGlobal) continue;
+            let x = p[0] - sphere.mNewPos[0], y = p[1] - sphere.mNewPos[1], z = p[2] - sphere.mNewPos[2];
+            const length2 = x * x + y * y + z * z, r = sphere.mRadius;
+            if (length2 < 1.1 * 1.1 * r * r)
+            {
+                const length = Math.sqrt(length2);
+                if (length !== 0) { const inverse = 1 / length; x *= inverse; y *= inverse; z *= inverse; }
+                const scale = 1.1 * r;
+                vec3.set(p, scale * x + sphere.mNewPos[0], scale * y + sphere.mNewPos[1], scale * z + sphere.mNewPos[2]);
+                break;
+            }
         }
     }
 
@@ -4095,7 +4474,10 @@ export class CjsBallparkController
 
     static collisionFrames = [];
 
+    static warpConstants = [];
+
     static scratch = {
+        dataView_0: new DataView(new ArrayBuffer(8)),
         orbitalNormal: { orbitalVector: vec3d.create(), toVector: vec3d.create(), dist: 0 },
         gradientBalls: [], gradientStatics: [], vec3d_0: vec3d.create(),
         vec3_0: vec3.create(), vec3_1: vec3.create(), vec3_2: vec3.create(),

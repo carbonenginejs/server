@@ -117,8 +117,8 @@ export class CjsDestinyClientBall extends CjsDestinyBall
 
     /**
      * Samples absolute double-precision motion using the park's fractional integrator.
-     * Adaptation: output follows time, and scratch storage is reused. Warp
-     * sampling throws until its native implementation is ported.
+     * Adaptation: output follows time, and scratch storage is reused. Proper warp
+     * retains cached motion as inputs to the native warp sampler.
      * Detached-ball reporting invokes the shared native callback as a JS function.
      * @param {number|bigint} time Scene clock in elapsed 100ns ticks.
      * @param {Float64Array} out Caller-owned absolute position.
@@ -141,17 +141,23 @@ export class CjsDestinyClientBall extends CjsDestinyBall
             this.mPosUpdateTime = shiftedTime;
             return vec3.copy(out, this.mLastPos);
         }
-        if (this.mMode === CjsDestinyBall.DSTBALLMODE.DSTBALL_WARP)
-            throw new Error("ClientBall warp interpolation is not implemented");
         this.InforceContinuity();
         const shouldUpdateDist = this.mElapsed === 0 || this.mCenterDist < 0;
         const timeStepFraction = Number(shiftedTime - this.mOldTime) / 10000000;
         if (this.mPosUpdateTime === 0n) this.mPosUpdateTime = shiftedTime;
         this.mElapsed += Number(shiftedTime - this.mPosUpdateTime) / 10000000;
         vec3.copy(this.mDeltaPos, this.mLastPos);
-        vec3.copy(this.mLastPos, this.mOldPos);
-        vec3.copy(this.mLastVel, this.mOldVel);
-        this.mPark.CalculateBallPositionVelocity(this, timeStepFraction, this.mLastPos, this.mLastVel);
+        if (this.IsWarping())
+        {
+            const t = ((this.mPark.currentTime - this.mEffectStamp) - 1 + timeStepFraction) * this.mPark.dt;
+            this.mPark.WarpDistance(this, this.mLastPos, this.mLastVel, t, true);
+        }
+        else
+        {
+            vec3.copy(this.mLastPos, this.mOldPos);
+            vec3.copy(this.mLastVel, this.mOldVel);
+            this.mPark.CalculateBallPositionVelocity(this, timeStepFraction, this.mLastPos, this.mLastVel);
+        }
         vec3.subtract(this.mDeltaPos, this.mLastPos, this.mDeltaPos);
         this.mPosUpdateTime = shiftedTime;
         if (shouldUpdateDist && this.mId !== this.mPark.mEgo)

@@ -24,7 +24,9 @@ const cases = [
     ["set_ball_free", [ID], ["SetBallFree", [ID, true]]],
     ["set_ball_free", [ID, false], ["SetBallFree", [ID, false]]],
     ["follow_ball", [ID, TARGET, 1000], ["FollowBall", [ID, TARGET, 1000]]],
-    ["set_max_speed", [ID, 500], ["SetMaxSpeed", [ID, 500]]]
+    ["set_max_speed", [ID, 500], ["SetMaxSpeed", [ID, 500]]],
+    ["warp_to", [ID, 123, 456, 789, 1000, 20], ["WarpTo", [ID, 123, 456, 789, 1000, 20]]],
+    ["entity_warp_in", [ID, 123, 456, 789, 20], ["EntityWarpIn", [ID, 123, 456, 789, 20]]]
 ];
 
 for (const [method, args, expected] of cases)
@@ -32,7 +34,7 @@ for (const [method, args, expected] of cases)
     test(`Carbon Actions tuple: ${method} ${JSON.stringify(args, (_, value) => typeof value === "bigint" ? `${value}n` : value)}`, () =>
     {
         const actions = new Actions(new CjsBallparkController());
-        actions[method](...args); // Donor fixture arity is bounded to five.
+        actions[method](...args); // Donor fixture arity is bounded to six.
         assert.deepEqual(actions.flush_history(), [[ID, 0, expected]],
             "destiny/python/destiny/test/net/server/test_actions.py");
         assert.deepEqual(actions.flush_history(), []);
@@ -155,5 +157,5 @@ test("Actions declares partial provenance and fails explicitly for unported sign
     assert.equal(CjsSchema.getSchema(Actions).modelledOn, "destiny.net.server.Actions");
     assert.throws(() => actions.on_add_to_system_history, /not implemented/);
     assert.throws(() => actions.on_ball_made_global, /not implemented/);
-    assert.equal(Actions.prototype.warp_to, undefined, "no phantom warp support");
+    assert.equal(Actions.prototype.launch_missile, undefined, "no phantom missile support");
 });

@@ -8,3 +8,5 @@ export { CjsBallparkController } from "./CjsBallparkController.js";
 export { CjsDestinySettingsConfiguration, CjsDestinyGlobalSettings, settings } from "./Settings/index.js";
 export { CollisionImpact, CollisionItem, BallLocation } from "./CollisionStructures.js";
 export { CollisionBallProperties } from "./CollisionBallProperties.js";
+export { ProximitySensor } from "./ProximitySensor.js";
+export { MapOfLongLongs } from "./MapOfLongLongs.js";

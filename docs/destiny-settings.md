@@ -39,8 +39,8 @@ the shorter names are the native Blue aliases. There is no `Configure` method.
 
 AddBall corresponds to raw C++ AddBall and leaves orientation unchanged.
 AddOldStyleOrientedBall snaps free balls once regardless of the global setting;
-AddDynamicallyOrientedBall accepts explicit physical angular state. The native Python wrapper's
-different oriented-creation dispatch remains unported. Enabling orientation
+AddDynamicallyOrientedBall accepts explicit physical angular state. `PyAddBall` supplies
+the separate native Python dispatch and its additional dynamic snap. Enabling orientation
 does not silently switch this API to a different argument contract.
 
 ## Integer bindings and ownership

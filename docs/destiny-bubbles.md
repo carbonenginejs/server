@@ -45,7 +45,7 @@ operation and clears spatial memberships and owned ball collections.
 Replica balls always simulate. Master balls outside warp freeze in bubbles with
 neither interactive nor keep-alive members. Position, velocity, forces, timestamps
 and memberships stay unchanged for that tick; the park counter still advances.
-Warp's activity exemption does not imply warp movement is implemented.
+[Warp movement](destiny-warp.md) uses this activity exemption during alignment and travel.
 
 ## Events and execution order
 

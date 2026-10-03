@@ -11,7 +11,7 @@ are exported from the Destiny entry point. They implement the records in
 `destiny/src/CollisionBallProperties.cpp` at donor baseline `114e89f`.
 Ballpark contact approximation, static/free impulses, recursive invalidation,
 collision discovery and iterative scheduling are implemented for supported
-movement modes. [Mini ownership](destiny-minis.md) is implemented; warp integration remains unported.
+movement modes. [Mini ownership](destiny-minis.md) and [warp integration](destiny-warp.md) are implemented.
 
 ## Ownership and time
 
@@ -156,9 +156,10 @@ Preserved discovery and settings quirks:
   may fail. This is native behavior, not a supported cache-reset operation.
 
 Regression tests distinguish source-derived discovery/control-flow cases from
-the donor Python scenario assertions. All 30 currently supported active scenarios
+the donor Python scenario assertions. Thirty collision scenarios
 from `test_iterative_collision.py` pass: thirteen sphere, eight capsule and nine box
-cases, including the MiniBall-target scenario. Warp awaits its API; one further
+cases, including the MiniBall-target scenario. The separate warp pass-through
+scenario also passes; one further
 miniball multicollision test is already disabled in the donor. Static scenarios
 now use actual Mini owners through their native attachment APIs. Changed physical values use controller setters to reproduce
 Blue notifications, including spatial reinsertion after velocity changes in the

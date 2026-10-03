@@ -184,7 +184,7 @@ literally from Python. JS uses an absolute 5e-5 bound instead of comparing separ
 rounded four-decimal coordinates. Fifteen additional tests cover force/filter
 ordering and ownership. That checkpoint had 321 passing tests. Collision-location
 histories, iterative propagation and [Mini attachment](destiny-minis.md) are now
-implemented; warp and missile event integration remain open.
+implemented, together with [warp integration](destiny-warp.md); missile integration remains open.
 No native executable ran for this checkpoint.
 
 ## Double-precision temporary storage
@@ -197,8 +197,8 @@ dirty and must be returned on every exit path. This does not add a second math
 implementation; existing runtime vec3 operations write into float64 outputs.
 
 Potential borrows independent vectors for each recursion frame and releases them
-in finally blocks, after restoring temporary live positions. Evolve reuses a
-class scratch vector for summed acceleration and swaps components with scalar
+in finally blocks, after restoring temporary live positions. Evolve borrows independent
+integration vectors across callbacks and swaps components with scalar
 locals. Tests cover precision at large world coordinates, distinct nested frames,
 reuse, early returns and exception cleanup. Existing geometry temporaries outside
 this collision scheduling change still need conversion to the same storage policy.

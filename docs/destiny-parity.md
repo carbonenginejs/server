@@ -299,7 +299,7 @@ Twenty-three direct source-derived fixtures brought the suite to 293. The
 subsequent ownership/legacy checkpoint added 28 tests for a total of 321 at that point.
 See the [geometry guide](destiny-geometry.md#ballpark-ownership-and-legacy-collisions)
 for ownership, Gradient/Potential, scheduling and the 13 donor trajectories.
-[Mini attachment](destiny-minis.md) and iterative propagation are implemented; warp remains open. No native
+[Mini attachment](destiny-minis.md), iterative propagation and [warp](destiny-warp.md) are implemented. No native
 executable validation is claimed.
 
 ## ClientBall renderer subset
@@ -311,7 +311,7 @@ select position/rotation by output length and fill caller-owned buffers. Float64
 state and distinct class scratch slots protect nested ego-reference sampling.
 See [ClientBall curves](destiny-client-curves.md) for per-contract donor ranges,
 cache quirks and explicitly unsupported native branches. Complete native interface
-registration, warp sampling and relative-motion methods remain
+registration and relative-motion methods remain
 open; no runtime files were changed to introduce this renderer-method subset.
 
 ClientBall impact rotation now retains the native cached inverse-inertia formula,
@@ -396,8 +396,8 @@ These are source-derived and analytic checks, not native-executable trajectories
 removes the earlier implicit legacy snap. Call `AddOldStyleOrientedBall` for
 one legacy snap of a free ball, or `AddDynamicallyOrientedBall` for explicit
 quaternion, angular velocity, angular speed and agility inputs
-(`Ballpark.cpp:3467-3553`). Both methods use native C++ argument order; Python
-wrapper dispatch and its additional dynamic snap remain unported.
+(`Ballpark.cpp:3467-3553`). Both methods use native C++ argument order; `PyAddBall`
+supplies separate Python dispatch and its additional dynamic snap.
 
 Dynamic creation keeps nonunit quaternions. It backsteps the old rotation at
 constant angular speed only when the initial ID probe found no ball. The native
@@ -489,7 +489,37 @@ ClearAll now follows native teardown without calling Stop or changing retained
 movement/follower state. Formation vectors use owned float64 factories; rotated
 float32 temporaries and goto wrapper vectors return to their pools on throws.
 
-Twenty-eight new tests bring the suite to 513, including both literal donor
+That checkpoint added twenty-eight tests, reaching 513, including both literal donor
 formation trajectories. Native signed/unsigned formation bytes, empty-size
 underflow, stale reservation bits and callback reentry are covered. No native
 executable or networked formation synchronization is claimed.
+
+## Warp and Python creation boundaries
+
+[Warp simulation](destiny-warp.md) now covers commands, strict alignment,
+entry/exit state, phase equations, tick integration, client sampling and action
+tuples. Source is Ballpark.cpp:4072-4462,789-946,474-520 and
+Ball.cpp:1885-1923,1275-1292 at the same donor baseline. ProximitySensor and
+MapOfLongLongs provide the native storage used by warp; scanning is still open.
+The unused ShiftFromPlanets helper is ported without adding an automatic call.
+
+Scalar double locals and caller-owned output records replace native stack/reference
+values. Evolve borrows independent float64 position/velocity vectors across
+callbacks, returns them on errors and commits old samples only after integration.
+The raw minimum-range bit representation, first-meter displacement, unrounded
+cruise durations, cached client inputs, unconditional exit flag restoration and
+absolute-destination entity velocity are retained. Map insertion order replaces
+Python dictionary traversal for overlapping global spheres in ShiftFromPlanets.
+
+PyAddBall and its two oriented wrappers preserve exact 17/19 argument counts,
+live global dispatch and the dynamic wrapper's unconditional final snap
+(Thunkers.cpp:51-159). JS Error replaces Python RuntimeError. Core scalar validation
+runs after the evolution guard; native Python parses scalar types before it.
+Native core creation remains callable during Evolve. The host test adapter catches
+wrapper exceptions before reporting dispatch failure, matching the donor event test.
+
+The maxVelocity accessor now narrows to the native float32 storage (Ball.h:126,
+Ball_Blue.cpp:48-54), correcting an earlier direct-property precision gap at strict
+warp thresholds. Controller creation/setters already performed this conversion.
+Twenty-seven added tests bring the suite to 540. No native executable or graphical
+integration was run; replication, sensors and remaining movement modes stay open.

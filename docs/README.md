@@ -13,6 +13,7 @@ Summary: Current APIs, source correspondence and remaining port work.
 - [Numeric collision geometry](destiny-geometry.md)
 - [Mini shape ownership](destiny-minis.md)
 - [Movement transitions and formations](destiny-formations.md)
+- [Warp simulation and client sampling](destiny-warp.md)
 - [Collision history records](destiny-collision-records.md)
 - [Spatial partition](../destiny/partition/README.md)
 - [Bubble lifecycle and activity](destiny-bubbles.md)
