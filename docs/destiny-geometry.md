@@ -183,8 +183,9 @@ Static fixtures use world-space equivalents of zero-transform Mini wrappers;
 Mini construction/attachment is not validated. Expected coordinates are copied
 literally from Python. JS uses an absolute 5e-5 bound instead of comparing separately
 rounded four-decimal coordinates. Fifteen additional tests cover force/filter
-ordering and ownership. All 321 tests pass. Warp, Mini attachment, collision-location
-histories, iterative propagation and missile event integration remain open.
+ordering and ownership. That checkpoint had 321 passing tests. Collision-location
+histories and iterative propagation are now implemented; warp, Mini attachment
+and missile event integration remain open.
 No native executable ran for this checkpoint.
 
 ## Double-precision temporary storage

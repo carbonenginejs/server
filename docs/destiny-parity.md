@@ -214,8 +214,7 @@ Ballpark.cpp:664-749,1116-1235,1428-1505 supplies orbital normals, new orbit,
 OrbitThrust and GotoThrustFollow. JS scalar outputs/caller-owned f64 arrays replace
 Vector3d return/reference arguments. Native thresholds and arithmetic are retained;
 the dynamical-heading fallback is now implemented in this dependency chain.
-The configured iterative branch fails before ordinary Evolve mutation;
-SetBallVelocity and SetBallFree also expose their missing SnapOrientation dependency.
+The configured iterative branch and SnapOrientation dependencies are now implemented.
 Native AddBall and the Python wrapper's oriented-creation dispatch remain distinct.
 
 All six test_configure.py cases and four new-orbit test_orbit.py scenarios pass.
@@ -299,7 +298,7 @@ Twenty-three direct source-derived fixtures brought the suite to 293. The
 subsequent ownership/legacy checkpoint added 28 tests for a total of 321 at that point.
 See the [geometry guide](destiny-geometry.md#ballpark-ownership-and-legacy-collisions)
 for ownership, Gradient/Potential, scheduling and the 13 donor trajectories.
-Compound Mini attachment, warp and iterative propagation remain open. No native
+Compound Mini attachment and warp remain open; iterative propagation is now implemented. No native
 executable validation is claimed.
 
 ## ClientBall renderer subset
@@ -443,8 +442,8 @@ equal-time insertion, nonfinite-time comparisons, dynamic-off angular retention
 and elapsed-seconds-as-angular-fraction behavior are preserved. The
 [record contract](destiny-collision-records.md) describes those cases and tests.
 These records work through both existing park sampling dispatchers. Contact
-impulses and recursive invalidation are implemented below; discovery, scheduling
-and cleanup remain unfinished.
+impulses, recursive invalidation, discovery, scheduling and conditional cleanup
+are implemented below.
 
 
 ## Iterative contact impulses and invalidation
@@ -475,5 +474,6 @@ lists and preserves repeated visits, native map lookups and diagnostics.
 Eighteen tests cover analytic linear impulses, independently derived oblique
 angular fixtures, precision/degenerate branches, overlap update ordering, caps,
 a four-ball recursive graph, reentrant sampling and exceptional pool cleanup.
-Collision discovery, the iterative scheduler and its lifecycle cleanup remain
-unfinished; these kernels do not enable iterative Evolve yet.
+Collision discovery, iterative scheduling and conditional cache cleanup now
+connect these kernels to Evolve. See the [collision contract](destiny-collision-records.md)
+for source ordering, pool ownership, settings hazards and native comparison quirks.

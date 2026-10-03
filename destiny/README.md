@@ -57,7 +57,8 @@ not mean a behavior is implemented.
 Internal native-named evolution methods are exposed for source correspondence,
 but callers should drive the simulation with `Evolve()` so all forces observe the
 same tick's positions. The Blue host owns pumping; the park creates no background timer.
-Interpolation, iterative collision response and replication remain unported.
+ClientBall interpolation and iterative collision response are implemented;
+replication and compound-shape ownership remain unported.
 
 ## Clock and host boundaries
 
@@ -111,6 +112,6 @@ Cleanup removes all overdue balls, plus up to seven within the two-counter buffe
 per call. Selection among equally eligible buffered balls uses JS Set insertion
 order instead of native unordered pointer hashing. Re-add cancels pending deletion.
 ClearAll releases references without final-cleanup callbacks or resetting clocks.
-Capsule cleanup and automatic bubble membership now work. ClientBall timestamp
-caches remain pending. See [geometry and ownership](../docs/destiny-geometry.md)
+Capsule cleanup, automatic bubble membership and ClientBall timestamp-cache
+shifts now work. See [geometry and ownership](../docs/destiny-geometry.md)
 for native shape cleanup quirks.

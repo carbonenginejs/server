@@ -3,6 +3,7 @@ import { IBlueEvents } from "@carbonenginejs/runtime/blue";
 import { CjsDestinyBall } from "./CjsDestinyBall.js";
 import { CjsDestinyClientBall } from "./CjsDestinyClientBall.js";
 import { BallLocation, CollisionImpact, CollisionItem } from "./CollisionStructures.js";
+import { CollisionBallProperties } from "./CollisionBallProperties.js";
 import { CjsDestinyPartition } from "./partition/Partition/CjsDestinyPartition.js";
 import { CjsDestinyCapsule } from "./geometry/CjsDestinyCapsule.js";
 import { CjsDestinyOrientedBox } from "./geometry/CjsDestinyOrientedBox.js";
@@ -12,7 +13,7 @@ import { quat } from "@carbonenginejs/runtime/math/quat";
 import { mat4 } from "@carbonenginejs/runtime/math/mat4";
 import { vec3d } from "./math/vec3d.js";
 
-import { g_useIterativeCollision, g_useDynamicalOrientation, g_useNewOrbit,
+import { g_useIterativeCollision, g_useDynamicalOrientation, g_useNewOrbit, g_collisionMaxIterations,
     g_disableDynamicalOrientationForMissiles } from "./Settings/CjsDestinyGlobalSettings.js";
 
 const f32 = Math.fround;
@@ -28,7 +29,8 @@ const ORBITAL_PRECESSION = 0.001;
  * Temporary, single-region Ballpark movement subset with native clock phases.
  * The cached evolution step defaults to one second. Native global settings select
  * legacy/new orbit. Spatial membership and bubble activity are maintained;
- * legacy collision response and dynamic orientation are available; wire replication remains unported.
+ * legacy/iterative collision response and dynamic orientation are available;
+ * compound-shape ownership and wire replication remain unported.
  */
 @meta.define({ className: "CjsBallparkController", modelledOn: "Ballpark" })
 @meta.blue.inherit(IBlueEvents)
@@ -46,6 +48,8 @@ export class CjsBallparkController
     mLastDelta = vec3d.create();
     mSomeWeirdHackToFixSomething = 1;
     mCollisionLocations = new Map();
+    mPotentialCollisionBalls = new Map();
+    mPotentialCollidables = new Map();
     mRollSpeedAcceleration = -3;
     mRollSpeedDecay = -0.9;
     mRollAcceleration = 1;
@@ -1663,8 +1667,8 @@ export class CjsBallparkController
     /**
      * Samples angular drag or the native recorded collision rotation path.
      * Adaptation: caller-owned math outputs replace reference parameters; console
-     * reports null balls. Collision record production remains unported, but records
-     * dispatch directly to CalculateRotation rather than interpolating endpoints.
+     * reports null balls. Records dispatch directly to CalculateRotation; as in
+     * Carbon, a later settings change does not bypass retained histories.
      * Source: destiny/src/Ballpark.cpp:2685-2712.
      * @param {CjsDestinyBall|null} ball Source physical parameters.
      * @param {number} timeStepFraction Fraction of the simulation tick.
@@ -1690,8 +1694,8 @@ export class CjsBallparkController
     /**
      * Samples native fractional drag or a recorded collision trajectory.
      * Adaptation: float64 scratch holds the acceleration sum; console reports null.
-     * Iterative collision record production remains unported, but existing records
-     * retain Carbon's CalculatePosition dispatch rather than endpoint interpolation.
+     * Native quirk: retained collision records are consulted even when iterative
+     * collisions have subsequently been disabled.
      * Source: destiny/src/Ballpark.cpp:2715-2741.
      * @param {CjsDestinyBall|null} ball Ball whose physical parameters are sampled.
      * @param {number} timeStepFraction Elapsed seconds from the old motion state.
@@ -1932,7 +1936,8 @@ export class CjsBallparkController
      * Detaches follower orders, then removes the ball now or queues native delayed cleanup.
      * Adaptation: JS retains object references and uses an optional PyOS bridge for
      * DoFinalCleanup. Cell membership is removed during final cleanup;
-     * mini-shapes and collision caches remain unported.
+     * mini-shape ownership remains unported. Collision caches are erased only
+     * while iterative collisions are enabled, preserving the native settings quirk.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} [delay=0] Tick delay before buffered cleanup.
@@ -1957,6 +1962,13 @@ export class CjsBallparkController
         if (this._pyOS && !this._pyOS.SendEvent(ball, "Destiny::Ball::DoFinalCleanup",
             "DoFinalCleanup", null, "()")) this._pyOS.PyError();
         this.moribundBalls.delete(ball);
+        // Source: destiny/src/Ballpark.cpp:5556-5562. Native quirk: conditional cleanup.
+        if (g_useIterativeCollision)
+        {
+            this.mCollisionLocations.delete(ball.mId);
+            this.mPotentialCollisionBalls.delete(ball.mId);
+            this.mPotentialCollidables.delete(ball.mId);
+        }
         ball.DeleteFromBoxes();
         ball.mPark = null;
         ball.mOldBubble = ball.mNewBubble;
@@ -1995,6 +2007,13 @@ export class CjsBallparkController
         }
         this._balls.clear();
         this.mGlobals.clear();
+        // Source: destiny/src/Ballpark.cpp:5912-5917. Disabled settings retain caches.
+        if (g_useIterativeCollision)
+        {
+            this.mCollisionLocations.clear();
+            this.mPotentialCollisionBalls.clear();
+            this.mPotentialCollidables.clear();
+        }
         for (const shape of this.mStaticCollidables.values())
         {
             shape.DeleteFromBoxes();
@@ -2103,8 +2122,7 @@ export class CjsBallparkController
      * before changing the tick, rather than silently simulating another behavior.
      * JS exceptions release inEvolve with finally so callbacks cannot strand cleanup.
      * Timestamp conversion and signed-int64 initialization overflow are checked before movement.
-     * Selected iterative collisions throw before movement
-     * until that native solver is ported; configuration itself still accepts them.
+     * Iterative collision trajectories are solved between behavior and integration.
      *
      * @param {bigint|number} [timestamp=0n] New ball timestamp in 100ns units; zero preserves ball timestamps.
      * @throws {RangeError} If a mobile mass/agility is invalid.
@@ -2116,7 +2134,6 @@ export class CjsBallparkController
     Evolve(timestamp = 0n)
     {
         timestamp = CjsDestinyBall._toInt64(timestamp);
-        if (g_useIterativeCollision) throw new Error("Iterative collision response is not implemented");
         for (const ball of this._iterateFreeBalls())
         {
             if (ball.isMoribund || this.InDeadBubble(ball)) continue;
@@ -2148,10 +2165,11 @@ export class CjsBallparkController
                 }
                 this.EvolveBehaviorForBall(ball);
             }
+            if (g_useIterativeCollision) this.CalculateIterativeCollisionResponses();
             for (const ball of this._iterateFreeBalls())
             {
                 if (ball.isMoribund || ball.mInDeadBubble) continue;
-                if (ball.isMassive)
+                if (!g_useIterativeCollision && ball.isMassive)
                 {
                     ball.mLastCollision = -1;
                     this.Gradient(ball);
@@ -2162,14 +2180,17 @@ export class CjsBallparkController
                     ball.mOldVel[q] = ball.mNewVel[q];
                 }
                 // Native integration stages results in old vectors until the commit pass.
-                this.Integrate(ball.mOldPos, ball.mOldVel, vec3.add(CjsBallparkController.scratch.vec3d_0, ball.mLastG, ball.mLastC),
-                    ball.mMass * ball.mAgility, this.mFriction, ball.mTimeFactor, this.dt);
+                this.CalculateBallPositionVelocity(ball, this.dt, ball.mOldPos, ball.mOldVel);
                 if (g_useDynamicalOrientation && !DynamicalOrientationDisabledForBall(ball))
                 {
                     quat.copy(ball.mOldRot, ball.mNewRot);
                     vec3.copy(ball.mOldAngVel, ball.mNewAngVel);
-                    const tau = f32(f32(f32(f32(ball.mMass) * ball.mAgility) * ball.mRotAgility) / f32(this.mFriction));
-                    this.ApplyTorque(ball.mOldRot, ball.mOldAngVel, ball.mTorque, ball.mRoll, tau, 1);
+                    if (g_useIterativeCollision) this.CalculateBallRotationVelocity(ball, 1, ball.mOldRot, ball.mOldAngVel);
+                    else
+                    {
+                        const tau = f32(f32(f32(f32(ball.mMass) * ball.mAgility) * ball.mRotAgility) / f32(this.mFriction));
+                        this.ApplyTorque(ball.mOldRot, ball.mOldAngVel, ball.mTorque, ball.mRoll, tau, 1);
+                    }
                 }
             }
             // Carbon completes integration for every ball before updating timestamps.
@@ -3350,6 +3371,305 @@ export class CjsBallparkController
 
 
     /**
+     * Finds and applies the next impact, updating the neighbor before this ball.
+     * Adaptation: Maps replace native dictionaries; missing candidate arrays are
+     * created explicitly for native operator[]. JS records own their math values.
+     * Source: destiny/src/Ballpark.cpp:1988-2076.
+     * @param {CjsDestinyBall|null} ball Ball being searched.
+     * @param {bigint|number} collisionIteration Zero fetches candidates; later passes reuse them.
+     * @returns {boolean} Whether a non-sentinel impact was passed to AddImpact.
+     */
+    @meta.adapted
+    CalculateCollisionResponse(ball, collisionIteration)
+    {
+        if (!ball)
+        {
+            console.warn("CalculateCollisionResponses called with a null pointer for ball");
+            return false;
+        }
+        let ballProperties = this.mCollisionLocations.get(ball.mId);
+        if (!ballProperties)
+        {
+            ballProperties = new CollisionBallProperties();
+            this.mCollisionLocations.set(ball.mId, ballProperties);
+            ballProperties.Initialize(ball, this.dt);
+        }
+        if (collisionIteration === 0 || collisionIteration === 0n)
+        {
+            if (!this.mPotentialCollisionBalls.has(ball.mId)) this.mPotentialCollisionBalls.set(ball.mId, []);
+            if (!this.mPotentialCollidables.has(ball.mId)) this.mPotentialCollidables.set(ball.mId, []);
+            this.mPartition.GetCollisionCandidates(ball, this.mPotentialCollisionBalls.get(ball.mId),
+                this.mPotentialCollidables.get(ball.mId), this.isMaster);
+        }
+        if (ballProperties.m_tStart >= ballProperties.m_tEnd)
+        {
+            ballProperties.CalculateEnd();
+            return false;
+        }
+        if (ballProperties.m_locations[0].collider !== -1n) return false;
+        if (!this.mPotentialCollisionBalls.has(ball.mId)) this.mPotentialCollisionBalls.set(ball.mId, []);
+        if (!this.mPotentialCollidables.has(ball.mId)) this.mPotentialCollidables.set(ball.mId, []);
+        const balls = this.mPotentialCollisionBalls.get(ball.mId);
+        const collidables = this.mPotentialCollidables.get(ball.mId);
+        if (balls.length === 0 && collidables.length === 0) return false;
+        const frame = CjsBallparkController._allocCollisionFrame();
+        const collisionItem = frame.collisionItem;
+        try
+        {
+            let neighborCollision = null;
+            this.GetNextCollisionStatic(ballProperties, collisionItem, balls, collidables);
+            if (collisionItem.timeOfImpact !== ballProperties.m_tStart)
+                this.GetNextCollisionFree(ballProperties, collisionItem, balls, collisionIteration);
+            if (collisionItem.collider !== null)
+            {
+                if (collisionItem.mbIndex2 === -2) this.CalculateCollisionImpactStatic(ballProperties, collisionItem);
+                else neighborCollision = this.CalculateCollisionImpactFree(ballProperties,
+                    this.mCollisionLocations.get(collisionItem.collider.mId), collisionItem);
+                if (neighborCollision && neighborCollision.impact && neighborCollision.impact.collider !== -1n)
+                    this.AddImpact(neighborCollision.impact, collisionIteration, neighborCollision.collider);
+                if (collisionItem.impact && collisionItem.impact.collider !== -1n)
+                {
+                    this.AddImpact(collisionItem.impact, collisionIteration, ball);
+                    ballProperties.CalculateEnd();
+                    return true;
+                }
+            }
+            ballProperties.CalculateEnd();
+            return false;
+        }
+        finally
+        {
+            collisionItem.collider = collisionItem.impact = null;
+            CjsBallparkController.collisionFrames.push(frame);
+        }
+    }
+
+    /**
+     * Searches static shapes, then fixed balls in native candidate order.
+     * Adaptation: a pooled frame replaces stack vectors and reference outputs;
+     * native unused miniball-vector scaffolding is omitted. Static hits leave
+     * mbIndex2 untouched, relying on a new CollisionItem's -2 default.
+     * Source: destiny/src/Ballpark.cpp:2080-2178.
+     * @param {CollisionBallProperties} ballProp Current trajectory and search interval.
+     * @param {CollisionItem} collisionItem Mutable best collision.
+     * @param {CjsDestinyBall[]} balls Candidates, including free balls to skip.
+     * @param {CjsDestinyStaticCollidable[]} collidables Shape candidates.
+     * @returns {void} Updates the best collision when a candidate qualifies.
+     */
+    @meta.adapted
+    GetNextCollisionStatic(ballProp, collisionItem, balls, collidables)
+    {
+        const ball = ballProp.m_ball;
+        const frame = CjsBallparkController._allocCollisionFrame();
+        const { vec3d_0, vec3d_1, vec3d_4, vec3d_5 } = frame;
+        try
+        {
+            ballProp.CalculatePosition(vec3d_0, vec3d_4, ballProp.m_tStart);
+            ballProp.CalculatePosition(vec3d_1, vec3d_4, ballProp.m_tEnd);
+            if (ball.mMode !== Mode.DSTBALL_MISSILE && ball.mMode !== Mode.DSTBALL_MUSHROOM)
+            {
+                for (const collidable of collidables)
+                {
+                    vec3.zero(frame.hit.normal);
+                    frame.hit.timeOfImpact = 0;
+                    if (collidable.CheckCollision(vec3d_0, vec3d_1, ball.mRadius, frame.hit))
+                    {
+                        const fraction = frame.hit.timeOfImpact;
+                        if (ballProp.IgnoreCollision(collidable.mId, fraction)) continue;
+                        const time = ballProp.m_tStart + (ballProp.m_tEnd - ballProp.m_tStart) * fraction;
+                        if (collisionItem.timeOfImpact < 0 || time < collisionItem.timeOfImpact)
+                        {
+                            vec3.copy(collisionItem.normal, frame.hit.normal);
+                            collisionItem.collider = collidable;
+                            collisionItem.timeOfImpact = time;
+                            collisionItem.mbIndex1 = -1;
+                            collisionItem.impact = null;
+                        }
+                    }
+                    if (collisionItem.timeOfImpact === ballProp.m_tStart) break;
+                }
+            }
+            if (collisionItem.timeOfImpact !== ballProp.m_tStart)
+            {
+                for (const neighbor of balls)
+                {
+                    if (!neighbor.isFree)
+                    {
+                        if (this.CollisionBallNeighborIgnore(ball, neighbor)) continue;
+                        const fraction = CollideTwoSpheres(vec3d_0, vec3d_1, neighbor.mNewPos,
+                            neighbor.mNewPos, ball.mRadius + neighbor.mRadius);
+                        if (fraction >= 0)
+                        {
+                            if (ballProp.IgnoreCollision(neighbor.mId, fraction)) continue;
+                            const time = ballProp.m_tStart + fraction * (ballProp.m_tEnd - ballProp.m_tStart);
+                            // Native bug: compare the fraction against an absolute time (2158).
+                            if (collisionItem.timeOfImpact < 0 || fraction < collisionItem.timeOfImpact)
+                            {
+                                for (let i = 0; i < 3; ++i)
+                                    vec3d_5[i] = vec3d_0[i] + (vec3d_1[i] - vec3d_0[i]) * fraction - neighbor.mNewPos[i];
+                                const length = Math.sqrt(vec3.dot(vec3d_5, vec3d_5));
+                                if (length !== 0) vec3.scale(vec3d_5, vec3d_5, 1 / length);
+                                vec3.copy(collisionItem.normal, vec3d_5);
+                                collisionItem.collider = neighbor;
+                                collisionItem.timeOfImpact = time;
+                                collisionItem.mbIndex1 = -1;
+                                collisionItem.impact = null;
+                            }
+                        }
+                    }
+                    if (collisionItem.timeOfImpact === ballProp.m_tStart) break;
+                }
+            }
+        }
+        finally { CjsBallparkController.collisionFrames.push(frame); }
+    }
+
+    /**
+     * Searches free-ball trajectories, splitting at the other ball's impacts.
+     * Adaptation: pooled vectors and a variable-length array replace stack values
+     * and native static scratch, allowing reentry. Unused miniball arrays are omitted.
+     * Source: destiny/src/Ballpark.cpp:2180-2320.
+     * @param {CollisionBallProperties} ballProp Current trajectory and search interval.
+     * @param {CollisionItem} collisionItem Mutable best collision; normal remains untouched.
+     * @param {CjsDestinyBall[]} balls Candidates in partition discovery order.
+     * @param {bigint|number} collisionIteration Native unused iteration argument.
+     * @returns {void} Updates the best collision when a candidate qualifies.
+     */
+    @meta.adapted
+    GetNextCollisionFree(ballProp, collisionItem, balls, collisionIteration)
+    {
+        const ball = ballProp.m_ball;
+        const frame = CjsBallparkController._allocCollisionFrame();
+        const { vec3d_0, vec3d_1, vec3d_2, vec3d_3, vec3d_4, times } = frame;
+        try
+        {
+            for (const other of balls)
+            {
+                if (!other.isFree || !(other.mId > ball.mId || ball.mMode === Mode.DSTBALL_MISSILE)) continue;
+                if (this.CollisionBallNeighborIgnore(ball, other)) continue;
+                let otherProp = this.mCollisionLocations.get(other.mId);
+                if (!otherProp)
+                {
+                    otherProp = new CollisionBallProperties();
+                    this.mCollisionLocations.set(other.mId, otherProp);
+                    otherProp.Initialize(other, this.dt);
+                }
+                const endTime = otherProp.m_tEnd < ballProp.m_tEnd ? otherProp.m_tEnd : ballProp.m_tEnd;
+                if (ballProp.m_tStart >= endTime) continue;
+                times.length = 0;
+                times.push(ballProp.m_tStart);
+                for (const location of otherProp.m_locations)
+                    if (location.time > ballProp.m_tStart && location.time < endTime) times.push(location.time);
+                times.push(endTime);
+                ballProp.CalculatePosition(vec3d_0, vec3d_4, times[0]);
+                otherProp.CalculatePosition(vec3d_2, vec3d_4, times[0]);
+                for (let i = 0; i < times.length - 1; ++i)
+                {
+                    const start = times[i], end = times[i + 1];
+                    ballProp.CalculatePosition(vec3d_1, vec3d_4, end);
+                    otherProp.CalculatePosition(vec3d_3, vec3d_4, end);
+                    const fraction = CollideTwoSpheres(vec3d_0, vec3d_1, vec3d_2, vec3d_3, ball.mRadius + other.mRadius);
+                    if (fraction >= 0)
+                    {
+                        const time = start + (end - start) * fraction;
+                        if (collisionItem.timeOfImpact < 0 || time < collisionItem.timeOfImpact)
+                        {
+                            // Native quirk: this continue also skips advancing segment positions (2276).
+                            if (ballProp.IgnoreCollision(other.mId, fraction)) continue;
+                            collisionItem.timeOfImpact = time;
+                            collisionItem.collider = other;
+                            collisionItem.mbIndex1 = -1;
+                            collisionItem.mbIndex2 = -1;
+                            collisionItem.impact = null;
+                            break;
+                        }
+                    }
+                    if (times.length > 2)
+                    {
+                        vec3.copy(vec3d_0, vec3d_1);
+                        vec3.copy(vec3d_2, vec3d_3);
+                    }
+                }
+                if (collisionItem.timeOfImpact === ballProp.m_tStart) break;
+            }
+        }
+        finally
+        {
+            times.length = 0;
+            CjsBallparkController.collisionFrames.push(frame);
+        }
+    }
+
+    /**
+     * Applies Carbon's asymmetric ownership, missile, junk and mass exclusions.
+     * Source: destiny/src/Ballpark.cpp:2675-2682.
+     * @param {CjsDestinyBall} ball Ball being searched.
+     * @param {CjsDestinyBall} neighbor Potential collision partner.
+     * @returns {boolean} Whether the neighbor is excluded.
+     */
+    @meta.implemented
+    CollisionBallNeighborIgnore(ball, neighbor)
+    {
+        return (ball.mMode === Mode.DSTBALL_MISSILE && (neighbor.mId === ball.mOwnerId
+            || (neighbor.mMode === Mode.DSTBALL_MINIBALL && neighbor.mOwnerId === ball.mOwnerId)))
+            || ((neighbor.mMode === Mode.DSTBALL_MISSILE || neighbor.mMode === Mode.DSTBALL_MUSHROOM) && ball.mId === neighbor.mOwnerId)
+            || (neighbor.mMode === Mode.DSTBALL_MISSILE && ball.mId === neighbor.mFollowId)
+            || ((neighbor.isSpaceJunk && !ball.isSpaceJunk) || !neighbor.isMassive);
+    }
+
+    /**
+     * Reinitializes collision histories and solves ordered worklists until stable or capped.
+     * Adaptation: Maps plus reusable sorted key arrays implement native ordered
+     * dictionaries. History initialization uses Map insertion order in place of
+     * native unspecified unordered-map order. BigInt preserves the uint64 cap.
+     * Source: destiny/src/Ballpark.cpp:332-402.
+     * @returns {void} Updates collision trajectories used by the integration pass.
+     */
+    @meta.adapted
+    CalculateIterativeCollisionResponses()
+    {
+        for (const record of this.mCollisionLocations.values()) record.Initialize(record.m_ball, this.dt);
+        for (const values of this.mPotentialCollisionBalls.values()) values.length = 0;
+        for (const values of this.mPotentialCollidables.values()) values.length = 0;
+        let currentBalls = new Map(), nextBalls = new Map();
+        let currentIds = [], nextIds = [];
+        let collisionIteration = 0n;
+        let balls = this._iterateFreeBalls();
+        for (;;)
+        {
+            for (const entry of balls)
+            {
+                const ball = collisionIteration === 0n ? entry : currentBalls.get(entry);
+                if (ball.isMoribund || ball.mInDeadBubble || !ball.isMassive) continue;
+                if (this.CalculateCollisionResponse(ball, collisionIteration))
+                {
+                    for (const neighbor of this.mPotentialCollisionBalls.get(ball.mId))
+                    {
+                        if (!neighbor.isFree) continue;
+                        if (!nextBalls.has(neighbor.mId))
+                            nextIds.splice(CjsBallparkController._freeBallIndex(nextIds, neighbor.mId, false), 0, neighbor.mId);
+                        nextBalls.set(neighbor.mId, neighbor);
+                    }
+                    if (!nextBalls.has(ball.mId))
+                        nextIds.splice(CjsBallparkController._freeBallIndex(nextIds, ball.mId, false), 0, ball.mId);
+                    nextBalls.set(ball.mId, ball);
+                }
+            }
+            if (nextBalls.size === 0) break;
+            if (++collisionIteration >= g_collisionMaxIterations) break;
+            const oldBalls = currentBalls, oldIds = currentIds;
+            currentBalls = nextBalls;
+            currentIds = nextIds;
+            nextBalls = oldBalls;
+            nextIds = oldIds;
+            nextBalls.clear();
+            nextIds.length = 0;
+            // The local ordered worklist cannot change while this pass runs.
+            balls = currentIds;
+        }
+    }
+
+    /**
      * Finds a lower/upper bound in the controller's native signed-ID order.
      * JavaScript has no ordered Map primitive, so binary lookup indexes its owned key array.
      *
@@ -3391,7 +3711,7 @@ export class CjsBallparkController
     }
 
     /**
-     * Borrows independent value storage for a reentrant collision-impact call.
+     * Borrows independent value storage for reentrant collision search/impact calls.
      * Ours: JS has no C++ stack-value allocation; reuse complete records/views
      * instead. Sampling fills p/v, while default angular values are reset here.
      * @returns {Object} Dirty frame; return to collisionFrames in finally.
@@ -3402,7 +3722,8 @@ export class CjsBallparkController
         const frame = CjsBallparkController.collisionFrames.pop() || {
             ballLoc: new BallLocation(), otherLoc: new BallLocation(),
             vec3d_0: vec3d.create(), vec3d_1: vec3d.create(), vec3d_2: vec3d.create(),
-            vec3d_3: vec3d.create(), vec3d_4: vec3d.create(), vec3d_5: vec3d.create(), vec3d_6: vec3d.create()
+            vec3d_3: vec3d.create(), vec3d_4: vec3d.create(), vec3d_5: vec3d.create(), vec3d_6: vec3d.create(),
+            times: [], hit: { normal: vec3d.create(), timeOfImpact: 0 }, collisionItem: new CollisionItem()
         };
         frame.ballLoc.time = frame.otherLoc.time = -1;
         frame.ballLoc.collider = frame.otherLoc.collider = -1n;
@@ -3410,6 +3731,10 @@ export class CjsBallparkController
         quat.identity(frame.otherLoc.rot);
         vec3.zero(frame.ballLoc.omega);
         vec3.zero(frame.otherLoc.omega);
+        frame.collisionItem.timeOfImpact = -1;
+        frame.collisionItem.collider = frame.collisionItem.impact = null;
+        frame.collisionItem.mbIndex1 = frame.collisionItem.mbIndex2 = -2;
+        vec3.zero(frame.collisionItem.normal);
         return frame; // pool-return: caller owns the frame until finally.
     }
 

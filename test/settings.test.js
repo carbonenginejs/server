@@ -151,7 +151,7 @@ test("native utility functions preserve other globals and reset defaults", () =>
     assert.deepEqual(values(settings.Get()), [20n, false, false, false, false]);
 });
 
-test("unported selected algorithms fail before ordinary simulation state mutation", () =>
+test("iterative and dynamical settings select supported evolution paths", () =>
 {
     const park = new CjsBallparkController();
     const ball = park.AddBall(1, 13000000, 2, 10, true, false, true, false, false,
@@ -159,18 +159,21 @@ test("unported selected algorithms fail before ordinary simulation state mutatio
     const config = settings.Get();
     config.useIterativeCollision = true;
     settings.Apply(config);
-    assert.throws(() => park.Evolve(), /Iterative collision/);
-    assert.deepEqual([park.currentTime, ball.y, ball.vy], [0, 0, 1]);
+    park.Evolve();
+    assert.equal(park.currentTime, 1);
+    assert.ok(ball.y > 0);
+    assert.ok(ball.vy < 1);
+    const position = ball.y, velocity = ball.vy;
     config.useIterativeCollision = false;
     config.useDynamicalOrientation = true;
     config.disableDynamicalOrientationForMissiles = true;
     settings.Apply(config);
     park.EvolveBehaviorForBall(ball);
-    assert.deepEqual([park.currentTime, ball.y, ball.vy, ball.isFree], [0, 0, 1, true]);
+    assert.deepEqual([park.currentTime, ball.y, ball.vy, ball.isFree], [1, position, velocity, true]);
     park.EvolveStop(ball); // Native stop damping is disabled, even outside full evolution.
-    assert.equal(ball.vy, 1);
+    assert.equal(ball.vy, velocity);
     park.Evolve();
-    assert.equal(park.currentTime, 1);
+    assert.equal(park.currentTime, 2);
     assert.ok(ball.mNewRot.every(Number.isFinite));
 });
 

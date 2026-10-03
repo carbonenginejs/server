@@ -3,15 +3,15 @@
 Status: Evolving
 Scope: `@carbonenginejs/server/destiny`
 Audience: Maintainers and simulation integrators
-Summary: Native collision history, impulse calculation and invalidation before iterative scheduling.
+Summary: Native collision history, discovery, impulse calculation and iterative scheduling.
 
 `CollisionImpact`, `CollisionItem`, `BallLocation` and `CollisionBallProperties`
 are exported from the Destiny entry point. They implement the records in
 `destiny/src/CollisionStructures.h` and the methods in
 `destiny/src/CollisionBallProperties.cpp` at donor baseline `114e89f`.
-Ballpark contact approximation, static/free impulses and recursive invalidation
-are implemented. Collision discovery and iterative scheduling remain unported.
-Selecting iterative collision still throws before movement.
+Ballpark contact approximation, static/free impulses, recursive invalidation,
+collision discovery and iterative scheduling are implemented for supported
+movement modes. Compound-shape ownership and warp integration remain unported.
 
 ## Ownership and time
 
@@ -49,8 +49,8 @@ No simulation schema APIs participate, and runtime allocation settings are uncha
 
 The park's existing `CalculateBallPositionVelocity` and
 `CalculateBallRotationVelocity` dispatch directly to these sampling methods when
-a history exists in `mCollisionLocations`. Recursive impact propagation is implemented; automatic collision discovery,
-ordering and cleanup by the iterative scheduler remain to be implemented.
+a history exists in `mCollisionLocations`, even after disabling the iterative
+setting. Discovery, ordering and cleanup follow the scheduler described below.
 
 ## Preserved donor quirks
 
@@ -115,3 +115,54 @@ Preserved contact quirks (`Ballpark.cpp:2323-2672`):
 Tests cover unequal-mass elastic responses, independently derived oblique angular
 contacts, exact float branch boundaries, singular inputs, mutation order, squared
 caps and a four-ball invalidation graph that must visit one ball twice.
+
+## Discovery, scheduling and cleanup
+
+`CalculateCollisionResponse` creates a history when needed and fetches partition
+candidates only on pass zero. Static shapes are searched first, followed by fixed
+balls and then free balls. Candidate order is retained; equal-time contacts do
+not introduce a new tie-breaker. Free searches use exact signed BigInt IDs and
+split the interval at the other ball's recorded impacts. A missile can search
+lower IDs, while ownership, target, junk and mass exclusions retain their native
+asymmetry (`Ballpark.cpp:1988-2320,2675-2682`).
+
+`CalculateIterativeCollisionResponses` reinitializes every cached history and
+clears candidate arrays in place. It first visits free balls in signed-ID order,
+then deduplicated ordered worklists containing impacted balls and free neighbors.
+Moribund, dead-bubble and nonmassive balls are skipped. Pass zero runs even when
+the iteration cap is zero (`Ballpark.cpp:332-402`). JS Maps plus reusable key
+arrays replace ordered native dictionaries; history initialization uses Map
+insertion order instead of unspecified native hash order. Balanced frame pools
+replace stack math values and the donor's static search scratch.
+
+Evolution completes behavior for all balls before solving. It samples position
+at `dt` and iterative rotation at fraction `1`, stages results, then commits all
+balls (`Ballpark.cpp:425-519`). The committed positions therefore include the
+solved impacts and remain available to ClientBall sampling.
+
+Preserved discovery and settings quirks:
+
+- Fixed-sphere discovery compares a segment fraction against the current
+  absolute impact time before storing the converted time (`Ballpark.cpp:2158`).
+  A later sphere can replace an earlier shape when the search start is nonzero.
+- An ignored free contact skips advancing the segment starting positions
+  (`Ballpark.cpp:2276`), so the following segment can use an earlier position.
+- Static hits leave `mbIndex2` untouched; fresh candidates supply `-2`. Free
+  hits leave the normal untouched until impulse calculation fills it.
+- Final removal and `ClearAll` erase collision caches only while iterative
+  collisions are enabled (`Ballpark.cpp:5556-5562,5912-5917`). Disabling the
+  setting retains histories, and sampling still consults them. Removing balls
+  while disabled can therefore retain detached references; later initialization
+  may fail. This is native behavior, not a supported cache-reset operation.
+
+Regression tests distinguish source-derived discovery/control-flow cases from
+the donor Python scenario assertions. All 29 currently supported active scenarios
+from `test_iterative_collision.py` pass: twelve sphere, eight capsule and nine box
+cases. Warp and the active MiniBall-target case await their APIs; one further
+miniball multicollision test is already disabled in the donor. Static scenarios
+use world-space shapes equivalent to zero-transform Mini wrappers; they do not
+validate Mini APIs. Changed physical values use controller setters to reproduce
+Blue notifications, including spatial reinsertion after velocity changes in the
+three-phase oblique box scenario. Donor decimal-place assertions use equivalent
+absolute half-unit bounds; no fixture expectations are generated by the JS port.
+No native executable oracle is claimed.

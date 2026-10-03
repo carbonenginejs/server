@@ -145,8 +145,8 @@ each quaternion sample then updates both cached rotation and angular velocity
 (`destiny/src/Ball.cpp:877-902,1026-1043`). The derivative is maintained internally,
 while the public quaternion derivative overload still leaves caller output alone.
 
-The iterative setting dispatches to CalculateBallRotationVelocity and any existing
-collision record; the production of iterative records remains unfinished. The
+The iterative setting dispatches to CalculateBallRotationVelocity and the
+collision records produced by the park's iterative scheduler. The
 client branch follows the global dynamic flag, including when physical dynamic
 integration is disabled for missiles. Number/BigInt tick clock, two-tick shift,
 fixed-ball and cache guards remain unchanged.

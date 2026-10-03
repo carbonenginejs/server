@@ -39,8 +39,9 @@ Standalone RectangleShape and BoxShape geometry is now implemented with all 25
 native fixtures plus source-derived ray, overlap and alias cases. Static Capsule
 and OrientedBox now implement geometry, membership and direct response methods,
 with the native fractional integrator. Ballpark ownership and legacy collision
-scheduling now work. Mini attachment, warp collision integration and the iterative
-solver remain pending; this does not complete either solver phase.
+scheduling now work. Iterative discovery, scheduling, impulses and conditional
+cache cleanup are implemented. Mini attachment and warp collision integration
+remain pending; this does not complete either solver phase.
 
 Partition, Box, Key/KeyHash, all three sorted-set comparers and the
 Partitionable/StaticCollidable membership bases now work independently. Forty
@@ -213,8 +214,8 @@ Current partial implementation: the new-orbit dependency chain and its four nati
 scenarios are ported, including the physical-heading fallback. Ball angular state,
 setters, torque/roll steering, staged angular evolution and client sampling now
 work for supported movement modes. Native oriented creation and angular Blue
-notifications are implemented; Python wrapper dispatch, broader scenario coverage
-and iterative collision record production remain unfinished.
+notifications and iterative collision record production are implemented;
+Python wrapper dispatch and broader dynamic scenario coverage remain unfinished.
 
 Add legacy heading/roll outputs, dynamically oriented creation and setters,
 angular agility/speed, torque, roll and quaternion evolution. Then implement
@@ -233,8 +234,10 @@ not one universal decimal threshold.
 Current partial implementation: CollisionImpact, CollisionItem, BallLocation and
 CollisionBallProperties now provide native ordered history and sampling. Contact
 approximation, static/free impulses and recursive invalidation are implemented.
-Earliest impact discovery, scheduling and cache lifecycle remain unfinished;
-iterative Evolve still throws.
+Earliest impact discovery, scheduling and conditional cache cleanup now run through
+Evolve. Native sphere/capsule/box scenarios and source-derived ordering, settings,
+pooling and lifecycle tests cover this path. Warp and compound-shape integration
+remain unfinished, so this phase is still partial.
 
 Add collision location/impact records and their ordered intervals. Port earliest
 impact discovery, static and free-body responses, propagation to neighbors,

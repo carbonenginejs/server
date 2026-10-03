@@ -86,8 +86,8 @@ This is an in-process movement subset, not a transport or automatic tick driver.
 Native signals and the rest of the replication stack remain unported.
 
 Native global settings select the orbit model and preserve detached configuration
-snapshots. See [global settings](docs/destiny-settings.md) for the API and explicit
-unsupported collision/orientation branches.
+snapshots. See [global settings](docs/destiny-settings.md) for the API and supported
+collision/orientation branches.
 
 ## Collision geometry
 
@@ -113,11 +113,10 @@ scene clock and reference-origin contract.
 ## Current boundary
 
 This is one region with movement, native clock phases, deferred ball/capsule cleanup,
-legacy sphere/static-shape collision response and a separate movement-command queue.
+legacy and iterative sphere/static-shape collision response and a separate movement-command queue.
 Massive moving balls use native partition candidates and collision forces.
 Optional dynamical orientation supplies steering, angular integration and client sampling.
-The iterative solver, visibility,
-mini-shapes, Python creation dispatch, warp, missiles, formations,
+Visibility, mini-shapes, Python creation dispatch, warp, missiles, formations,
 replication, combat, and drone command policy are not implemented. Unsupported
 mobile movement modes throw before advancing the tick.
 
