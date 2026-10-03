@@ -25,7 +25,7 @@ and its recorded adaptations are described in [destiny-parity.md](destiny-parity
 fixed one-second ticks, drag integration, goto point/direction, follow, legacy/new
 orbit, formation following and stopping. Seventeen tests passed when this plan was prepared,
 including six numeric donor trajectories. Automatic bubbles and legacy collisions
-now work, together with dynamic orientation and warp; queries and replication remain unfinished.
+now work, together with dynamic orientation, warp and missiles; queries and replication remain unfinished.
 
 Preserve those fixtures while extending the implementation. The current scalar
 position/velocity representation retains double precision; native float fields
@@ -262,8 +262,9 @@ before imposing a new sort and calling it parity.
 Current: [formation loading, reservations and rotated following](destiny-formations.md)
 are implemented with both native formation trajectories. Existing goto/follow/orbit/stop
 commands now preserve native mode-event and follower-cleanup ordering. Warp alignment,
-phases, exit, entity warp-in and client sampling are implemented. Missiles and the
-other special movement modes remain unfinished.
+phases, exit, entity warp-in and client sampling are implemented. [Missile launch,
+pursuit and collision completion](destiny-missiles.md) are implemented through both
+collision solvers. Other special movement modes remain unfinished.
 
 Implement warp alignment and entry predicates, phase constants, distance/velocity
 evaluation, short and long warps, termination, entity warp-in and source destination

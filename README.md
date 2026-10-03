@@ -120,7 +120,8 @@ Optional dynamical orientation supplies steering, angular integration and client
 [Formation loading and following](docs/destiny-formations.md) are implemented.
 Warp commands, evolution and client sampling are implemented; see [warp](docs/destiny-warp.md).
 Python creation dispatch is exposed separately through `PyAddBall`.
-Visibility, missiles,
+[Missile launch, pursuit and collision events](docs/destiny-missiles.md) are implemented.
+Visibility,
 replication, combat, and drone command policy are not implemented. Unsupported
 mobile movement modes throw before advancing the tick.
 

@@ -29,6 +29,7 @@ argument to `SetBallPosition`.
 | `go_to_point`, `go_to_direction` | `GotoPoint`, `GotoDirection` |
 | `orbit`, `follow_ball`, `stop` | `Orbit`, `FollowBall`, `Stop` |
 | `warp_to`, `entity_warp_in` | `WarpTo`, `EntityWarpIn` |
+| `launch_missile`, `set_ball_massive` | `LaunchMissile`, `SetBallMassive` |
 | `set_ball_velocity`, `set_ball_position` | `SetBallVelocity`, `SetBallPosition` |
 | `set_ball_mass`, `set_ball_agility`, `set_ball_radius` | `SetBallMass`, `SetBallAgility`, `SetBallRadius` |
 | `set_speed_fraction`, `set_max_speed`, `set_ball_free` | `SetSpeedFraction`, `SetMaxSpeed`, `SetBallFree` |
@@ -45,7 +46,7 @@ is not network or provider-message idempotency. Equality includes Number/BigInt
 and boolean equivalents without coercing strings or null.
 
 IDs normalize to checked signed-int64 BigInts when enqueued or queried, including
-Follow/Orbit targets. Safe integer Number IDs are accepted; unsafe or out-of-range
+Follow/Orbit targets and missile target/owner IDs. Safe integer Number IDs are accepted; unsafe or out-of-range
 IDs throw at admission. This is earlier than native Python argument rejection.
 Other payloads remain unchanged until the ballpark executes each command. In
 particular, queueing does not clamp throttle or round parameters to float32.

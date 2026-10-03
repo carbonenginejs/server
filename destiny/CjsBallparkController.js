@@ -2007,7 +2007,7 @@ export class CjsBallparkController
      * Detaches followers; interactive orbiters and missiles retain their velocity direction.
      * Adaptation: JS IDs and object references replace native map/pointer arguments.
      * Snapshot iteration replaces native unordered-set traversal; invalid links
-     * are diagnosed and removed. Missile steering itself remains unported.
+     * are diagnosed and removed. Detached missiles become non-massive GOTO balls.
      * Source: destiny/src/Ballpark.cpp:5416-5472.
      *
      * @param {CjsDestinyBall|null} ball Target whose incoming follower links are detached.
@@ -2268,7 +2268,8 @@ export class CjsBallparkController
             }
             if (ball.mode !== Mode.DSTBALL_STOP && ball.mode !== Mode.DSTBALL_GOTO
                 && ball.mode !== Mode.DSTBALL_FOLLOW && ball.mode !== Mode.DSTBALL_ORBIT
-                && ball.mode !== Mode.DSTBALL_FORMATION && ball.mode !== Mode.DSTBALL_WARP)
+                && ball.mode !== Mode.DSTBALL_FORMATION && ball.mode !== Mode.DSTBALL_WARP
+                && ball.mode !== Mode.DSTBALL_MISSILE)
             {
                 throw new Error(`Destiny mode ${ball.mode} is not implemented`);
             }
@@ -2394,7 +2395,27 @@ export class CjsBallparkController
                 }
                 else ball.CalculateYawPitchRoll();
                 const dx = ball.x - ball._oldX, dy = ball.y - ball._oldY, dz = ball.z - ball._oldZ;
-                if (dx * dx + dy * dy + dz * dz >= 0.1) this.InsertBallInBoxes(ball);
+                if (dx * dx + dy * dy + dz * dz < 0.1) continue;
+                this.InsertBallInBoxes(ball);
+                // Source: destiny/src/Ballpark.cpp:601-638. Native dispatch follows
+                // reinsertion and is also skipped when movement is below threshold.
+                if (ball.mMode === Mode.DSTBALL_MISSILE)
+                {
+                    if (g_useIterativeCollision)
+                    {
+                        const history = this.mCollisionLocations.get(ball.mId);
+                        if (history)
+                            for (const location of history.m_locations)
+                                if (location.collider !== -1n) ball.mCollisions.push(location.collider);
+                    }
+                    if (this.isMaster)
+                    {
+                        const owner = this.GetBall(ball.mOwnerId < 0n ? -ball.mOwnerId : ball.mOwnerId);
+                        if (!owner || (owner.mNewBubble !== ball.mNewBubble && ball.mNewBubble !== -1) || owner.isCloaked)
+                            ball.mCollisions.push(ball.mId);
+                    }
+                    ball.DispatchCollisions();
+                }
             }
             this.currentTime++;
         }
@@ -2428,6 +2449,10 @@ export class CjsBallparkController
         {
             case Mode.DSTBALL_WARP:
                 this.EvolveWarp(ball);
+                break;
+
+            case Mode.DSTBALL_MISSILE:
+                this.EvolveMissile(ball);
                 break;
 
             case Mode.DSTBALL_GOTO:
@@ -2549,6 +2574,40 @@ export class CjsBallparkController
     }
 
     /**
+     * Flies straight through the first 800 milliseconds, then predicts target motion.
+     * Adaptation: scalar double locals replace stack vectors and mLastG replaces
+     * the return value. Native zero-speed/nonfinite arithmetic is not clamped.
+     * Source: destiny/src/Ballpark.cpp:972-1011.
+     * @param {CjsDestinyBall} ball Missile with a native target pointer.
+     * @returns {void} Updates goto and thrust after the launch interval.
+     */
+    @meta.adapted
+    EvolveMissile(ball)
+    {
+        if ((this.currentTime - ball.mEffectStamp) * this.tickInterval <= 800)
+        {
+            this.GotoThrust(ball, ball.mGoto[0], ball.mGoto[1], ball.mGoto[2]);
+            return;
+        }
+        const other = ball.mFollowPtr;
+        const x = other.mNewPos[0], y = other.mNewPos[1], z = other.mNewPos[2];
+        const dx = ball.mNewPos[0] - x, dy = ball.mNewPos[1] - y, dz = ball.mNewPos[2] - z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz), time = distance / ball.mMaxVel;
+        let tx = x + time * other.mNewVel[0], ty = y + time * other.mNewVel[1], tz = z + time * other.mNewVel[2];
+        const radius = ball.mFollowRange + ball.mRadius + other.mRadius;
+        // Native quirk: retain zero-times-infinity when the float radius sum overflowed.
+        // Source: destiny/src/Ballpark.cpp:996-1000.
+        if (distance === 0) { tx = x + radius; ty = y + 0 * radius; tz = z + 0 * radius; }
+        else
+        {
+            const inverse = 1 / distance;
+            tx += dx * radius * inverse; ty += dy * radius * inverse; tz += dz * radius * inverse;
+        }
+        vec3.set(ball.mGoto, tx, ty, tz);
+        this.GotoThrust(ball, tx, ty, tz, ball.mMode === Mode.DSTBALL_MISSILE);
+    }
+
+    /**
      * Steers toward the leader's rotated formation offset, including both radii.
      * Adaptation: mLastG replaces the native Vector3d return; a pooled float32
      * offset survives reentry through the leader's rotation method and is returned
@@ -2601,7 +2660,7 @@ export class CjsBallparkController
         ball.gotoX = other.x + (distance === 0 ? radius : dx * radius / distance);
         ball.gotoY = other.y + (distance === 0 ? 0 : dy * radius / distance);
         ball.gotoZ = other.z + (distance === 0 ? 0 : dz * radius / distance);
-        this.GotoThrust(ball, ball.gotoX, ball.gotoY, ball.gotoZ);
+        this.GotoThrust(ball, ball.gotoX, ball.gotoY, ball.gotoZ, ball.mMode === Mode.DSTBALL_MISSILE);
     }
 
     /**
@@ -2975,17 +3034,20 @@ export class CjsBallparkController
     }
 
     /**
-     * Adaptation: f64 scalar target and mLastG output; missile mode is excluded.
+     * Aims full thrust at a point, reducing close-range thrust only for non-missiles.
+     * Adaptation: f64 scalar target and mLastG output replace native Vector3d values.
+     * Source: destiny/src/Ballpark.cpp:1398-1426; destiny/src/Vector3d.h:62-72.
      *
      * @param {CjsDestinyBall} ball Ball whose existing state is read or updated.
      * @param {number} x Position component in meters.
      * @param {number} y Position component in meters.
      * @param {number} z Position component in meters.
+     * @param {boolean} [missile=false] Bypass the native close-distance thrust scaling.
      * @returns {void} No return value.
      */
     @meta.blue.method
     @meta.adapted
-    GotoThrust(ball, x, y, z)
+    GotoThrust(ball, x, y, z, missile = false)
     {
         const dx = x - ball.x;
         const dy = y - ball.y;
@@ -2993,12 +3055,12 @@ export class CjsBallparkController
         const length2 = dx * dx + dy * dy + dz * dz;
         const dist = ball.speedFraction * ball.maxVelocity * this.dt;
         let thrust = this.mFriction * ball.speedFraction * ball.maxVelocity / (ball.mass * ball.agility);
-        if (length2 < dist * dist)
+        if (!missile && length2 < dist * dist)
         {
             const coefficient = length2 / (dist * dist);
-            thrust *= coefficient * coefficient;
+            thrust = thrust * coefficient * coefficient;
         }
-        const inverseLength = length2 === 0 ? 0 : 1 / Math.sqrt(length2);
+        const inverseLength = length2 === 0 ? 1 : 1 / Math.sqrt(length2);
         ball._lastGx = dx * inverseLength * thrust;
         ball._lastGy = dy * inverseLength * thrust;
         ball._lastGz = dz * inverseLength * thrust;
@@ -3691,6 +3753,141 @@ export class CjsBallparkController
     }
 
     /**
+     * Sets up missile pursuit, tolerating a missing owner but requiring a live target.
+     * Adaptation: checked BigInt IDs replace native integers, references/Sets
+     * replace pointers/unordered sets, and scalar locals preserve Vector3d values.
+     * Minimum int64 owner negation throws instead of native signed overflow.
+     * Source: destiny/src/Ballpark.cpp:3798-3872.
+     * @param {bigint|number} id Existing missile identity.
+     * @param {bigint|number} targetId Target identity; negative is allowed in this core.
+     * @param {bigint|number} ownerId Signed owner; negative selects defender collision behavior.
+     * @returns {void} Bubble/cloak rejection stops the old command before returning.
+     */
+    @meta.adapted
+    MissileFollow(id, targetId, ownerId)
+    {
+        id = CjsDestinyBall._toInt64(id); targetId = CjsDestinyBall._toInt64(targetId); ownerId = CjsDestinyBall._toInt64(ownerId);
+        if (id === targetId || id === ownerId || targetId === ownerId) return;
+        const owner = this.GetBall(ownerId < 0n ? -ownerId : ownerId);
+        const ball = this.GetBall(id), target = this.GetBall(targetId);
+        if (!ball || !target || target.isMoribund) return;
+        if (!owner) console.warn("Non existing missile owner. Tolerated.");
+        this.Stop(ball);
+        if (ball.mNewBubble !== target.mNewBubble || target.isCloaked) return;
+        ball.mFollowId = targetId; ball.mFollowPtr = target;
+        ball.mFollowRange = -f32(f32(ball.mRadius) + f32(target.mRadius));
+        ball.mOwnerId = ownerId; ball.mEffectStamp = this.currentTime;
+        let x = ball.mNewVel[0], y = ball.mNewVel[1], z = ball.mNewVel[2];
+        const length = Math.sqrt(x * x + y * y + z * z);
+        if (length !== 0) { const inverse = 1 / length; x *= inverse; y *= inverse; z *= inverse; }
+        // Native quirk: an absolute launch waypoint, without the missile position.
+        vec3.set(ball.mGoto, x * 1e16, y * 1e16, z * 1e16);
+        ball.mSpeedFraction = 1;
+        ball.SetMode(Mode.DSTBALL_MISSILE);
+        target.mFollowers.add(ball.mId);
+    }
+
+    /**
+     * Applies the Python-only negative-target restriction before missile pursuit.
+     * Adaptation: JS arguments and RangeError replace Python parsing/error state.
+     * Source: destiny/src/Thunkers.cpp:275-299.
+     * @param {bigint|number} id Existing missile identity.
+     * @param {bigint|number} targetId Nonnegative target identity.
+     * @param {bigint|number} ownerId Signed owner identity.
+     * @returns {void} Delegates to the native core after binding checks.
+     */
+    @meta.adapted
+    PyMissileFollow(id, targetId, ownerId)
+    {
+        if (arguments.length !== 3) throw new TypeError("PyMissileFollow requires 3 arguments");
+        id = CjsDestinyBall._toInt64(id); targetId = CjsDestinyBall._toInt64(targetId); ownerId = CjsDestinyBall._toInt64(ownerId);
+        if (targetId < 0n) throw new RangeError("Can not MissileFollow a negative ballID");
+        this.MissileFollow(id, targetId, ownerId);
+    }
+
+    /**
+     * Launches an existing ball from an owner, then pursues its target if available.
+     * Adaptation: JS positional values replace the required Python tuple and byte
+     * flags. Scalar snapshots and a pooled float32 direction survive callbacks;
+     * finally releases the direction on error. Checked IDs reject native overflow.
+     * Source: destiny/src/Thunkers.cpp:857-946.
+     * @param {bigint|number} id Existing source ball identity; never allocated here.
+     * @param {bigint|number} targetId Nonnegative target identity.
+     * @param {bigint|number} ownerId Signed launcher identity, looked up by absolute value.
+     * @param {boolean|number} aimedLaunch Byte flag; only one requests aimed launch.
+     * @param {boolean|number} massive Byte flag; nonzero sets massiveness, zero retains it.
+     * @returns {void} Missing launcher is a no-op; missing/cloaked targets may leave updated motion.
+     */
+    @meta.adapted
+    PyLaunchMissile(id, targetId, ownerId, aimedLaunch, massive)
+    {
+        if (arguments.length !== 5) throw new TypeError("PyLaunchMissile requires 5 arguments");
+        id = CjsDestinyBall._toInt64(id); targetId = CjsDestinyBall._toInt64(targetId); ownerId = CjsDestinyBall._toInt64(ownerId);
+        if (typeof aimedLaunch === "boolean") aimedLaunch = Number(aimedLaunch);
+        if (typeof massive === "boolean") massive = Number(massive);
+        if (!Number.isInteger(aimedLaunch) || aimedLaunch < 0 || aimedLaunch > 255
+            || !Number.isInteger(massive) || massive < 0 || massive > 255)
+            throw new RangeError("LaunchMissile flags must fit unsigned bytes");
+        if (targetId < 0n) throw new RangeError("Can not launch missile on a negative ballID");
+        const launcher = this.GetBall(ownerId < 0n ? -ownerId : ownerId);
+        if (!launcher) return;
+        const target = targetId !== ownerId ? this.GetBall(targetId) : null;
+        const px = launcher.mNewPos[0], py = launcher.mNewPos[1], pz = launcher.mNewPos[2];
+        let maxVelocity = 0, vx, vy, vz;
+        if (target && aimedLaunch === 1 && !target.isCloaked)
+        {
+            vx = target.mNewPos[0] - px; vy = target.mNewPos[1] - py; vz = target.mNewPos[2] - pz;
+            const length = Math.sqrt(vx * vx + vy * vy + vz * vz);
+            if (length !== 0) { const inverse = 1 / length; vx *= inverse; vy *= inverse; vz *= inverse; }
+        }
+        else
+        {
+            const x = launcher.mNewVel[0], y = launcher.mNewVel[1], z = launcher.mNewVel[2];
+            maxVelocity = launcher.mMaxVel;
+            let dx = x, dy = y, dz = z;
+            const length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (length !== 0) { const inverse = 1 / length; dx *= inverse; dy *= inverse; dz *= inverse; }
+            if (dx * dx + dy * dy + dz * dz === 0)
+            {
+                const vec3_0 = vec3.alloc();
+                try
+                {
+                    vec3.set(vec3_0, 0, 0, -1);
+                    launcher.GetRotatedVector(vec3_0);
+                    dx = vec3_0[0]; dy = vec3_0[1]; dz = vec3_0[2];
+                }
+                finally { vec3.unalloc(vec3_0); }
+            }
+            const speed = 150 < maxVelocity ? maxVelocity : 150;
+            vx = x + speed * dx; vy = y + speed * dy; vz = z + speed * dz;
+        }
+        if (massive) this.SetBallMassive(id, true);
+        this.SetBallPosition(id, px, py, pz);
+        this.SetBallVelocity(id, vx, vy, vz);
+        if (target && target.isCloaked) return;
+        if (!target)
+        {
+            if (maxVelocity > 0) this.GotoDirection(id, vx, vy, vz);
+        }
+        else this.MissileFollow(id, targetId, ownerId);
+    }
+
+    /**
+     * Exposes Carbon's Blue LaunchMissile name on the Python-shaped implementation.
+     * Adaptation: an explicit delegate replaces the native Blue method alias.
+     * Source: destiny/src/Ballpark_Blue.cpp:695-700.
+     * @param {...unknown} args The five required PyLaunchMissile arguments.
+     * @returns {void} Launches the existing source without creating a ball.
+     */
+    @meta.blue.renamed("PyLaunchMissile")
+    @meta.adapted
+    LaunchMissile(...args)
+    {
+        if (args.length !== 5) throw new TypeError("LaunchMissile requires 5 arguments");
+        this.PyLaunchMissile(...args);
+    }
+
+    /**
      * Follows a valid uncloaked target in the same native bubble.
      * Adaptation: JS references/Sets replace native pointers/unordered sets; float
      * narrowing and the Python wrapper's default range are retained. This core
@@ -3796,6 +3993,22 @@ export class CjsBallparkController
             ball.mFollowRange = 0;
         }
         ball.SetMode(Mode.DSTBALL_STOP);
+    }
+
+    /**
+     * Changes collision participation without reinsertion or other side effects.
+     * Adaptation: JS Boolean conversion represents the native bool argument.
+     * Source: destiny/src/Ballpark.cpp:5074-5085.
+     * @param {bigint|number} id Existing ball identity.
+     * @param {boolean} flag New massiveness flag.
+     * @returns {void} Missing balls are ignored.
+     */
+    @meta.blue.method
+    @meta.adapted
+    SetBallMassive(id, flag)
+    {
+        const ball = this.GetBall(id);
+        if (ball) ball.isMassive = Boolean(flag);
     }
 
     /**

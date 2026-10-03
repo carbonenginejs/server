@@ -234,7 +234,7 @@ test("unsupported mode and zero mobile mass fail before any tick mutation", () =
     const first = spaceBall(park, 1);
     const second = spaceBall(park, 2);
     park.GotoPoint(1, 100, 0, 0);
-    second.mode = Mode.DSTBALL_MISSILE;
+    second.mode = Mode.DSTBALL_RIGID;
     assert.throws(() => park.Evolve(), /not implemented/);
     assert.equal(first.x, 0);
     assert.equal(park.currentTime, 0);

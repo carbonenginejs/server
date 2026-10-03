@@ -184,7 +184,7 @@ literally from Python. JS uses an absolute 5e-5 bound instead of comparing separ
 rounded four-decimal coordinates. Fifteen additional tests cover force/filter
 ordering and ownership. That checkpoint had 321 passing tests. Collision-location
 histories, iterative propagation and [Mini attachment](destiny-minis.md) are now
-implemented, together with [warp integration](destiny-warp.md); missile integration remains open.
+implemented, together with [warp integration](destiny-warp.md) and [missile collision dispatch](destiny-missiles.md).
 No native executable ran for this checkpoint.
 
 ## Double-precision temporary storage

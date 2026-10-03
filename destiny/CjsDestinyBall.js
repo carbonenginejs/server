@@ -1821,6 +1821,24 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     }
 
     /**
+     * Dispatches the initial number of queued collisions without clearing the list.
+     * Adaptation: the attached park's injected PyOS replaces global native dispatch;
+     * detached balls have no bridge. Collider IDs and force are read again for each
+     * event, while appended entries wait until the next call. Host errors propagate.
+     * Source: destiny/src/Ball.cpp:468-488.
+     * @returns {void} Collision callbacks own damage, explosion and removal policy.
+     */
+    @meta.adapted
+    DispatchCollisions()
+    {
+        const size = this.mCollisions.length, pyOS = this.mPark && this.mPark._pyOS;
+        if (!pyOS) return;
+        for (let i = 0; i < size; ++i)
+            if (!pyOS.SendEvent(this, "Destiny::Ball::DoCollision", "DoCollision", null, "Lddd",
+                this.mCollisions[i], this.mLastC[0], this.mLastC[1], this.mLastC[2])) pyOS.PyError();
+    }
+
+    /**
      * Reads the native readonly effect counter, also used as warp start/alignment state.
      * Source: destiny/src/Ball_Blue.cpp:407-414.
      * @returns {number} Native simulation counter value.

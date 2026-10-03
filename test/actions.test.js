@@ -26,7 +26,9 @@ const cases = [
     ["follow_ball", [ID, TARGET, 1000], ["FollowBall", [ID, TARGET, 1000]]],
     ["set_max_speed", [ID, 500], ["SetMaxSpeed", [ID, 500]]],
     ["warp_to", [ID, 123, 456, 789, 1000, 20], ["WarpTo", [ID, 123, 456, 789, 1000, 20]]],
-    ["entity_warp_in", [ID, 123, 456, 789, 20], ["EntityWarpIn", [ID, 123, 456, 789, 20]]]
+    ["entity_warp_in", [ID, 123, 456, 789, 20], ["EntityWarpIn", [ID, 123, 456, 789, 20]]],
+    ["set_ball_massive", [ID, false], ["SetBallMassive", [ID, false]]],
+    ["launch_missile", [ID, TARGET, 1000000000003n, true, false], ["LaunchMissile", [ID, TARGET, 1000000000003n, true, false]]]
 ];
 
 for (const [method, args, expected] of cases)
@@ -157,5 +159,5 @@ test("Actions declares partial provenance and fails explicitly for unported sign
     assert.equal(CjsSchema.getSchema(Actions).modelledOn, "destiny.net.server.Actions");
     assert.throws(() => actions.on_add_to_system_history, /not implemented/);
     assert.throws(() => actions.on_ball_made_global, /not implemented/);
-    assert.equal(Actions.prototype.launch_missile, undefined, "no phantom missile support");
+    assert.equal(Actions.prototype.cloak_ball, undefined, "no phantom cloak support");
 });

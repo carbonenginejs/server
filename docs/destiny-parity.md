@@ -377,7 +377,7 @@ Behavior previews angular integration to redirect thrust but does not commit
 rotation (`Ballpark.cpp:841-893`). Evolution stages all balls, then independently
 checks and commits native float squared lengths for rotation and angular velocity
 (`Ballpark.cpp:502-519,584-595`). Disabled missiles retain the donor's distinct
-commit and client predicates; missile movement itself is still unported. The
+commit and client predicates; [missile movement](destiny-missiles.md) is implemented. The
 new-orbit fallback uses physical heading and preserves the second nonpositive
 threshold's NaN behavior (`Ballpark.cpp:712-732`). CapAcceleration preserves its
 native immediate-return no-op (`Ballpark.cpp:1350-1353`).
@@ -521,5 +521,31 @@ wrapper exceptions before reporting dispatch failure, matching the donor event t
 The maxVelocity accessor now narrows to the native float32 storage (Ball.h:126,
 Ball_Blue.cpp:48-54), correcting an earlier direct-property precision gap at strict
 warp thresholds. Controller creation/setters already performed this conversion.
-Twenty-seven added tests bring the suite to 540. No native executable or graphical
+That checkpoint added twenty-seven tests, reaching 540. No native executable or graphical
 integration was run; replication, sensors and remaining movement modes stay open.
+
+## Missile launch and collision completion
+
+[Missiles](destiny-missiles.md) covers PyLaunchMissile's Blue alias, native
+MissileFollow, the Python target restriction, EvolveMissile and GotoThrust's
+missile branch. SetBallMassive and Actions launch/massiveness tuples are included.
+The guide maps each family to the unchanged 114e89f donor source.
+
+Scalar snapshots replace native stack vectors across launch setter callbacks.
+The float32 rotated direction is borrowed and returned in finally, with no
+class scratch surviving reentry. Checked BigInt IDs reject minimum-int64 owner
+negation instead of native undefined overflow. The injected park PyOS replaces
+the native global bridge; detached balls have no bridge. JS exceptions propagate
+while Evolve releases its semaphore. No runtime change is required.
+
+Native radius-sum float overflow, zero-times-infinity components, absolute launch
+waypoint, exact-one aimed flag, false-massive retention, signed defender identity,
+close-thrust bypass and movement-gated collision delivery are retained. Dispatch
+snapshots count but rereads contacts/force, preserving duplicate and zero IDs.
+GotoThrust also now preserves computed-zero-length normalization and left-to-right
+thrust scaling, correcting earlier JS arithmetic differences without donor changes.
+
+Thirty-two added tests bring the suite to 572: four donor flight scenarios under
+each solver, native launch fixtures, actual target-hit dispatch, source-derived
+completion boundaries, dynamic-orientation selection and exceptional pool cleanup.
+No native executable, transport or gameplay damage implementation is claimed.

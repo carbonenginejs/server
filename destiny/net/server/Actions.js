@@ -410,6 +410,39 @@ export class Actions
     }
 
     /**
+     * Queues collision participation without changing spatial membership immediately.
+     * Adaptation: checked BigInt identity and JS arrays replace Python integer/tuple values.
+     * Source: destiny/python/destiny/net/server/_actions.py:234-248.
+     * @param {bigint|number} src_id Existing ball identity.
+     * @param {boolean} is_massive Requested collision participation.
+     * @returns {void} Appends SetBallMassive with its unmodified flag.
+     */
+    @meta.adapted
+    set_ball_massive(src_id, is_massive)
+    {
+        this._add_to_system_history(src_id, "SetBallMassive", [is_massive]);
+    }
+
+    /**
+     * Queues launch of an existing missile; collision callbacks own explosion policy.
+     * Adaptation: all three IDs normalize to checked BigInt; JS arrays replace tuples.
+     * Source: destiny/python/destiny/net/server/_actions.py:653-675.
+     * @param {bigint|number} src_id Existing missile identity.
+     * @param {bigint|number} dst_id Target identity.
+     * @param {bigint|number} owner_id Signed launcher identity.
+     * @param {boolean|number} is_aimed_launch Native byte flag, retained until application.
+     * @param {boolean|number} is_missile_massive Native byte flag, retained until application.
+     * @returns {void} Appends LaunchMissile without executing it.
+     */
+    @meta.adapted
+    launch_missile(src_id, dst_id, owner_id, is_aimed_launch, is_missile_massive)
+    {
+        dst_id = CjsDestinyBall._toInt64(dst_id);
+        owner_id = CjsDestinyBall._toInt64(owner_id);
+        this._add_to_system_history(src_id, "LaunchMissile", [dst_id, owner_id, is_aimed_launch, is_missile_massive]);
+    }
+
+    /**
      * Native weak-reference Signal delivery is not part of this queue subset.
      *
      * @returns {never} Throws until native Signal delivery is ported.

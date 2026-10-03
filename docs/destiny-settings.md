@@ -34,7 +34,7 @@ the shorter names are the native Blue aliases. There is no `Configure` method.
 | `collisionMaxIterations` | `20n` | Limits iterative collision passes. Pass zero always runs, including when this value is zero. |
 | `useIterativeCollision` | `false` | Selects iterative discovery, impulses and trajectory integration for supported movement modes; false selects legacy response. |
 | `useDynamicalOrientation` | `false` | Selects heading/roll steering, dynamic thrust, staged angular evolution and client sampling for supported modes. |
-| `disableDynamicalOrientationForMissiles` | `false` | Retains the native missile-only exception, not a global orientation disable. Missile movement itself is unported. |
+| `disableDynamicalOrientationForMissiles` | `false` | Selects the native missile-only orientation exception: missiles snap after integration when enabled. See [missiles](destiny-missiles.md). |
 | `useNewOrbit` | `false` | Selects the native new orbit dependency chain, including the physical-heading fallback. |
 
 AddBall corresponds to raw C++ AddBall and leaves orientation unchanged.
