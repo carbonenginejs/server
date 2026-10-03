@@ -45,6 +45,6 @@ reference caching and legacy orientation.
 
 Destiny settings preserve the donor's module-global ownership. Apply copies
 configuration values; Get returns detached snapshots. Existing parks read live
-globals at native decision sites. New orbit is implemented without dynamical
-orientation; unsupported selected collision/orientation execution throws instead
-of silently using a different algorithm. See [settings](destiny-settings.md).
+globals at native decision sites. New orbit, dynamic steering, angular tick
+integration and client sampling are implemented for supported movement modes.
+The selected iterative collision solver still throws before movement. See [settings](destiny-settings.md).

@@ -209,10 +209,11 @@ synthetic obstacles using the source-default solver.
 
 ## Phase 4 Orientation and newer orbit
 
-Current partial implementation: the non-dynamical new-orbit dependency chain
-and its four native scenarios are ported. No new persistent Ball state was
-needed for that path. Dynamical orientation and the heading-based orbital-plane
-fallback remain unported; enabling them fails explicitly at execution sites.
+Current partial implementation: the new-orbit dependency chain and its four native
+scenarios are ported, including the physical-heading fallback. Ball angular state,
+setters, torque/roll steering, staged angular evolution and client sampling now
+work for supported movement modes. Oriented creation wrappers and iterative
+collision record production remain unfinished.
 
 Add legacy heading/roll outputs, dynamically oriented creation and setters,
 angular agility/speed, torque, roll and quaternion evolution. Then implement

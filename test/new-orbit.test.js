@@ -157,7 +157,8 @@ test("orbital fallback reads park counter, retains low ID bits and handles coinc
     assert.deepEqual(out.orbitalVector, expected);
     assert.deepEqual(park.DefaultOrbitalNormal({ id: 9007199254740994n }, []), expected);
     const config = settings.Get(); config.useDynamicalOrientation = true; settings.Apply(config);
-    assert.throws(() => park.GetOrbitalNormal(ship, out), /heading fallback/);
+    park.GetOrbitalNormal(ship, out);
+    assert.ok(out.orbitalVector.every(Number.isFinite));
 });
 
 test("OrbitThrust preserves exact native deadband and cap boundaries", () =>
@@ -244,7 +245,11 @@ test("new-orbit nonfinite normalization and dynamic fallback preserve source bra
     const config = settings.Get(); config.useDynamicalOrientation = true; settings.Apply(config);
     ship.vx = NaN; // Direct internal probe of native nonfinite branch semantics.
     const out = { orbitalVector: [0, 0, 0], toVector: [0, 0, 0], dist: 0 };
-    assert.throws(() => park.GetOrbitalNormal(ship, out), /heading fallback/);
+    park.GetOrbitalNormal(ship, out);
+    assert.ok(out.orbitalVector.every(Number.isFinite), "NaN velocity can fall back to a valid physical heading");
+    ship.mNewRot[0] = NaN;
+    park.GetOrbitalNormal(ship, out);
+    assert.ok(out.orbitalVector.every(Number.isNaN), "second <= threshold keeps NaN in normalization");
     config.useDynamicalOrientation = false; settings.Apply(config);
     ship.vx = 0;
     park.GetOrbitalNormal = (_ball, result) =>

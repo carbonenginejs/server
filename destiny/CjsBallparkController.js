@@ -27,7 +27,7 @@ const ORBITAL_PRECESSION = 0.001;
  * Temporary, single-region Ballpark movement subset with native clock phases.
  * The cached evolution step defaults to one second. Native global settings select
  * legacy/new orbit. Spatial membership and bubble activity are maintained;
- * legacy collision response is available; dynamical orientation and wire replication remain unported.
+ * legacy collision response and dynamic orientation are available; wire replication remains unported.
  */
 @meta.define({ className: "CjsBallparkController", modelledOn: "Ballpark" })
 @meta.blue.inherit(IBlueEvents)
@@ -935,6 +935,263 @@ export class CjsBallparkController
     }
 
     /**
+     * Computes the native direct heading torque, excluding angular roll.
+     * Adaptation: caller-owned float32 output replaces Vector3 return-by-value;
+     * dirty class scratch replaces stack values. Runtime arithmetic uses double
+     * intermediates rounded to float32 storage, not bitwise native float math.
+     * Source: destiny/src/Ballpark.cpp:1511-1578.
+     * @param {Float32Array} out Receives world heading torque after all input reads.
+     * @param {CjsDestinyBall} ball Physical angular state.
+     * @param {Float32Array} direction Desired world direction, possibly out.
+     * @returns {Float32Array} The supplied output.
+     */
+    @meta.adapted
+    GotoTorque(out, ball, direction)
+    {
+        const tScale = f32(f32(this.mFriction) / f32(f32(f32(ball.mMass) * ball.mAgility) * ball.mRotAgility));
+        const maxAlpha = f32(ball.mMaxAngVel * tScale);
+        if (maxAlpha <= 0) return vec3.zero(out);
+        const lenDir = CjsDestinyBall._lengthVector3(direction);
+        if (lenDir === 0) return vec3.zero(out);
+        const { vec3_5, vec3_6, vec3_7, vec3_8, vec3_12, mat4_1 } = CjsBallparkController.scratch;
+        vec3.copy(vec3_12, direction);
+        mat4.fromQuat(mat4_1, ball.mNewRot);
+        vec3.set(vec3_5, 0, 0, 1);
+        CjsDestinyBall._transformCoord(vec3_5, vec3_5, mat4_1);
+        CjsDestinyBall._normalizeVector3(vec3_5, vec3_5);
+        vec3.cross(vec3_6, vec3_5, vec3_12);
+        vec3.scale(vec3_6, vec3_6, f32(1 / lenDir));
+        const rotLength = CjsDestinyBall._lengthVector3(vec3_6);
+        const cosine = f32(CjsDestinyBall._dotVector3(vec3_12, vec3_5) / lenDir);
+        const capped = cosine < 1 ? cosine : 1;
+        const rotAngle = f32(Math.acos(-1 < capped ? capped : -1));
+        if (rotLength > 1e-12) vec3.scale(vec3_6, vec3_6, f32(rotAngle / rotLength));
+        else if (rotAngle > 1) vec3.set(vec3_6, -rotAngle, 0, 0);
+        vec3.scale(vec3_7, vec3_5, CjsDestinyBall._dotVector3(vec3_5, ball.mNewAngVel));
+        vec3.subtract(vec3_7, ball.mNewAngVel, vec3_7);
+        vec3.scale(vec3_6, vec3_6, tScale);
+        vec3.subtract(vec3_8, vec3_6, vec3_7);
+        const turn = f32(f32(2 * f32(Math.PI)) * tScale);
+        for (let i = 0; i < 3; ++i)
+        {
+            const negative = f32(f32(turn - vec3_6[i]) - vec3_7[i]);
+            if (Math.abs(vec3_8[i]) > Math.abs(negative)) vec3_8[i] = negative;
+        }
+        const tAcc = f32(CjsDestinyBall._lengthVector3(vec3_8) / maxAlpha);
+        if (tAcc > this.dt) vec3.scale(vec3_8, vec3_8, f32(1 / tAcc));
+        return vec3.copy(out, vec3_8);
+    }
+
+    /**
+     * Finds native acceleration/braking heading torque using five bounded searches.
+     * Adaptation: output/scratch replace native vector values; a retained record
+     * supplies the helper's scalar references. Float storage and scalar assignments
+     * are narrowed, with runtime vector intermediates remaining JavaScript doubles.
+     * Source: destiny/src/Ballpark.cpp:1616-1749.
+     * @param {Float32Array} out Receives world heading torque after all input reads.
+     * @param {CjsDestinyBall} ball Physical angular state.
+     * @param {Float32Array} direction Desired world direction, possibly out.
+     * @returns {Float32Array} The supplied output.
+     */
+    @meta.adapted
+    GotoTorqueBreaks(out, ball, direction)
+    {
+        const tScale = f32(f32(this.mFriction) / f32(f32(f32(ball.mMass) * ball.mAgility) * ball.mRotAgility));
+        const maxAlpha = f32(ball.mMaxAngVel * tScale);
+        if (maxAlpha <= 0) return vec3.zero(out);
+        const lenDir = CjsDestinyBall._lengthVector3(direction);
+        if (lenDir === 0) return vec3.zero(out);
+        const { vec3_5, vec3_6, vec3_7, vec3_8, vec3_9, vec3_10, vec3_12, mat4_1, vectorBraking } = CjsBallparkController.scratch;
+        vec3.copy(vec3_12, direction);
+        mat4.fromQuat(mat4_1, ball.mNewRot);
+        vec3.set(vec3_5, 0, 0, 1);
+        CjsDestinyBall._transformCoord(vec3_5, vec3_5, mat4_1);
+        CjsDestinyBall._normalizeVector3(vec3_5, vec3_5);
+        vec3.cross(vec3_6, vec3_5, vec3_12);
+        vec3.scale(vec3_6, vec3_6, f32(1 / lenDir));
+        const rotLength = CjsDestinyBall._lengthVector3(vec3_6);
+        const cosine = f32(CjsDestinyBall._dotVector3(vec3_12, vec3_5) / lenDir);
+        const capped = cosine < 1 ? cosine : 1;
+        const rotAngle = f32(Math.acos(-1 < capped ? capped : -1));
+        if (rotLength > 1e-12) vec3.scale(vec3_6, vec3_6, f32(rotAngle / rotLength));
+        else if (rotAngle > 1) vec3.set(vec3_6, -rotAngle, 0, 0);
+        vec3.scale(vec3_7, vec3_5, CjsDestinyBall._dotVector3(vec3_5, ball.mNewAngVel));
+        vec3.subtract(vec3_7, ball.mNewAngVel, vec3_7);
+        const lenOmega0 = CjsDestinyBall._lengthVector3(vec3_7);
+        if (lenOmega0 * this.dt < 1e-4 && rotAngle < 1e-4) return vec3.zero(out);
+        let n1 = 0, kappa1 = 1;
+        vec3.zero(vec3_8);
+        const tf = f32(Math.exp(f32(-f32(this.dt) * tScale))), tau = f32(1 / tScale);
+        CalculateN2Alpha2(vectorBraking, vec3_7, lenOmega0, ball, tf, f32(this.dt), tScale);
+        for (let count = 0; count < 5; ++count)
+        {
+            const { n2, kappa2, alpha2 } = vectorBraking;
+            if (n2 > 0)
+            {
+                const first = f32(f32(n2 * this.dt) - f32(tau * f32(1 - kappa2)));
+                for (let i = 0; i < 3; ++i)
+                    vec3_9[i] = f32(f32(f32(tau * alpha2[i]) * first) + f32(f32(tau * vec3_7[i]) * f32(1 - kappa2)));
+                vec3.subtract(vec3_9, vec3_6, vec3_9);
+                if (CjsDestinyBall._lengthVector3(vec3_9) < 1e-3) { n1 = 0; break; }
+            }
+            kappa1 = 1;
+            for (n1 = 1; n1 < 100; ++n1)
+            {
+                kappa1 = f32(kappa1 * tf);
+                let offset, denominator;
+                if (n2 === 0)
+                {
+                    offset = f32(tau * f32(1 - kappa1));
+                    denominator = f32(tau * f32(f32(n1 * this.dt) - offset));
+                }
+                else
+                {
+                    offset = f32(tau - f32(f32(f32(kappa1 * kappa2) * f32(n2 * this.dt)) / f32(1 - kappa2)));
+                    denominator = f32(tau * f32(f32(n1 * this.dt) - f32(f32(f32(f32(n2 * this.dt) * kappa2) * f32(1 - kappa1)) / f32(1 - kappa2))));
+                }
+                for (let i = 0; i < 3; ++i) vec3_8[i] = f32(f32(vec3_6[i] - f32(vec3_7[i] * offset)) * f32(1 / denominator));
+                if (CjsDestinyBall._lengthVector3(vec3_8) < maxAlpha) break;
+            }
+            const n2Old = vectorBraking.n2;
+            const factor = f32(tau * f32(1 - kappa1));
+            for (let i = 0; i < 3; ++i) vec3_10[i] = f32(f32(vec3_8[i] * factor) + f32(vec3_7[i] * kappa1));
+            CalculateN2Alpha2(vectorBraking, vec3_10, CjsDestinyBall._lengthVector3(vec3_10), ball, tf, f32(this.dt), tScale);
+            if (n2Old === vectorBraking.n2) break;
+        }
+        if (n1 > 0)
+        {
+            if (n1 > 1)
+            {
+                CjsDestinyBall._normalizeVector3(vec3_8, vec3_8);
+                vec3.scale(vec3_8, vec3_8, maxAlpha);
+            }
+            return vec3.copy(out, vec3_8);
+        }
+        if (vectorBraking.n2 > 0) return vec3.copy(out, vectorBraking.alpha2);
+        return vec3.zero(out);
+    }
+
+    /**
+     * Computes native banking torque with acceleration and braking phases.
+     * Adaptation: class scratch and a retained helper-reference record replace
+     * stack values; scalar float assignments are explicitly narrowed.
+     * Source: destiny/src/Ballpark.cpp:1751-1884.
+     * @param {CjsDestinyBall} ball Physical angular state.
+     * @param {Float32Array} headingTorque Heading torque in world coordinates.
+     * @returns {number} Native float roll acceleration.
+     */
+    @meta.adapted
+    GotoRollBreaks(ball, headingTorque)
+    {
+        const tScale = f32(f32(this.mFriction) / f32(f32(f32(ball.mMass) * ball.mAgility) * ball.mRotAgility));
+        const maxAlpha = f32(tScale * ball.mMaxAngVel);
+        if (maxAlpha <= 0) return 0;
+        const { vec3_5, vec3_6, vec3_7, vec3_12, quat_3, mat4_1, scalarBraking } = CjsBallparkController.scratch;
+        vec3.copy(vec3_12, headingTorque);
+        quat.conjugate(quat_3, ball.mNewRot);
+        mat4.fromQuat(mat4_1, quat_3);
+        CjsDestinyBall._transformCoord(vec3_5, ball.mNewAngVel, mat4_1);
+        const omegaRoll = vec3_5[2], lenTorque = CjsDestinyBall._lengthVector3(vec3_12);
+        let turnRoll = 0, weight = 0;
+        if (lenTorque > 0.05 * maxAlpha)
+        {
+            CjsDestinyBall._transformCoord(vec3_6, vec3_12, mat4_1);
+            vec3_5[2] = 0;
+            const cosine = CjsDestinyBall._dotVector3(vec3_5, vec3_6);
+            if (cosine >= 0 || CjsDestinyBall._lengthVector3(vec3_5) < f32(f32(0.01) * ball.mMaxAngVel))
+            {
+                turnRoll = f32(Math.atan2(-vec3_6[1], -vec3_6[0]));
+                weight = f32(lenTorque / tScale);
+                if (weight > 1) weight = 1;
+            }
+        }
+        vec3.set(vec3_7, 0, 1, 0);
+        CjsDestinyBall._transformCoord(vec3_7, vec3_7, mat4_1);
+        // Native fabs receives the boolean comparison, not up.z itself.
+        const upRoll = vec3_7[2] < f32(0.95) ? f32(Math.atan2(-vec3_7[0], vec3_7[1])) : 0;
+        const desiredRoll = weight < f32(0.05) ? upRoll : f32(weight * turnRoll);
+        if (Math.abs(omegaRoll) < 1e-4 && Math.abs(desiredRoll) < 1e-4) return 0;
+        let n1 = 0, alpha1 = NaN, kappa1 = 1;
+        const tf = f32(Math.exp(f32(-f32(this.dt) * tScale))), tau = f32(1 / tScale);
+        CalculateN2Alpha2(scalarBraking, omegaRoll, Math.abs(omegaRoll), ball, tf, f32(this.dt), tScale);
+        for (let count = 0; count < 5; ++count)
+        {
+            const { n2, kappa2, alpha2 } = scalarBraking;
+            if (n2 > 0)
+            {
+                const theta2 = f32(f32(f32(tau * alpha2) * f32(f32(n2 * this.dt) - f32(tau * f32(1 - kappa2)))) + f32(f32(tau * omegaRoll) * f32(1 - kappa2)));
+                if (Math.abs(f32(desiredRoll - theta2)) < 1e-3) { n1 = 0; break; }
+            }
+            kappa1 = 1;
+            for (n1 = 1; n1 < 100; ++n1)
+            {
+                kappa1 = f32(kappa1 * tf);
+                let offset, denominator;
+                if (n2 === 0)
+                {
+                    offset = f32(tau * f32(1 - kappa1));
+                    denominator = f32(tau * f32(f32(n1 * this.dt) - offset));
+                }
+                else
+                {
+                    offset = f32(tau - f32(f32(f32(kappa1 * kappa2) * f32(n2 * this.dt)) / f32(1 - kappa2)));
+                    denominator = f32(tau * f32(f32(n1 * this.dt) - f32(f32(f32(f32(n2 * this.dt) * kappa2) * f32(1 - kappa1)) / f32(1 - kappa2))));
+                }
+                alpha1 = f32(f32(desiredRoll - f32(omegaRoll * offset)) / denominator);
+                if (Math.abs(alpha1) < maxAlpha) break;
+            }
+            const n2Old = scalarBraking.n2;
+            const omega1 = f32(f32(f32(alpha1 * tau) * f32(1 - kappa1)) + f32(omegaRoll * kappa1));
+            CalculateN2Alpha2(scalarBraking, omega1, Math.abs(omega1), ball, tf, f32(this.dt), tScale);
+            if (n2Old === scalarBraking.n2) break;
+        }
+        if (n1 > 0) return n1 > 1 ? f32((alpha1 >= 0 ? 1 : -1) * maxAlpha) : alpha1;
+        if (scalarBraking.n2 > 0) return scalarBraking.alpha2;
+        return 0;
+    }
+
+    /**
+     * Computes native direct banking torque with the alternate-turn comparison.
+     * Adaptation: class scratch replaces stack values and float assignments are
+     * narrowed; the native boolean up-roll condition remains unchanged.
+     * Source: destiny/src/Ballpark.cpp:1886-1934.
+     * @param {CjsDestinyBall} ball Physical angular state.
+     * @param {Float32Array} headingTorque Heading torque in world coordinates.
+     * @returns {number} Native float roll acceleration.
+     */
+    @meta.adapted
+    GotoRoll(ball, headingTorque)
+    {
+        const tScale = f32(f32(this.mFriction) / f32(f32(f32(ball.mMass) * ball.mAgility) * ball.mRotAgility));
+        const maxAlpha = f32(tScale * ball.mMaxAngVel);
+        if (maxAlpha <= 0) return 0;
+        const lenTorque = CjsDestinyBall._lengthVector3(headingTorque);
+        const { vec3_5, vec3_6, vec3_12, quat_3, mat4_1 } = CjsBallparkController.scratch;
+        vec3.copy(vec3_12, headingTorque);
+        quat.conjugate(quat_3, ball.mNewRot);
+        mat4.fromQuat(mat4_1, quat_3);
+        let turnRoll = 0;
+        if (lenTorque > 1e-10)
+        {
+            CjsDestinyBall._transformCoord(vec3_5, vec3_12, mat4_1);
+            turnRoll = f32(Math.atan2(-vec3_5[1], -vec3_5[0]));
+        }
+        vec3.set(vec3_6, 0, 1, 0);
+        CjsDestinyBall._transformCoord(vec3_6, vec3_6, mat4_1);
+        const upRoll = vec3_6[2] < f32(0.95) ? f32(Math.atan2(-vec3_6[0], vec3_6[1])) : 0;
+        const weight = f32(lenTorque / maxAlpha);
+        const desiredRoll = weight < 0.1 ? upRoll : turnRoll;
+        CjsDestinyBall._transformCoord(vec3_5, ball.mNewAngVel, mat4_1);
+        const omegaRoll = vec3_5[2];
+        let tauRoll = f32(f32(desiredRoll * tScale) - omegaRoll);
+        const tauRollNeg = f32(f32(f32(f32(2 * f32(Math.PI)) - desiredRoll) * tScale) - omegaRoll);
+        if (Math.abs(tauRollNeg) < Math.abs(tauRoll)) tauRoll = tauRollNeg;
+        const tAcc = f32(Math.abs(tauRoll) / maxAlpha);
+        if (tAcc > 1) tauRoll = f32(tauRoll / tAcc);
+        return tauRoll;
+    }
+
+    /**
      * Analytically integrates native heading torque and roll with angular drag.
      * Adaptation: float32 scratch replaces native stack vectors and quaternions;
      * runtime arithmetic uses JS double intermediates with float32 stored results.
@@ -1440,13 +1697,13 @@ export class CjsBallparkController
     /**
      * Advances one cached simulation step and increments currentTime, not time.
      * Forces are evaluated before positions. Adaptation: the default timestamp of
-     * zero follows the Python Evolve wrapper; orientation and
-     * proximity notifications remain unported. Invalid mobile mass and unsupported modes fail
+     * zero follows the Python Evolve wrapper; proximity
+     * notifications remain unported. Invalid mobile mass and unsupported modes fail
      * before changing the tick, rather than silently simulating another behavior.
      * JS exceptions release inEvolve with finally so callbacks cannot strand cleanup.
      * Timestamp conversion and signed-int64 initialization overflow are checked before movement.
-     * Selected iterative collisions or dynamical orientation throw before movement
-     * until those native algorithms are ported; configuration itself still accepts them.
+     * Selected iterative collisions throw before movement
+     * until that native solver is ported; configuration itself still accepts them.
      *
      * @param {bigint|number} [timestamp=0n] New ball timestamp in 100ns units; zero preserves ball timestamps.
      * @throws {RangeError} If a mobile mass/agility is invalid.
@@ -1462,10 +1719,6 @@ export class CjsBallparkController
         for (const ball of this._iterateFreeBalls())
         {
             if (ball.isMoribund || this.InDeadBubble(ball)) continue;
-            if (g_useDynamicalOrientation && !DynamicalOrientationDisabledForBall(ball))
-            {
-                throw new Error("Dynamical orientation evolution is not implemented");
-            }
             if (timestamp !== 0n && ball.mNewTime === 0n)
             {
                 CjsDestinyBall._toInt64(timestamp - CjsBallparkController._tickTime(this.tickInterval));
@@ -1510,6 +1763,13 @@ export class CjsBallparkController
                 // Native integration stages results in old vectors until the commit pass.
                 this.Integrate(ball.mOldPos, ball.mOldVel, vec3.add(CjsBallparkController.scratch.vec3d_0, ball.mLastG, ball.mLastC),
                     ball.mMass * ball.mAgility, this.mFriction, ball.mTimeFactor, this.dt);
+                if (g_useDynamicalOrientation && !DynamicalOrientationDisabledForBall(ball))
+                {
+                    quat.copy(ball.mOldRot, ball.mNewRot);
+                    vec3.copy(ball.mOldAngVel, ball.mNewAngVel);
+                    const tau = f32(f32(f32(f32(ball.mMass) * ball.mAgility) * ball.mRotAgility) / f32(this.mFriction));
+                    this.ApplyTorque(ball.mOldRot, ball.mOldAngVel, ball.mTorque, ball.mRoll, tau, 1);
+                }
             }
             // Carbon completes integration for every ball before updating timestamps.
             for (const ball of this._iterateFreeBalls())
@@ -1534,7 +1794,32 @@ export class CjsBallparkController
                     ball.mNewVel[q] = ball.mOldVel[q];
                     ball.mOldVel[q] = velocity;
                 }
-                ball.CalculateYawPitchRoll();
+                if (g_useDynamicalOrientation)
+                {
+                    const q = ball.mOldRot, w = ball.mOldAngVel;
+                    const rotationLength2 = f32(f32(f32(f32(q[0] * q[0]) + f32(q[1] * q[1])) + f32(q[2] * q[2])) + f32(q[3] * q[3]));
+                    const angularLength2 = f32(f32(f32(w[0] * w[0]) + f32(w[1] * w[1])) + f32(w[2] * w[2]));
+                    if (Number.isFinite(rotationLength2))
+                    {
+                        for (let i = 0; i < 4; ++i)
+                        {
+                            const value = ball.mNewRot[i];
+                            ball.mNewRot[i] = ball.mOldRot[i];
+                            ball.mOldRot[i] = value;
+                        }
+                    }
+                    if (Number.isFinite(angularLength2))
+                    {
+                        for (let i = 0; i < 3; ++i)
+                        {
+                            const value = ball.mNewAngVel[i];
+                            ball.mNewAngVel[i] = ball.mOldAngVel[i];
+                            ball.mOldAngVel[i] = value;
+                        }
+                    }
+                    if (DynamicalOrientationDisabledForBall(ball)) ball.SnapOrientation();
+                }
+                else ball.CalculateYawPitchRoll();
                 const dx = ball.x - ball._oldX, dy = ball.y - ball._oldY, dz = ball.z - ball._oldZ;
                 if (dx * dx + dy * dy + dz * dz >= 0.1) this.InsertBallInBoxes(ball);
             }
@@ -1549,7 +1834,10 @@ export class CjsBallparkController
 
     /**
      * Adaptation: four supported modes, writing scalar mLastG components in place.
-     * The native dynamical thrust/torque branch throws until orientation is ported.
+     * Native heading/roll previews reshape thrust without committing physical
+     * orientation; the tick's separate integration pass stages angular results.
+     * Warp and other unsupported movement modes still throw before this branch.
+     * Source: destiny/src/Ballpark.cpp:789-900.
      *
      * @param {CjsDestinyBall} ball Ball whose existing state is read or updated.
      * @returns {void} No return value.
@@ -1558,10 +1846,6 @@ export class CjsBallparkController
     @meta.adapted
     EvolveBehaviorForBall(ball)
     {
-        if (g_useDynamicalOrientation && !DynamicalOrientationDisabledForBall(ball))
-        {
-            throw new Error("Dynamical orientation thrust and torque are not implemented");
-        }
         ball._lastGx = 0;
         ball._lastGy = 0;
         ball._lastGz = 0;
@@ -1584,6 +1868,56 @@ export class CjsBallparkController
             default:
                 throw new Error(`Destiny mode ${ball.mode} is not implemented`);
         }
+        if (g_useDynamicalOrientation && !DynamicalOrientationDisabledForBall(ball))
+        {
+            const accel = f32(vec3.length(ball.mLastG));
+            const maxAccel = f32(f32(f32(f32(this.mFriction) * ball.mSpeedFraction) * ball.mMaxVel) / f32(f32(ball.mMass) * ball.mAgility));
+            if (accel > 1e-2 * maxAccel)
+            {
+                // These slots are separate from the steering and integrator slots.
+                const { vec3_13, vec3_14, quat_4, mat4_2 } = CjsBallparkController.scratch;
+                vec3.copy(vec3_13, ball.mLastG);
+                this.GotoTorqueBreaks(ball.mTorque, ball, vec3_13);
+                ball.mRoll = this.GotoRollBreaks(ball, ball.mTorque);
+                quat.copy(quat_4, ball.mNewRot);
+                vec3.copy(vec3_14, ball.mNewAngVel);
+                const tau = f32(f32(f32(f32(ball.mMass) * ball.mAgility) * ball.mRotAgility) / f32(this.mFriction));
+                this.ApplyTorque(quat_4, vec3_14, ball.mTorque, ball.mRoll, tau, 1);
+                mat4.fromQuat(mat4_2, quat_4);
+                vec3.set(vec3_14, 0, 0, 1);
+                CjsDestinyBall._transformCoord(vec3_14, vec3_14, mat4_2);
+                const cosine = f32(CjsDestinyBall._dotVector3(vec3_14, vec3_13) / accel);
+                const cosangle = cosine < 1 ? cosine : 1;
+                if (cosangle <= 0) vec3.zero(ball.mLastG);
+                else
+                {
+                    const magnitude = f32(f32(cosangle * cosangle) * accel);
+                    // Native multiplication yields Vector3 before promotion to Vector3d.
+                    ball.mLastG[0] = f32(vec3_14[0] * magnitude);
+                    ball.mLastG[1] = f32(vec3_14[1] * magnitude);
+                    ball.mLastG[2] = f32(vec3_14[2] * magnitude);
+                }
+            }
+            else
+            {
+                vec3.zero(ball.mTorque);
+                ball.mRoll = this.GotoRollBreaks(ball, ball.mTorque);
+            }
+        }
+        else this.CapAcceleration(ball, ball.mLastG);
+    }
+
+    /**
+     * Retains the donor's immediate-return acceleration cap.
+     * Source: destiny/src/Ballpark.cpp:1350-1353.
+     * @param {CjsDestinyBall} ball Unused physical ball.
+     * @param {Float64Array|number[]} acceleration Unchanged acceleration.
+     * @returns {void} Native intentional no-op.
+     */
+    @meta.noop
+    CapAcceleration(ball, acceleration)
+    {
+        return;
     }
 
     /**
@@ -1663,7 +1997,7 @@ export class CjsBallparkController
      * Finds the native orbital plane and predicted target direction and distance.
      * Adaptation: out combines the Vector3d return with native toVector/dist refs;
      * Number arrays preserve f64. Null/non-orbit leaves toVector/dist untouched.
-     * The dynamical-heading fallback throws until native orientation is ported.
+     * Native dynamical heading supplies the fallback when velocity cannot define a plane.
      *
      * @param {CjsDestinyBall|null} ball Orbiting ball, or null.
      * @param {{orbitalVector:number[],toVector:number[],dist:number}} out Caller-owned result storage.
@@ -1698,14 +2032,23 @@ export class CjsBallparkController
         let nx = ty * ball.vz - tz * ball.vy;
         let ny = tz * ball.vx - tx * ball.vz;
         let nz = tx * ball.vy - ty * ball.vx;
-        const length2 = nx * nx + ny * ny + nz * nz;
+        let length2 = nx * nx + ny * ny + nz * nz;
+        let defaultPlane = !g_useNewOrbit || !(length2 > 1e-12);
         if (g_useNewOrbit && !(length2 > 1e-12) && g_useDynamicalOrientation)
         {
-            throw new Error("GetOrbitalNormal dynamical heading fallback is not implemented");
+            const { vec3_13 } = CjsBallparkController.scratch;
+            vec3.set(vec3_13, 0, 0, 1);
+            ball.GetRotatedVector(vec3_13);
+            nx = ty * vec3_13[2] - tz * vec3_13[1];
+            ny = tz * vec3_13[0] - tx * vec3_13[2];
+            nz = tx * vec3_13[1] - ty * vec3_13[0];
+            length2 = nx * nx + ny * ny + nz * nz;
+            // Unlike the first test, native NaN reaches normalization here.
+            defaultPlane = length2 <= 1e-12;
         }
         out.toVector[0] = tx; out.toVector[1] = ty; out.toVector[2] = tz;
         out.dist = dist;
-        if (!g_useNewOrbit || !(length2 > 1e-12))
+        if (defaultPlane)
         {
             this.DefaultOrbitalNormal(ball, out.orbitalVector);
         }
@@ -2655,7 +2998,13 @@ export class CjsBallparkController
         gradientBalls: [], gradientStatics: [], vec3d_0: vec3d.create(),
         vec3_0: vec3.create(), vec3_1: vec3.create(), vec3_2: vec3.create(),
         vec3_3: vec3.create(), vec3_4: vec3.create(),
-        quat_0: quat.create(), quat_1: quat.create(), quat_2: quat.create(), mat4_0: mat4.create()
+        quat_0: quat.create(), quat_1: quat.create(), quat_2: quat.create(), mat4_0: mat4.create(),
+        vec3_5: vec3.create(), vec3_6: vec3.create(), vec3_7: vec3.create(),
+        vec3_8: vec3.create(), vec3_9: vec3.create(), vec3_10: vec3.create(), vec3_12: vec3.create(),
+        quat_3: quat.create(), mat4_1: mat4.create(),
+        vectorBraking: { n2: 0, kappa2: 1, alpha2: vec3.create() },
+        scalarBraking: { n2: 0, kappa2: 1, alpha2: 0 },
+        vec3_13: vec3.create(), vec3_14: vec3.create(), quat_4: quat.create(), mat4_2: mat4.create()
     };
 }
 
@@ -2668,4 +3017,43 @@ export class CjsBallparkController
 function DynamicalOrientationDisabledForBall(ball)
 {
     return g_disableDynamicalOrientationForMissiles && ball.mode === Mode.DSTBALL_MISSILE;
+}
+
+/**
+ * Computes native stopping steps for scalar roll or vector heading velocity.
+ * Adaptation: one internal record replaces three reference outputs and the two
+ * C++ overloads. Nonfinite/out-of-int32 step counts throw because their native
+ * float-to-int conversion has no portable defined result.
+ * Source: destiny/src/Ballpark.cpp:1580-1614.
+ * @param {Object} out Retained n2/kappa2/alpha2 output record.
+ * @param {number|Float32Array} omega0 Scalar roll or vector heading velocity.
+ * @param {number} lenOmega0 Absolute scalar velocity or vector length.
+ * @param {CjsDestinyBall} ball Supplies the native maximum angular speed.
+ * @param {number} tf Float32 exponential time factor.
+ * @param {number} dt Float32 tick duration.
+ * @param {number} tScale Reciprocal angular time constant.
+ * @returns {void} Writes all outputs, including the zero-speed branch.
+ * @throws {RangeError} When the native integer conversion has no portable value.
+ */
+function CalculateN2Alpha2(out, omega0, lenOmega0, ball, tf, dt, tScale)
+{
+    if (lenOmega0 > 1e-10)
+    {
+        const factor = f32(ball.mMaxAngVel / lenOmega0);
+        const steps = Math.ceil(f32(f32(Math.log(f32(factor / f32(1 + factor)))) / f32(-dt * tScale)));
+        if (!Number.isFinite(steps) || steps < -2147483648 || steps > 2147483647)
+            throw new RangeError("Native angular braking step count is outside int32");
+        out.n2 = steps;
+        out.kappa2 = f32(Math.pow(tf, steps));
+        const scale = f32(f32(tScale * out.kappa2) / f32(1 - out.kappa2));
+        if (typeof omega0 === "number") out.alpha2 = f32(-omega0 * scale);
+        else vec3.scale(out.alpha2, omega0, -scale);
+    }
+    else
+    {
+        out.n2 = 0;
+        out.kappa2 = 1;
+        if (typeof omega0 === "number") out.alpha2 = 0;
+        else vec3.zero(out.alpha2);
+    }
 }

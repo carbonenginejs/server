@@ -213,8 +213,8 @@ still a separate unfinished obligation, not implied by settings behavior.
 Ballpark.cpp:664-749,1116-1235,1428-1505 supplies orbital normals, new orbit,
 OrbitThrust and GotoThrustFollow. JS scalar outputs/caller-owned f64 arrays replace
 Vector3d return/reference arguments. Native thresholds and arithmetic are retained;
-only the dynamical-heading fallback remains unported in this dependency chain.
-The configured dynamic/iterative branches fail before ordinary Evolve mutation;
+the dynamical-heading fallback is now implemented in this dependency chain.
+The configured iterative branch fails before ordinary Evolve mutation;
 SetBallVelocity and SetBallFree also expose their missing SnapOrientation dependency.
 Native AddBall and the Python wrapper's oriented-creation dispatch remain distinct.
 
@@ -311,7 +311,7 @@ select position/rotation by output length and fill caller-owned buffers. Float64
 state and distinct class scratch slots protect nested ego-reference sampling.
 See [ClientBall curves](destiny-client-curves.md) for per-contract donor ranges,
 cache quirks and explicitly unsupported native branches. Complete native interface
-registration, dynamical/warp sampling and relative-motion methods remain
+registration, warp sampling and relative-motion methods remain
 open; no runtime files were changed to introduce this renderer-method subset.
 
 ClientBall impact rotation now retains the native cached inverse-inertia formula,
@@ -358,6 +358,33 @@ velocities overflowing float32 propagate native NaNs.
 Tests independently solve angular decay and constant torque, compose a rotated
 heading plus roll, and cover zero-fraction dispatch, nonunit/zero quaternions,
 setter thresholds, native reverse/downward-heading quirks and aliased scratch.
-The kernels remain prerequisites: GotoTorque/GotoRoll variants, their behavior and
-tick integration, dynamic client interpolation and iterative collision production
-are still unfinished. Full dynamical evolution continues to throw explicitly.
+The four GotoTorque/GotoRoll variants now feed native dynamic behavior, staged
+tick integration and client interpolation. Iterative collision record production
+and oriented-creation wrappers remain unfinished.
+
+
+## Dynamic steering and evolution
+
+GotoTorque, GotoTorqueBreaks, GotoRoll and GotoRollBreaks follow
+`Ballpark.cpp:1511-1934`, including five outer searches, acceleration steps 1-99,
+strict braking residuals, distinct scalar/vector rounding, direct torque's dt cap,
+component-wise alternate turns, braking suppression and the native boolean roll
+guard. The two CalculateN2Alpha2 overloads share an internal record-based helper.
+A nonfinite or out-of-int32 stopping count throws: the native float-to-int conversion
+has no portable defined result, so the port does not invent a wrapped integer.
+
+Behavior previews angular integration to redirect thrust but does not commit
+rotation (`Ballpark.cpp:841-893`). Evolution stages all balls, then independently
+checks and commits native float squared lengths for rotation and angular velocity
+(`Ballpark.cpp:502-519,584-595`). Disabled missiles retain the donor's distinct
+commit and client predicates; missile movement itself is still unported. The
+new-orbit fallback uses physical heading and preserves the second nonpositive
+threshold's NaN behavior (`Ballpark.cpp:712-732`). CapAcceleration preserves its
+native immediate-return no-op (`Ballpark.cpp:1350-1353`).
+
+Class scratch keeps preview, steering, integrator and client temporaries separate.
+Float dot/length and scaled normalization adapters preserve overflow-sensitive
+branch choices without changing runtime. Tests cover analytic acceleration and
+braking, banking suppression, scratch aliases, preview versus authoritative state,
+all-ball staging, independent commit rejection and delayed client sampling.
+These are source-derived and analytic checks, not native-executable trajectories.

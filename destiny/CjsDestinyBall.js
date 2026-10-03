@@ -1246,6 +1246,57 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     }
 
     /**
+     * Stages native float32 products and sums for branch-sensitive vector dots.
+     * Runtime dot uses double intermediates, which can postpone native overflow.
+     * Source: math/include/Vector3_inline.h:163-166.
+     * @param {Float32Array} a First float vector.
+     * @param {Float32Array} b Second float vector.
+     * @returns {number} Native float32 dot product.
+     */
+    @meta.adapted
+    static _dotVector3(a, b)
+    {
+        return f32(f32(f32(a[0] * b[0]) + f32(a[1] * b[1])) + f32(a[2] * b[2]));
+    }
+
+    /**
+     * Computes native float length, including overflow before the square root.
+     * Runtime length computes squared length in double precision; this adapter
+     * retains native branch decisions for large finite float components.
+     * Source: math/include/Vector3_inline.h:169-178.
+     * @param {Float32Array} value Native float vector.
+     * @returns {number} Float32 length, possibly nonfinite.
+     */
+    @meta.adapted
+    static _lengthVector3(value)
+    {
+        return f32(Math.sqrt(CjsDestinyBall._dotVector3(value, value)));
+    }
+
+    /**
+     * Normalizes using Carbon's largest-component scaling before float32 length.
+     * Runtime normalize uses an unscaled double squared length. This local adapter
+     * retains the donor's zero and nonfinite behavior without changing runtime.
+     * Source: math/include/Vector3_inline.h:181-192.
+     * @param {Float32Array} out Caller-owned output, possibly value itself.
+     * @param {Float32Array} value Input direction.
+     * @returns {Float32Array} The supplied output after all input reads.
+     */
+    @meta.adapted
+    static _normalizeVector3(out, value)
+    {
+        let x = value[0], y = value[1], z = value[2];
+        const ax = Math.abs(x), ay = Math.abs(y), az = Math.abs(z);
+        const xy = ax < ay ? ay : ax, largest = xy < az ? az : xy;
+        const divisor = largest !== 0 ? largest : 1;
+        const inverse = f32(1 / divisor);
+        x = f32(x * inverse); y = f32(y * inverse); z = f32(z * inverse);
+        let length = f32(Math.sqrt(f32(f32(f32(x * x) + f32(y * y)) + f32(z * z))));
+        if (length !== 0) length = f32(1 / length);
+        return vec3.set(out, x * length, y * length, z * length);
+    }
+
+    /**
      * Adapts native axis normalization and axis-angle construction.
      * Runtime setAxisAngle requires a normalized axis; these scalar steps preserve
      * Carbon's largest-component scaling, zero-axis result and float32 boundaries.

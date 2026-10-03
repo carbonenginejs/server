@@ -122,7 +122,7 @@ Sources: `destiny/src/Ball.cpp:1194-1200,1469-1487,1927-1998,2102-2124`,
 ## Remaining work
 
 This is a renderer-method subset, not complete native interface registration.
-Warp and dynamical orientation remain explicitly unsupported. Their sampling branches throw rather than substituting
+Warp remains explicitly unsupported. Its sampling branch throws rather than substituting
 legacy motion. Iterative collision records can be consumed, but their production
 is not implemented. The optional native Python callback for detached balls is
 represented by console reporting. Relative-motion methods, complete interface mapping, snapshots, networking and
@@ -133,3 +133,20 @@ reference caches, fixed/global paths, legacy rotation, time rebasing, output reu
 impact growth/recovery, noncommuting composition, distance/debug queries and
 absence of vector/quaternion factory or pool calls during repeated sampling. These are
 headless tests; renderer and weapons-demo integration have not been exercised.
+
+
+## Dynamic orientation sampling
+
+With useDynamicalOrientation enabled, quaternion sampling starts from mOldRot and
+mOldAngVel and integrates the old/new timestamp fraction through native angular
+drag. It does not apply visual impact rotation. First continuity initialization
+copies old rotation and computes its derivative without changing mLastAngVel;
+each quaternion sample then updates both cached rotation and angular velocity
+(`destiny/src/Ball.cpp:877-902,1026-1043`). The derivative is maintained internally,
+while the public quaternion derivative overload still leaves caller output alone.
+
+The iterative setting dispatches to CalculateBallRotationVelocity and any existing
+collision record; the production of iterative records remains unfinished. The
+client branch follows the global dynamic flag, including when physical dynamic
+integration is disabled for missiles. Number/BigInt tick clock, two-tick shift,
+fixed-ball and cache guards remain unchanged.

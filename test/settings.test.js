@@ -165,14 +165,13 @@ test("unported selected algorithms fail before ordinary simulation state mutatio
     config.useDynamicalOrientation = true;
     config.disableDynamicalOrientationForMissiles = true;
     settings.Apply(config);
-    assert.throws(() => park.Evolve(), /Dynamical orientation/);
-    assert.throws(() => park.EvolveBehaviorForBall(ball), /thrust and torque/);
+    park.EvolveBehaviorForBall(ball);
     assert.deepEqual([park.currentTime, ball.y, ball.vy, ball.isFree], [0, 0, 1, true]);
     park.EvolveStop(ball); // Native stop damping is disabled, even outside full evolution.
     assert.equal(ball.vy, 1);
-    settings.Reset();
     park.Evolve();
     assert.equal(park.currentTime, 1);
+    assert.ok(ball.mNewRot.every(Number.isFinite));
 });
 
 test("settings metadata records native identities and Blue aliases without simulation hydration", () =>

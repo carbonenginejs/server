@@ -3,7 +3,7 @@ import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { quat } from "@carbonenginejs/runtime/math/quat";
 import { vec3d } from "./math/vec3d.js";
 import { CjsDestinyBall } from "./CjsDestinyBall.js";
-import { g_useDynamicalOrientation } from "./Settings/CjsDestinyGlobalSettings.js";
+import { g_useDynamicalOrientation, g_useIterativeCollision } from "./Settings/CjsDestinyGlobalSettings.js";
 
 const f32 = Math.fround;
 
@@ -73,20 +73,28 @@ export class CjsDestinyClientBall extends CjsDestinyBall
 
     /**
      * Starts a new interpolation interval without resetting continuous positions.
-     * Adaptation: dynamical orientation remains explicitly unsupported.
+     * Adaptation: separate class scratch composes the native quaternion derivative.
      * @returns {void} Initializes first-sample state and resets elapsed time per tick.
      */
     @meta.adapted
     InforceContinuity()
     {
         if (!this.mPark) return;
-        if (g_useDynamicalOrientation) throw new Error("ClientBall dynamical orientation is not implemented");
         if (this.mLastTick !== this.mPark.currentTime)
         {
             if (this.mLastTick === -1)
             {
                 vec3.copy(this.mLastPos, this.mOldPos);
                 vec3.copy(this.mLastVel, this.mOldVel);
+                if (g_useDynamicalOrientation)
+                {
+                    quat.copy(this.mLastRot, this.mOldRot);
+                    const { quat_0, quat_1 } = CjsDestinyClientBall.scratch;
+                    quat.scale(quat_0, this.mLastRot, 0.5);
+                    quat.set(quat_1, this.mOldAngVel[0], this.mOldAngVel[1], this.mOldAngVel[2], 0);
+                    // Carbon 0.5 * rotation * omega: gl reverses the product.
+                    quat.multiply(this.mLastSpeed, quat_1, quat_0);
+                }
             }
             vec3.add(this.mIntAcc, this.mLastC, this.mLastG);
             this.mLastTick = this.mPark.currentTime;
@@ -253,7 +261,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Implements the native tick quaternion overload's cache and legacy damping.
      * Adaptation: an internal method disambiguates the C++ overload. Runtime
      * quaternion helpers retain float32 results with JS double intermediates.
-     * Dynamical orientation fails explicitly until ported.
+     * Dynamic sampling integrates from old physical samples and bypasses impact rotation.
      * @param {bigint} time Checked ticks on the scene epoch.
      * @param {Float32Array} out Caller-owned quaternion.
      * @returns {Float32Array} The supplied output.
@@ -279,6 +287,25 @@ export class CjsDestinyClientBall extends CjsDestinyBall
         if (this.mRotUpdateTime === 0n) this.mRotUpdateTime = shiftedTime;
         const dT = Number(shiftedTime - this.mRotUpdateTime) / 10000000;
         const fraction = Number(shiftedTime - this.mOldTime) / Number(this.mNewTime - this.mOldTime);
+        if (g_useDynamicalOrientation)
+        {
+            vec3.copy(this.mLastAngVel, this.mOldAngVel);
+            quat.copy(this.mLastRot, this.mOldRot);
+            if (g_useIterativeCollision)
+                this.mPark.CalculateBallRotationVelocity(this, fraction, this.mLastRot, this.mLastAngVel);
+            else
+            {
+                const tau = f32(f32(f32(f32(this.mMass) * this.mAgility) * this.mRotAgility) / f32(this.mPark.mFriction));
+                this.mPark.ApplyTorque(this.mLastRot, this.mLastAngVel, this.mTorque, this.mRoll, tau, f32(fraction));
+            }
+            const { quat_0, quat_1 } = CjsDestinyClientBall.scratch;
+            quat.scale(quat_0, this.mLastRot, 0.5);
+            quat.set(quat_1, this.mLastAngVel[0], this.mLastAngVel[1], this.mLastAngVel[2], 0);
+            // Carbon 0.5 * rotation * omega: gl reverses the product.
+            quat.multiply(this.mLastSpeed, quat_1, quat_0);
+            this.mRotUpdateTime = shiftedTime;
+            return quat.copy(out, this.mLastRot);
+        }
         this.mLastYaw %= 2 * Math.PI;
         this.mLastPitch %= 2 * Math.PI;
         const yaw = CjsDestinyBall._modulo2pi(this.mLastYaw, this.mOldYaw + fraction * this.mYawDelta);

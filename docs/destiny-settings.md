@@ -33,9 +33,9 @@ the shorter names are the native Blue aliases. There is no `Configure` method.
 |---|---|---|
 | `collisionMaxIterations` | `20n` | Stored/copied; iterative collision is unported. Zero and values below ten are accepted as in Carbon. |
 | `useIterativeCollision` | `false` | Accepted by Apply; Evolve throws before movement when enabled. The legacy sphere/static-shape path works; iterative response remains unported. |
-| `useDynamicalOrientation` | `false` | Accepted by Apply; dynamic evolution, thrust and velocity snapping throw at their unported execution sites. |
+| `useDynamicalOrientation` | `false` | Selects heading/roll steering, dynamic thrust, staged angular evolution and client sampling for supported modes. |
 | `disableDynamicalOrientationForMissiles` | `false` | Retains the native missile-only exception, not a global orientation disable. Missile movement itself is unported. |
-| `useNewOrbit` | `false` | Selects the native new orbit dependency chain when dynamical orientation is disabled. |
+| `useNewOrbit` | `false` | Selects the native new orbit dependency chain, including the physical-heading fallback. |
 
 The existing AddBall API corresponds to C++ AddBall. The native Python wrapper's
 different oriented-creation dispatch remains unported. Enabling orientation
@@ -72,7 +72,7 @@ They read/copy/apply the same global values.
 New orbit uses the native predicted target direction, orbital plane fallback,
 exponential spiral and blended position/velocity thrust. Double-precision
 intermediates, strict deadbands and native arithmetic association are retained.
-The dynamical-heading fallback is explicitly unported. Legacy orbit remains the
+The dynamical-heading fallback uses the current physical quaternion. Legacy orbit remains the
 default and its existing trajectory fixtures are unchanged.
 
 The native zero-speed, exact-radius case can store NaN goto coordinates while
