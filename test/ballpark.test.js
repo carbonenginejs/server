@@ -95,6 +95,8 @@ test("follow range is surface separation and handles coincident centers", () =>
     const park = new CjsBallparkController();
     const follower = spaceBall(park, 1, 100);
     const target = spaceBall(park, 2);
+    // This fixture isolates steering; separate donor collision fixtures cover coincident massive balls.
+    follower.isMassive = target.isMassive = false;
     park.SetBallRadius(2, 8);
     park.FollowBall(1, 2, 20);
     park.Evolve();
@@ -247,7 +249,9 @@ test("coincident zero-radius orbit stays finite (documented adaptation)", () =>
 {
     const park = new CjsBallparkController();
     const ball = spaceBall(park, 1);
-    spaceBall(park, 2);
+    const target = spaceBall(park, 2);
+    // Native collision ejection includes +1 even for zero radii; isolate orbital steering here.
+    ball.isMassive = target.isMassive = false;
     park.SetBallRadius(1, 0);
     park.SetBallRadius(2, 0);
     park.Orbit(1, 2, 0);

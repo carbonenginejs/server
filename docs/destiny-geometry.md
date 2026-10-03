@@ -133,7 +133,66 @@ Small-friction arithmetic and zero-friction singularities remain native-shaped.
 
 Twenty-three additional source-derived tests cover geometry, aliases, response,
 fractional integration and actual partition memberships. The complete suite has
-293 passing tests. These are direct class/algorithm tests, not the donor's full
-Python collision trajectories: Ballpark static ownership, Gradient/Potential,
-collision scheduling, notification dispatch, compound mini-shapes and the
-iterative solver remain required before tick-driven collisions work.
+321 passing tests, including the following ownership and trajectory checkpoint.
+
+
+## Ballpark ownership and legacy collisions
+
+AddCapsule, AddOrientedBox, RemoveCapsule, RemoveOrientedBox and
+InsertStaticCollidableInBoxes implement the native owner methods. The donor has
+addition thunks but does not register these four creation/removal methods in its
+Ballpark Blue exposure; the port does not invent that mapping. GetStaticCollidableBox
+is Blue-exposed and returns [width, center], or null for missing/detached shapes.
+Sources: Ballpark.cpp:3224-3231,3639-3713,5594-5817,5895-5952 and
+Thunkers.cpp:2302-2344.
+
+Typed shape maps register before insertion callbacks; aggregate registration comes
+afterward and is skipped during Evolve. Reusing a typed ID keeps geometry, parent
+and moribund state. Immediate removal sends final cleanup before detaching cells,
+clears park/bubble state, and erases only the typed entry. The aggregate map retains
+the object. Missing-ID removal inserts null in the typed map; adding that ID then
+throws in JS at the native null access. Separate types can share an ID, with the
+last aggregate assignment winning. These source quirks are retained explicitly.
+
+Deferred capsule cleanup has its own removal counter with the ball cap/buffer;
+unflagged queued capsules still undergo expiry checks. Delayed oriented boxes have
+no native drain method. ClearAll detaches aggregate entries and clears all three
+maps but retains both shape queues. Shapes created during Evolve can consequently
+retain membership after ClearAll. Regression tests describe these native cleanup
+defects; they do not promise corrected lifetime semantics.
+
+Gradient and Potential now run in Evolve (Ballpark.cpp:2745-3006). All active free
+balls evaluate behavior before the ascending-ID collision/integration pass. Massive
+balls reset collision time and query native candidates. Balls respond before static
+shapes, positions remain staged until commit, and integration uses mLastG+mLastC.
+Potential preserves base-mass restitution versus effective-mass integration,
+coincident-center ID ordering, recursive temporary separation and later-time force
+selection. JS exceptions restore temporary positions in finally. Static responses
+retain their distinct unequal-time overwrite rule. Filters remain split between
+Partition and Gradient. Ordinary balls record collision IDs; the native Evolve
+dispatch site is missile-specific, not a general collision event.
+
+Thirteen donor trajectories cover three sphere, four capsule and six box cases.
+Static fixtures use world-space equivalents of zero-transform Mini wrappers;
+Mini construction/attachment is not validated. Expected coordinates are copied
+literally from Python. JS uses an absolute 5e-5 bound instead of comparing separately
+rounded four-decimal coordinates. Fifteen additional tests cover force/filter
+ordering and ownership. All 321 tests pass. Warp, Mini attachment, collision-location
+histories, iterative propagation and missile event integration remain open.
+No native executable ran for this checkpoint.
+
+## Double-precision temporary storage
+
+`destiny/math/vec3d.js` is a server-owned storage adaptation: the installed
+runtime factories and pool default to float32, while Destiny uses Vector3d.
+It creates owned Float64Array vectors and pools complete views, so borrowing a
+released vector creates neither a new buffer nor a new view. Pooled values are
+dirty and must be returned on every exit path. This does not add a second math
+implementation; existing runtime vec3 operations write into float64 outputs.
+
+Potential borrows independent vectors for each recursion frame and releases them
+in finally blocks, after restoring temporary live positions. Evolve reuses a
+class scratch vector for summed acceleration and swaps components with scalar
+locals. Tests cover precision at large world coordinates, distinct nested frames,
+reuse, early returns and exception cleanup. Existing geometry temporaries outside
+this collision scheduling change still need conversion to the same storage policy.

@@ -87,5 +87,5 @@ small-cell overlap oracle. The native membership cache compares only the base
 key and boundary modifiers: it can retain eight memberships after a physical
 radius change would otherwise select the 27-cell branch. The port preserves
 that early return, including its skipped activity repair and bubble restoration.
-The full JS suite has 293 passing tests. See [bubble lifecycle](../../docs/destiny-bubbles.md)
+The full JS suite has 321 passing tests. See [bubble lifecycle](../../docs/destiny-bubbles.md)
 for automatic insertion, activity, callback ordering and remaining network obligations.

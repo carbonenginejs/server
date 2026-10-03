@@ -32,7 +32,7 @@ the shorter names are the native Blue aliases. There is no `Configure` method.
 | Field | Default | Current consumer support |
 |---|---|---|
 | `collisionMaxIterations` | `20n` | Stored/copied; iterative collision is unported. Zero and values below ten are accepted as in Carbon. |
-| `useIterativeCollision` | `false` | Accepted by Apply; Evolve throws before movement when enabled. Both collision solvers remain unported. |
+| `useIterativeCollision` | `false` | Accepted by Apply; Evolve throws before movement when enabled. The legacy sphere/static-shape path works; iterative response remains unported. |
 | `useDynamicalOrientation` | `false` | Accepted by Apply; dynamic evolution, thrust and velocity snapping throw at their unported execution sites. |
 | `disableDynamicalOrientationForMissiles` | `false` | Retains the native missile-only exception, not a global orientation disable. Missile movement itself is unported. |
 | `useNewOrbit` | `false` | Selects the native new orbit dependency chain when dynamical orientation is disabled. |

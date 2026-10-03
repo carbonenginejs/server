@@ -24,8 +24,8 @@ and its recorded adaptations are described in [destiny-parity.md](destiny-parity
 `CjsBallparkController` and `CjsDestinyBall` currently provide object lifecycle,
 fixed one-second ticks, drag integration, goto point/direction, follow, legacy/new
 orbit, and stopping. Seventeen tests passed when this plan was prepared,
-including six numeric donor trajectories. Collision forces, bubbles, full
-orientation, queries, warp and replication are not implemented.
+including six numeric donor trajectories. Automatic bubbles and legacy collisions
+now work; full orientation, queries, warp and replication remain unfinished.
 
 Preserve those fixtures while extending the implementation. The current scalar
 position/velocity representation retains double precision; native float fields
@@ -38,15 +38,16 @@ state, settings consumers and orientation work.
 Standalone RectangleShape and BoxShape geometry is now implemented with all 25
 native fixtures plus source-derived ray, overlap and alias cases. Static Capsule
 and OrientedBox now implement geometry, membership and direct response methods,
-with the native fractional integrator. Ballpark ownership, mini-shapes and
-collision scheduling remain pending; this does not complete either solver phase.
+with the native fractional integrator. Ballpark ownership and legacy collision
+scheduling now work. Mini attachment, warp collision integration and the iterative
+solver remain pending; this does not complete either solver phase.
 
 Partition, Box, Key/KeyHash, all three sorted-set comparers and the
 Partitionable/StaticCollidable membership bases now work independently. Forty
 tests verify this kernel. Ball now shares native storage and implements its full
 neighborhood insertion method, with sixteen further tests for membership and
 cleanup. Automatic Ballpark insertion, initialization, delta tracking, subscriptions
-and activity are now implemented. Conflict resolution, static-shape ownership,
+and activity are now implemented. Conflict resolution, compound-shape ownership,
 proximity and replication consumers still require integration.
 
 ## What can run without the client

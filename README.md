@@ -94,8 +94,8 @@ unsupported collision/orientation branches.
 The `@carbonenginejs/server/destiny/geometry` subpath provides the native
 AABB, Planed, Triangle, RectangleShape and BoxShape operations plus all six Collision free functions,
 using double-precision Number arrays. See [geometry](docs/destiny-geometry.md)
-for output-reference adaptations and preserved source quirks. These are numeric
-queries; they are not yet wired into ballpark collision response.
+for output-reference adaptations and preserved source quirks. Capsule and
+OrientedBox also supply static collision response and Ballpark ownership.
 
 The `@carbonenginejs/server/destiny/partition` subpath provides the standalone
 native partition, cell lifecycle, candidate filters and static membership bases.
@@ -107,9 +107,10 @@ available from the package root.
 
 ## Current boundary
 
-This is one region with movement, native clock phases, deferred ball cleanup and
-a separate movement-command queue. Balls pass through one another, including
-when `isMassive` is true. Collision response, visibility,
+This is one region with movement, native clock phases, deferred ball/capsule cleanup,
+legacy sphere/static-shape collision response and a separate movement-command queue.
+Massive moving balls use native partition candidates and collision forces.
+The iterative solver, visibility,
 mini-shapes, dynamical orientation, warp, missiles, formations, interpolation,
 replication, combat, and drone command policy are not implemented. Unsupported
 mobile movement modes throw before advancing the tick.

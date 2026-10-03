@@ -36,7 +36,9 @@ has been introduced. Nothing was promoted from generated source or regenerated.
 
 - Native `Vector3d` movement values are scalar JS Numbers, following the Blue
   position/velocity surface. This preserves double precision without allocating
-  f32 runtime vectors. No alternative vector library or typed-array allocator exists.
+  f32 runtime vectors. Server-owned `destiny/math/vec3d.js` supplies float64
+  storage for new scratch and pooled recursion frames; arithmetic continues to
+  use runtime vec3 operations. Existing Number-array state remains double precision.
 - Native float parameters are rounded with `Math.fround` at controller boundaries.
   Setters maintain the cached drag factor. Direct field writes bypass native-like
   validation and hooks, so physical changes must use the controller.
@@ -75,7 +77,7 @@ The new tests translate donor `test_actions.py` fixtures and cover stamp/order
 semantics, adjacent tuple deduplication, local position metadata, pending state,
 and queued-versus-direct movement application. The action checkpoint had 38
 passing tests, including the original 17 movement
-metadata/trajectory tests; the current suite has 293 passing tests.
+metadata/trajectory tests; the current suite has 321 passing tests.
 
 ## Validation and remaining work
 
@@ -99,7 +101,7 @@ The geometry subpath implements `AABB`, `Planed`, `Triangle`, and all six
 The 44 tests from `TestAABB.cpp`, `TestPlane.cpp`, `TestTriangle.cpp` and
 `TestCollision.cpp` are transcribed with their native names and expectations.
 Seven additional cases cover aliasing, partial output writes, large coordinates,
-swept spheres and source quirks. There are 293 passing tests in the current suite.
+swept spheres and source quirks. There are 321 passing tests in the current suite.
 See [geometry](destiny-geometry.md) for the exact value/reference adaptations.
 
 `BoxShape.h:7-67` and `BoxShape.cpp:8-306` now supply shared corner/side enums,
@@ -292,7 +294,9 @@ records source ranges, f32 boundaries, partial outputs and retained source quirk
 The sampling loop explicitly throws when native float subtraction cannot advance;
 it preserves ordinary diameter sampling and its omitted far-endpoint neighborhood.
 Uninitialized native scalar fields use NaN JS placeholders until Initialize.
-Twenty-three new direct source-derived fixtures bring the suite to 293. Static
-shape ownership, compound mini-shapes, Gradient/Potential, scheduling and both
-complete solver paths are still required; no full collision-trajectory parity
-or native executable validation is claimed by this checkpoint.
+Twenty-three direct source-derived fixtures brought the suite to 293. The
+subsequent ownership/legacy checkpoint adds 28 tests for a current total of 321.
+See the [geometry guide](destiny-geometry.md#ballpark-ownership-and-legacy-collisions)
+for ownership, Gradient/Potential, scheduling and the 13 donor trajectories.
+Compound Mini attachment, warp and iterative propagation remain open. No native
+executable validation is claimed.

@@ -11,7 +11,7 @@ not call schema APIs, hydration or values-export machinery. Decorators record
 Carbon provenance and implementation status; they are not a simulation engine.
 
 The current implementation is a movement ballpark, an independent movement
-action queue, standalone collision geometry and spatial/bubble lifecycle. It has no implicit clock,
+action queue, legacy collision response and spatial/bubble lifecycle. It has no implicit clock,
 socket, renderer or provider connection. Importing the package does not start
 services. Controls and authoritative world synchronization are the priority;
 human messaging and external stream-provider I/O remain separate consumers.
@@ -38,7 +38,7 @@ remains unfinished port work.
 The movement park now consumes an injected Blue tick host and optional native-shaped
 PyOS event bridge. It owns counter/timestamp separation and native tick/cleanup
 ordering; the host owns clock sampling and event-handler failures. Full replication,
-ClientBall clocks and spatial lifecycle remain outside the implemented boundary.
+ClientBall clocks and the remaining proximity/compound-shape lifecycle remain outside the implemented boundary.
 
 Destiny settings preserve the donor's module-global ownership. Apply copies
 configuration values; Get returns detached snapshots. Existing parks read live

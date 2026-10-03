@@ -2,6 +2,11 @@ import { meta } from "@carbonenginejs/runtime/schema";
 import { IBlueEvents } from "@carbonenginejs/runtime/blue";
 import { CjsDestinyBall } from "./CjsDestinyBall.js";
 import { CjsDestinyPartition } from "./partition/Partition/CjsDestinyPartition.js";
+import { CjsDestinyCapsule } from "./geometry/CjsDestinyCapsule.js";
+import { CjsDestinyOrientedBox } from "./geometry/CjsDestinyOrientedBox.js";
+import { CollideTwoSpheres } from "./geometry/Collision.js";
+import { vec3 } from "@carbonenginejs/runtime/math/vec3";
+import { vec3d } from "./math/vec3d.js";
 
 import { g_useIterativeCollision, g_useDynamicalOrientation, g_useNewOrbit,
     g_disableDynamicalOrientationForMissiles } from "./Settings/CjsDestinyGlobalSettings.js";
@@ -18,16 +23,12 @@ const ORBITAL_PRECESSION = 0.001;
  * Temporary, single-region Ballpark movement subset with native clock phases.
  * The cached evolution step defaults to one second. Native global settings select
  * legacy/new orbit. Spatial membership and bubble activity are maintained;
- * dynamical orientation, collision response and wire replication remain unported.
+ * legacy collision response is available; dynamical orientation and wire replication remain unported.
  */
 @meta.define({ className: "CjsBallparkController", modelledOn: "Ballpark" })
 @meta.blue.inherit(IBlueEvents)
 export class CjsBallparkController
 {
-    static scratch = {
-        orbitalNormal: { orbitalVector: [0, 0, 0], toVector: [0, 0, 0], dist: 0 }
-    };
-
     mTime = 0n;
     mLocalCnt = -1n;
     mLocalHiCnt = -1073741824n;
@@ -42,6 +43,8 @@ export class CjsBallparkController
     mFirstTime = true;
     inEvolve = false;
     moribundBalls = new Set();
+    moribundCapsules = new Set();
+    moribundOrientedBoxes = new Set();
     mMoribundBallRemovalCount = 7;
     mMoribundBallRemovalBuffer = 2;
     _blueOS = null;
@@ -141,7 +144,7 @@ export class CjsBallparkController
      * The host must catch handler exceptions and return false, as native PyOS does.
      * BigInt timestamps retain exact arithmetic. Invalid interval products, signed
      * clock overflow and catch-up counts outside native int32 are rejected.
-     * Capsule cleanup and native profiling remain unported.
+     * Native profiling remains unported.
      *
      * @param {bigint|number} realTime Host real clock in 100ns units; unused by the donor.
      * @param {bigint|number} simTime Host simulation clock in 100ns units.
@@ -225,6 +228,9 @@ export class CjsBallparkController
     mBubbleSubscriptions = new Map();
     mGlobals = new Map();
     mFreeBalls = new Map();
+    mStaticCollidables = new Map();
+    mCapsules = new Map();
+    mOrientedBoxes = new Map();
     _freeBallIds = [];
 
     /**
@@ -601,27 +607,7 @@ export class CjsBallparkController
         this._freeBallIds.splice(CjsBallparkController._freeBallIndex(this._freeBallIds, id, false), 1);
     }
 
-    /**
-     * Finds a lower/upper bound in the controller's native signed-ID order.
-     * JavaScript has no ordered Map primitive, so binary lookup indexes its owned key array.
-     *
-     * @param {bigint[]} ids Sorted signed-int64 keys.
-     * @param {bigint} id Search key.
-     * @param {boolean} after Whether equality must be skipped.
-     * @returns {number} First qualifying index or the array length.
-     */
-    @meta.ours
-    static _freeBallIndex(ids, id, after)
-    {
-        let low = 0, high = ids.length;
-        while (low < high)
-        {
-            const mid = Math.floor((low + high) / 2);
-            if (ids[mid] < id || (after && ids[mid] === id)) low = mid + 1;
-            else high = mid;
-        }
-        return low;
-    }
+
 
     /**
      * Recalculates connected top-cell regions, or updates one ID through the Blue overload.
@@ -857,6 +843,184 @@ export class CjsBallparkController
     }
 
     /**
+     * Creates or reuses a native capsule ID and inserts it into the partition.
+     * Adaptation: JS Map/GC replace unordered ownership and Blue allocation.
+     * Existing IDs deliberately ignore new geometry and retain moribund state.
+     * Source: destiny/src/Ballpark.cpp:3639-3674.
+     *
+     * @param {bigint|number} objectId Requested ID or native local-allocation sentinel.
+     * @param {bigint|number} parentObjectId Parent ball identity.
+     * @param {number} ax Endpoint A X.
+     * @param {number} ay Endpoint A Y.
+     * @param {number} az Endpoint A Z.
+     * @param {number} bx Endpoint B X.
+     * @param {number} by Endpoint B Y.
+     * @param {number} bz Endpoint B Z.
+     * @param {number} radius Native float radius.
+     * @returns {CjsDestinyCapsule} Existing or new capsule.
+     */
+    @meta.adapted
+    AddCapsule(objectId, parentObjectId, ax, ay, az, bx, by, bz, radius)
+    {
+        const id = this.GetIDForCollisionObject(objectId);
+        let capsule;
+        if (this.mCapsules.has(id)) capsule = this.mCapsules.get(id);
+        else
+        {
+            capsule = new CjsDestinyCapsule();
+            capsule.Initialize(id, parentObjectId, ax, ay, az, bx, by, bz, radius);
+            this.mCapsules.set(id, capsule);
+        }
+        // A native null map entry also fails here; JS throws instead of dereferencing null.
+        capsule.mPark = this;
+        this.InsertStaticCollidableInBoxes(capsule);
+        return capsule;
+    }
+
+    /**
+     * Creates or reuses a native oriented-box ID, preserving existing geometry.
+     * Adaptation: JS Map/GC replace unordered ownership and Blue allocation.
+     * Source: destiny/src/Ballpark.cpp:3676-3713.
+     *
+     * @param {bigint|number} objectId Requested ID or local-allocation sentinel.
+     * @param {bigint|number} parentObjectId Parent ball identity.
+     * @param {number} c0 Corner X.
+     * @param {number} c1 Corner Y.
+     * @param {number} c2 Corner Z.
+     * @param {number} x0 Local X edge X.
+     * @param {number} x1 Local X edge Y.
+     * @param {number} x2 Local X edge Z.
+     * @param {number} y0 Local Y edge X.
+     * @param {number} y1 Local Y edge Y.
+     * @param {number} y2 Local Y edge Z.
+     * @param {number} z0 Local Z edge X.
+     * @param {number} z1 Local Z edge Y.
+     * @param {number} z2 Local Z edge Z.
+     * @returns {CjsDestinyOrientedBox} Existing or new box.
+     */
+    @meta.adapted
+    AddOrientedBox(objectId, parentObjectId, c0, c1, c2, x0, x1, x2, y0, y1, y2, z0, z1, z2)
+    {
+        const id = this.GetIDForCollisionObject(objectId);
+        let box;
+        if (this.mOrientedBoxes.has(id)) box = this.mOrientedBoxes.get(id);
+        else
+        {
+            box = new CjsDestinyOrientedBox();
+            box.Initialize(id, parentObjectId, c0, c1, c2, x0, x1, x2, y0, y1, y2, z0, z1, z2);
+            this.mOrientedBoxes.set(id, box);
+        }
+        box.mPark = this;
+        this.InsertStaticCollidableInBoxes(box);
+        return box;
+    }
+
+    /**
+     * Inserts membership before registering the aggregate static-shape map.
+     * Adaptation: Map replaces the unordered native map; evolution skips registration.
+     * Source: destiny/src/Ballpark.cpp:3224-3231.
+     *
+     * @param {CjsDestinyStaticCollidable} collidable Shape owned by this park.
+     * @returns {void} Callbacks can see the typed map before the aggregate map.
+     */
+    @meta.adapted
+    InsertStaticCollidableInBoxes(collidable)
+    {
+        this.InsertInBoxes(collidable);
+        if (!this.inEvolve) this.mStaticCollidables.set(collidable.mId, collidable);
+    }
+
+    /**
+     * Returns the native static base-cell width and center tuple.
+     * Adaptation: arrays/null replace Python tuples/None.
+     * Source: destiny/src/Thunkers.cpp:2302-2344.
+     *
+     * @param {bigint|number} id Native static-shape ID.
+     * @returns {Array|null} [width, center], or null when missing or detached.
+     */
+    @meta.blue.method
+    @meta.adapted
+    GetStaticCollidableBox(id)
+    {
+        const shape = this.mStaticCollidables.get(CjsDestinyBall._toInt64(id));
+        if (!shape || !shape.mMyBox) return null;
+        const box = shape.mMyBox;
+        return [box.hi[0] - box.lo[0], box.lo.map((value, q) => value + (box.hi[q] - value) * 0.5)];
+    }
+
+    /**
+     * Marks a capsule for delayed removal or performs native final cleanup now.
+     * Adaptation: Set ordering replaces an unordered pointer set; the injected
+     * PyOS bridge supplies events and console supplies missing-ID diagnostics.
+     * Native operator[] inserts a null entry on a missing ID; this is retained.
+     * Source: destiny/src/Ballpark.cpp:5594-5642.
+     *
+     * @param {bigint|number} id Capsule ID.
+     * @param {number} [delay=0] Tick delay.
+     * @returns {void} The aggregate map retains the native stale-entry quirk.
+     */
+    @meta.adapted
+    RemoveCapsule(id, delay = 0)
+    {
+        id = CjsDestinyBall._toInt64(id);
+        if (!this.mCapsules.has(id)) this.mCapsules.set(id, null);
+        const capsule = this.mCapsules.get(id);
+        if (!capsule) { console.error("RemoveCapsule: missing capsule", id); return; }
+        capsule.isMoribund = true;
+        if (this.inEvolve || delay > 0)
+        {
+            capsule.mEffectStamp = this.currentTime + delay;
+            this.moribundCapsules.add(capsule);
+            return;
+        }
+        if (this._pyOS && !this._pyOS.SendEvent(capsule, "Destiny::Capsule::DoFinalCleanup",
+            "DoFinalCleanup", null, "()")) this._pyOS.PyError();
+        this.moribundCapsules.delete(capsule);
+        capsule.DeleteFromBoxes();
+        capsule.mPark = null;
+        capsule.mOldBubble = capsule.mNewBubble;
+        capsule.mNewBubble = -1;
+        this.AddToBubble(capsule);
+        // Native quirk: mStaticCollidables is not erased here.
+        this.mCapsules.delete(id);
+    }
+
+    /**
+     * Marks an oriented box for delayed removal or performs native final cleanup.
+     * Adaptation: Map/Set replace native unordered containers and PyOS is injected.
+     * Missing IDs retain operator[] null insertion; JS throws if later reused by Add.
+     * Source: destiny/src/Ballpark.cpp:5644-5694.
+     *
+     * @param {bigint|number} id Box ID.
+     * @param {number} [delay=0] Tick delay.
+     * @returns {void} Native aggregate-entry and undrained delayed-queue quirks remain.
+     */
+    @meta.adapted
+    RemoveOrientedBox(id, delay = 0)
+    {
+        id = CjsDestinyBall._toInt64(id);
+        if (!this.mOrientedBoxes.has(id)) this.mOrientedBoxes.set(id, null);
+        const box = this.mOrientedBoxes.get(id);
+        if (!box) { console.error("RemoveOrientedBox: missing box", id); return; }
+        box.isMoribund = true;
+        if (this.inEvolve || delay > 0)
+        {
+            box.mEffectStamp = this.currentTime + delay;
+            this.moribundOrientedBoxes.add(box);
+            return;
+        }
+        if (this._pyOS && !this._pyOS.SendEvent(box, "Destiny::OrientedBox::DoFinalCleanup",
+            "DoFinalCleanup", null, "()")) this._pyOS.PyError();
+        this.moribundOrientedBoxes.delete(box);
+        box.DeleteFromBoxes();
+        box.mPark = null;
+        box.mOldBubble = box.mNewBubble;
+        box.mNewBubble = -1;
+        this.AddToBubble(box);
+        this.mOrientedBoxes.delete(id);
+    }
+
+    /**
      * Detaches followers; interactive orbiters and missiles retain their velocity direction.
      * Adaptation: JS IDs and scalar velocities replace native map/vector arguments.
      * The copied Set replaces a native unordered set; invalid links are removed
@@ -928,8 +1092,9 @@ export class CjsBallparkController
 
     /**
      * Clears owned balls without final-cleanup events or changing the clocks.
-     * Adaptation: clears JS references, including pending deletions, and detaches
-     * outstanding handles; native owner/refcount teardown has no JS equivalent.
+     * Adaptation: detaches outstanding Ball handles and clears the ball deletion
+     * queue because native owner/refcount teardown has no JS equivalent. Shape
+     * queues and aggregate-only shape detachment retain native ClearAll behavior.
      *
      * @returns {void} No return value.
      */
@@ -948,6 +1113,15 @@ export class CjsBallparkController
         }
         this._balls.clear();
         this.mGlobals.clear();
+        for (const shape of this.mStaticCollidables.values())
+        {
+            shape.DeleteFromBoxes();
+            shape.mPark = null;
+        }
+        this.mStaticCollidables.clear();
+        this.mCapsules.clear();
+        this.mOrientedBoxes.clear();
+        // Native ClearAll retains both shape queues and only detaches aggregate entries.
         this.mFreeBalls.clear();
         this._freeBallIds.length = 0;
         this.ClearBubbles();
@@ -959,7 +1133,7 @@ export class CjsBallparkController
 
     /**
      * Runs deferred cleanup before tick eligibility, unless evolution is active.
-     * Adaptation: only balls exist in this subset; capsule cleanup is unported.
+     * Native quirk: no oriented-box queue processor exists in the donor.
      *
      * @returns {void} No return value.
      */
@@ -968,13 +1142,14 @@ export class CjsBallparkController
     {
         if (this.inEvolve) return;
         this.BringOutDeadBalls();
+        this.BringOutDeadCapsules();
     }
 
     /**
      * Removes expired balls without a cap and buffered balls up to the configured limit (default seven).
      * Adaptation: a JS Set replaces the native unordered pointer set; selection
      * among equally eligible buffered balls follows insertion order. Invalid queue
-     * records are discarded without native logging. Shape cleanup remains unported.
+     * records are discarded without native logging.
      *
      * @returns {void} No return value.
      */
@@ -1004,9 +1179,42 @@ export class CjsBallparkController
     }
 
     /**
+     * Drains expired capsules and a separately capped buffered set.
+     * Adaptation: JS Set insertion order replaces native unordered pointer order;
+     * console replaces CCP logging. Unlike balls, an unflagged capsule remains
+     * eligible for expiry and removal; null entries are simply discarded.
+     * Source: destiny/src/Ballpark.cpp:5767-5817.
+     *
+     * @returns {void} Removes selected capsules after candidate collection finishes.
+     */
+    @meta.adapted
+    BringOutDeadCapsules()
+    {
+        let killCounter = 0;
+        const toDelete = [];
+        for (const capsule of this.moribundCapsules)
+        {
+            if (!capsule) { console.error("BringOutDeadCapsules: null entry"); toDelete.push(capsule); continue; }
+            if (!capsule.isMoribund) console.error("BringOutDeadCapsules: capsule not flagged", capsule.mId);
+            if (capsule.mEffectStamp - this.currentTime < 0) toDelete.push(capsule);
+            else if (capsule.mEffectStamp - this.currentTime - this.mMoribundBallRemovalBuffer < 0
+                && killCounter < this.mMoribundBallRemovalCount)
+            {
+                toDelete.push(capsule);
+                ++killCounter;
+            }
+        }
+        for (const capsule of toDelete)
+        {
+            if (capsule) this.RemoveCapsule(capsule.mId);
+            this.moribundCapsules.delete(capsule);
+        }
+    }
+
+    /**
      * Advances one cached simulation step and increments currentTime, not time.
      * Forces are evaluated before positions. Adaptation: the default timestamp of
-     * zero follows the Python Evolve wrapper; collision forces, orientation and
+     * zero follows the Python Evolve wrapper; orientation and
      * proximity notifications remain unported. Invalid mobile mass and unsupported modes fail
      * before changing the tick, rather than silently simulating another behavior.
      * JS exceptions release inEvolve with finally so callbacks cannot strand cleanup.
@@ -1063,13 +1271,18 @@ export class CjsBallparkController
             for (const ball of this._iterateFreeBalls())
             {
                 if (ball.isMoribund || ball.mInDeadBubble) continue;
+                if (ball.isMassive)
+                {
+                    ball.mLastCollision = -1;
+                    this.Gradient(ball);
+                }
                 for (let q = 0; q < 3; ++q)
                 {
                     ball.mOldPos[q] = ball.mNewPos[q];
                     ball.mOldVel[q] = ball.mNewVel[q];
                 }
                 // Native integration stages results in old vectors until the commit pass.
-                this.Integrate(ball.mOldPos, ball.mOldVel, ball.mLastG,
+                this.Integrate(ball.mOldPos, ball.mOldVel, vec3.add(CjsBallparkController.scratch.vec3d_0, ball.mLastG, ball.mLastC),
                     ball.mMass * ball.mAgility, this.mFriction, ball.mTimeFactor, this.dt);
             }
             // Carbon completes integration for every ball before updating timestamps.
@@ -1089,8 +1302,11 @@ export class CjsBallparkController
                 }
                 for (let q = 0; q < 3; ++q)
                 {
-                    [ball.mNewPos[q], ball.mOldPos[q]] = [ball.mOldPos[q], ball.mNewPos[q]];
-                    [ball.mNewVel[q], ball.mOldVel[q]] = [ball.mOldVel[q], ball.mNewVel[q]];
+                    const position = ball.mNewPos[q], velocity = ball.mNewVel[q];
+                    ball.mNewPos[q] = ball.mOldPos[q];
+                    ball.mOldPos[q] = position;
+                    ball.mNewVel[q] = ball.mOldVel[q];
+                    ball.mOldVel[q] = velocity;
                 }
                 const dx = ball.x - ball._oldX, dy = ball.y - ball._oldY, dz = ball.z - ball._oldZ;
                 if (dx * dx + dy * dy + dz * dz >= 0.1) this.InsertBallInBoxes(ball);
@@ -1605,6 +1821,185 @@ export class CjsBallparkController
     }
 
     /**
+     * Accumulates native ball responses before static-shape responses in discovery order.
+     * Adaptation: reusable JS arrays replace native static vectors; finally retains
+     * ON_BLOCK_EXIT cleanup on exceptions. Filters remain at their native layers.
+     * Source: destiny/src/Ballpark.cpp:2745-2784.
+     *
+     * @param {CjsDestinyBall|null} ball Moving ball.
+     * @returns {void} Updates the ball's collision acceleration and contact IDs.
+     */
+    @meta.adapted
+    Gradient(ball)
+    {
+        if (!ball) return;
+        const { gradientBalls: balls, gradientStatics: shapes } = CjsBallparkController.scratch;
+        try
+        {
+            this.mPartition.GetCollisionCandidates(ball, balls, shapes, this.isMaster);
+            for (const other of balls)
+            {
+                if ((ball.mMode === Mode.DSTBALL_MISSILE && (other.mId === ball.mOwnerId
+                    || (other.mMode === Mode.DSTBALL_MINIBALL && other.mOwnerId === ball.mOwnerId)))
+                    || ((other.mMode === Mode.DSTBALL_MISSILE || other.mMode === Mode.DSTBALL_MUSHROOM) && ball.mId === other.mOwnerId)
+                    || (other.mMode === Mode.DSTBALL_MISSILE && ball.mId === other.mFollowId)
+                    || (other.isSpaceJunk && !ball.isSpaceJunk)) continue;
+                this.Potential(ball, other);
+            }
+            for (const shape of shapes)
+            {
+                if (ball.mMode === Mode.DSTBALL_MISSILE || ball.mMode === Mode.DSTBALL_MUSHROOM) continue;
+                shape.CollideWithBall(ball);
+            }
+        }
+        finally
+        {
+            balls.length = 0;
+            shapes.length = 0;
+        }
+    }
+
+    /**
+     * Computes native legacy sphere response, including temporary overlap separation.
+     * Adaptation: pooled f64 vectors retain C++ value semantics across recursion;
+     * finally returns every vector and restores positions on JS exceptions. Console replaces the depth warning.
+     * Scalar mass divisions and native vector reciprocal multiplication stay distinct.
+     * Source: destiny/src/Ballpark.cpp:2789-3006.
+     *
+     * @param {CjsDestinyBall} me Ball receiving force/contact state.
+     * @param {CjsDestinyBall} other Candidate sphere.
+     * @param {number} [recursionDepth=0] Native overlap recursion depth.
+     * @returns {void} Later contact times win; every accepted sweep appends an ID.
+     */
+    @meta.adapted
+    Potential(me, other, recursionDepth = 0)
+    {
+        const p0 = vec3d.alloc();
+        const p1 = vec3d.alloc();
+        const vp1 = vec3d.alloc();
+        const q0 = vec3d.alloc();
+        const q1 = vec3d.alloc();
+        const vq1 = vec3d.alloc();
+        const a1 = vec3d.alloc();
+        const normal = vec3d.alloc();
+        const work = vec3d.alloc();
+        const savedMe = vec3d.alloc();
+        const savedOther = vec3d.alloc();
+        try
+        {
+            const m1 = me.isFree ? me.mMass * me.mAgility : 1e34;
+            const m2 = other.isFree ? other.mMass * other.mAgility : 1e34;
+            const collRadius = me.mRadius + other.mRadius;
+            vec3.copy(p0, me.mNewPos); vec3.copy(p1, p0); vec3.copy(vp1, me.mNewVel);
+            vec3.copy(q0, other.mNewPos); vec3.copy(q1, q0); vec3.copy(vq1, other.mNewVel);
+            this.Integrate(p1, vp1, me.mLastG, m1, this.mFriction, me.mTimeFactor, this.dt);
+            this.Integrate(q1, vq1, other.mLastG, m2, this.mFriction, other.mTimeFactor, this.dt);
+            const s = CollideTwoSpheres(p0, p1, q0, q1, collRadius);
+            if (s === -1) return;
+            vec3.copy(p1, me.mNewPos); vec3.copy(vp1, me.mNewVel);
+            vec3.copy(q1, other.mNewPos); vec3.copy(vq1, other.mNewVel);
+            if (s > 0)
+            {
+                this.Integrate(p1, vp1, me.mLastG, m1, this.mFriction, me.mTimeFactor, s * this.dt);
+                this.Integrate(q1, vq1, other.mLastG, m2, this.mFriction, other.mTimeFactor, s * this.dt);
+                vec3.subtract(normal, q1, p1);
+                const length = Math.sqrt(vec3.dot(normal, normal));
+                if (length !== 0) vec3.scale(normal, normal, 1 / length);
+                const v1 = vec3.dot(vp1, normal), v2 = vec3.dot(vq1, normal);
+                if (!other.isFree)
+                {
+                    for (let q = 0; q < 3; ++q) vp1[q] -= 2 * v1 * normal[q];
+                }
+                else
+                {
+                    const mm1 = me.mMass, mm2 = other.mMass;
+                    const v1p = (mm1 * v1 - mm2 * v1 + 2 * mm2 * v2) / (mm1 + mm2);
+                    for (let q = 0; q < 3; ++q) vp1[q] += (v1p - v1) * normal[q];
+                }
+                this.Integrate(p1, vp1, me.mLastG, m1, this.mFriction, me.mTimeFactor, (1 - s) * this.dt);
+                const k = this.mFriction;
+                for (let q = 0; q < 3; ++q)
+                    a1[q] = -(-m1 * me.mLastG[q] + me.mTimeFactor * m1 * me.mLastG[q]
+                        - me.mTimeFactor * me.mNewVel[q] * k + vp1[q] * k) * (1 / m1) * (1 / (me.mTimeFactor - 1));
+            }
+            else
+            {
+                const separation = vec3.subtract(work, q0, p0), separation2 = vec3.dot(separation, separation);
+                if (separation2 === 0) vec3.set(normal, me.mId > other.mId ? 1 : -1, 0, 0);
+                else
+                {
+                    vec3.subtract(normal, q1, p1);
+                    const length = Math.sqrt(vec3.dot(normal, normal));
+                    if (length !== 0) vec3.scale(normal, normal, 1 / length);
+                }
+                const dist = collRadius - Math.sqrt(separation2) + 1;
+                const d1 = m2 / (m1 + m2) * dist, d2 = m1 / (m1 + m2) * dist;
+                if (me.isFree && other.isFree)
+                {
+                    if (recursionDepth < 2)
+                    {
+                        vec3.copy(savedMe, me.mNewPos); vec3.copy(savedOther, other.mNewPos);
+                        try
+                        {
+                            for (let q = 0; q < 3; ++q)
+                            {
+                                me.mNewPos[q] -= d1 * normal[q];
+                                other.mNewPos[q] += d2 * normal[q];
+                            }
+                            this.Potential(me, other, recursionDepth + 1);
+                        }
+                        finally
+                        {
+                            vec3.copy(me.mNewPos, savedMe);
+                            vec3.copy(other.mNewPos, savedOther);
+                        }
+                        if (m2 / m1 > 25)
+                        {
+                            const length = Math.sqrt(vec3.dot(me.mLastC, me.mLastC));
+                            if (length !== 0) vec3.scale(me.mLastC, me.mLastC, 1 / length);
+                            vec3.scale(me.mLastC, me.mLastC, dist);
+                        }
+                        const deltaVelocity = vec3.subtract(work, me.mNewVel, other.mNewVel);
+                        if (vec3.dot(deltaVelocity, deltaVelocity) > 0.0001) return;
+                    }
+                    else console.error("Potential: overlap recursion limit", me.mId, other.mId);
+                }
+                const normalComp = vec3.dot(me.mLastG, normal), tmp = 1 / (m1 + this.dt * this.mFriction);
+                for (let q = 0; q < 3; ++q)
+                    a1[q] = ((-d1 / (this.dt * tmp * m1)) * normal[q] - me.mNewVel[q]) * (1 / this.dt) - normalComp * normal[q];
+            }
+            if ((me.mMode !== Mode.DSTBALL_MISSILE || other.mId !== me.mFollowId) && s >= me.mLastCollision)
+            {
+                const lastC = vec3.scale(a1, a1, 0.85);
+                if (s === me.mLastCollision)
+                {
+                    if (vec3.dot(lastC, lastC) > vec3.dot(me.mLastC, me.mLastC)) vec3.copy(me.mLastC, lastC);
+                }
+                else
+                {
+                    vec3.copy(me.mLastC, lastC);
+                    me.mLastCollision = s;
+                }
+            }
+            me.mCollisions.push(other.mId);
+        }
+        finally
+        {
+            vec3d.unalloc(p0);
+            vec3d.unalloc(p1);
+            vec3d.unalloc(vp1);
+            vec3d.unalloc(q0);
+            vec3d.unalloc(q1);
+            vec3d.unalloc(vq1);
+            vec3d.unalloc(a1);
+            vec3d.unalloc(normal);
+            vec3d.unalloc(work);
+            vec3d.unalloc(savedMe);
+            vec3d.unalloc(savedOther);
+        }
+    }
+
+    /**
      * Adaptation: ID overload only; same finite-target guard and restart at zero throttle.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
@@ -1901,6 +2296,29 @@ export class CjsBallparkController
         }
     }
 
+
+    /**
+     * Finds a lower/upper bound in the controller's native signed-ID order.
+     * JavaScript has no ordered Map primitive, so binary lookup indexes its owned key array.
+     *
+     * @param {bigint[]} ids Sorted signed-int64 keys.
+     * @param {bigint} id Search key.
+     * @param {boolean} after Whether equality must be skipped.
+     * @returns {number} First qualifying index or the array length.
+     */
+    @meta.ours
+    static _freeBallIndex(ids, id, after)
+    {
+        let low = 0, high = ids.length;
+        while (low < high)
+        {
+            const mid = Math.floor((low + high) / 2);
+            if (ids[mid] < id || (after && ids[mid] === id)) low = mid + 1;
+            else high = mid;
+        }
+        return low;
+    }
+
     /**
      * Converts native int milliseconds to exact 100ns ticks for the private clock path.
      * JS adaptation: rejects nonpositive intervals and products outside signed int32;
@@ -1919,6 +2337,11 @@ export class CjsBallparkController
         }
         return BigInt(interval) * 10000n;
     }
+
+    static scratch = {
+        orbitalNormal: { orbitalVector: vec3d.create(), toVector: vec3d.create(), dist: 0 },
+        gradientBalls: [], gradientStatics: [], vec3d_0: vec3d.create()
+    };
 }
 
 /**
