@@ -75,7 +75,7 @@ The new tests translate donor `test_actions.py` fixtures and cover stamp/order
 semantics, adjacent tuple deduplication, local position metadata, pending state,
 and queued-versus-direct movement application. The action checkpoint had 38
 passing tests, including the original 17 movement
-metadata/trajectory tests; the current suite has 151 passing tests.
+metadata/trajectory tests; the current suite has 194 passing tests.
 
 ## Validation and remaining work
 
@@ -99,8 +99,17 @@ The geometry subpath implements `AABB`, `Planed`, `Triangle`, and all six
 The 44 tests from `TestAABB.cpp`, `TestPlane.cpp`, `TestTriangle.cpp` and
 `TestCollision.cpp` are transcribed with their native names and expectations.
 Seven additional cases cover aliasing, partial output writes, large coordinates,
-swept spheres and source quirks. There are 151 passing tests in the current suite.
+swept spheres and source quirks. There are 194 passing tests in the current suite.
 See [geometry](destiny-geometry.md) for the exact value/reference adaptations.
+
+`BoxShape.h:7-67` and `BoxShape.cpp:8-306` now supply shared corner/side enums,
+RectangleShape and BoxShape, with native member copies, default construction,
+closest-point/corner queries, ray intervals and sphere overlap/sweep queries.
+All 25 fixtures in `TestBoxShape.cpp` are transcribed. Eighteen additional tests
+cover defaults, precision, rotated axes, aliases, overlap displacement, partial
+writes and the two retained ray defects. Expected values are donor or
+source-derived, not native-executable evidence. Vector results use explicit
+output storage; reference results use mutable records. Runtime is unchanged.
 
 ## Donor update reviewed 2026-10-04
 

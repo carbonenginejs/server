@@ -35,6 +35,11 @@ inputs remain convenience forms. The settings and non-dynamical new-orbit
 checkpoints are also implemented; phase completion still needs the remaining
 state, settings consumers and orientation work.
 
+Standalone RectangleShape and BoxShape geometry is now implemented with all 25
+native fixtures plus source-derived ray, overlap and alias cases. This advances
+the shape prerequisites; oriented wrappers, partition integration and collision
+response remain pending.
+
 ## What can run without the client
 
 | Feature family | Headless implementation and required inputs | Donor entry points |

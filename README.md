@@ -92,7 +92,7 @@ unsupported collision/orientation branches.
 ## Collision geometry
 
 The `@carbonenginejs/server/destiny/geometry` subpath provides the native
-AABB, Planed and Triangle operations plus all six Collision free functions,
+AABB, Planed, Triangle, RectangleShape and BoxShape operations plus all six Collision free functions,
 using double-precision Number arrays. See [geometry](docs/destiny-geometry.md)
 for output-reference adaptations and preserved source quirks. These are numeric
 queries; they are not yet wired into ballpark collision response.

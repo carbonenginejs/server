@@ -1,12 +1,13 @@
 # Destiny numeric geometry
 
 Status: Evolving
-Scope: AABB, Planed, Triangle and Collision free functions
+Scope: AABB, Planed, Triangle, RectangleShape, BoxShape and Collision free functions
 Audience: Simulation maintainers
 Summary: Native double-precision queries with explicit JavaScript output parameters.
 
 Import from `@carbonenginejs/server/destiny/geometry`. Class exports are
-`CjsDestinyAABB`, `CjsDestinyPlaned` and `CjsDestinyTriangle`, with explicit
+`CjsDestinyAABB`, `CjsDestinyPlaned`, `CjsDestinyTriangle`,
+`CjsDestinyRectangleShape` and `CjsDestinyBoxShape`, with explicit
 donor metadata. Their field and method names follow the native owners.
 
 Vectors are three-element Number arrays or caller-provided Float64Array values.
@@ -42,7 +43,32 @@ the displacement over its tested interval, as in the source.
 - `AABB.cpp:45`: touching bounds cannot be excluded. A false broad-phase
   result is only a candidate, not proof of contact.
 
-The matching four native test files provide 44 copied fixtures. Additional
+The matching five native test files provide 69 copied fixtures. Additional
 independent/source-derived cases cover precision, aliases, partial writes and
-quadratic/swept-sphere behavior. No native binary was executed. BoxShape,
-capsules, partitioning and ballpark collision response remain unported.
+quadratic/swept-sphere behavior. No native binary was executed. Capsules,
+oriented shape wrappers, partitioning and ballpark collision response remain unported.
+
+## Box and rectangle composition
+
+The `BoxShape/` family follows the native header's declaration order. Its shared
+`BoxCorner` and `BoxSide` objects preserve the global native enum names and values.
+Box faces own copies of corner coordinates, and default constructors retain
+independent zero Vector3d values. No schema hydration participates in queries.
+
+Both shapes' `CollideWithSphere(position, radius, velocity, out)` use the collision
+record above. Box overlap produces a displacement in `normal`, time zero and no
+write to `collisionPoint`. Swept face tests use the same record, including writes
+from failed attempts; callers must not assume a miss preserves it. Rectangle
+chooses one triangle, while Box tests the closest corner's three connected faces
+in native order. Neither searches all faces for the globally earliest collision.
+
+`BoxShape.GetCenter(out)` and `GetClosestPointOnBox(out, point)` use caller-owned
+vector storage. `RayIntersect(origin, direction, out)` replaces four native
+references with `{ side1, d1, side2, d2 }`; it tests an infinite line rather than
+clamping to positive times or a segment. Distances change on failure; sides do not.
+
+Two native bugs are retained explicitly: `BoxShape.cpp:183` chooses the exit side
+from the entry axis, although its exit distance comes from the exit axis;
+`BoxShape.cpp:166-170` omits parallel-outside-slab rejection. Zero direction thus
+reports an interval from negative to positive `Number.MAX_VALUE`. These behaviors
+have source-derived regression fixtures alongside the 25 native BoxShape tests.
