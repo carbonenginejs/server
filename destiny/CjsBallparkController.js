@@ -30,7 +30,7 @@ const ORBITAL_PRECESSION = 0.001;
  * The cached evolution step defaults to one second. Native global settings select
  * legacy/new orbit. Spatial membership and bubble activity are maintained;
  * legacy/iterative collision response and dynamic orientation are available;
- * wire replication and the remaining movement modes remain unported.
+ * wire replication and proximity scanning remain unported.
  */
 @meta.define({ className: "CjsBallparkController", modelledOn: "Ballpark" })
 @meta.blue.inherit(IBlueEvents)
@@ -2242,11 +2242,13 @@ export class CjsBallparkController
      * before changing the tick, rather than silently simulating another behavior.
      * JS exceptions release inEvolve with finally so callbacks cannot strand cleanup.
      * Timestamp conversion and signed-int64 initialization overflow are checked before movement.
+     * Mushroom signed-int32 elapsed overflow throws at the native arithmetic site;
+     * its float growth skips sample commit. Trolls petrify after every ball commits.
      * Iterative collision trajectories are solved between behavior and integration.
      *
      * @param {bigint|number} [timestamp=0n] New ball timestamp in 100ns units; zero preserves ball timestamps.
      * @throws {RangeError} If a mobile mass/agility is invalid.
-     * @throws {Error} If an active ball uses an unported mode.
+     * @throws {Error} If an active ball uses an unknown mode value.
      * @returns {void} No return value.
      */
     @meta.blue.method
@@ -2269,7 +2271,10 @@ export class CjsBallparkController
             if (ball.mode !== Mode.DSTBALL_STOP && ball.mode !== Mode.DSTBALL_GOTO
                 && ball.mode !== Mode.DSTBALL_FOLLOW && ball.mode !== Mode.DSTBALL_ORBIT
                 && ball.mode !== Mode.DSTBALL_FORMATION && ball.mode !== Mode.DSTBALL_WARP
-                && ball.mode !== Mode.DSTBALL_MISSILE)
+                && ball.mode !== Mode.DSTBALL_MISSILE && ball.mode !== Mode.DSTBALL_MUSHROOM
+                && ball.mode !== Mode.DSTBALL_TROLL && ball.mode !== Mode.DSTBALL_RIGID
+                && ball.mode !== Mode.DSTBALL_FIELD && ball.mode !== Mode.DSTBALL_BOID
+                && ball.mode !== Mode.DSTBALL_MINIBALL)
             {
                 throw new Error(`Destiny mode ${ball.mode} is not implemented`);
             }
@@ -2346,6 +2351,8 @@ export class CjsBallparkController
                 }
             }
             // Carbon completes integration for every ball before updating timestamps.
+            // Owned per-call list survives callbacks that evolve another park.
+            const trolls = [];
             for (const ball of this._iterateFreeBalls())
             {
                 if (ball.isMoribund) continue;
@@ -2354,11 +2361,28 @@ export class CjsBallparkController
                     ball.mInDeadBubble = false;
                     continue;
                 }
+                if (this.TrollReady(ball)) trolls.push(ball);
                 if (timestamp !== 0n)
                 {
                     ball.mOldTime = ball.mNewTime === 0n
                         ? timestamp - CjsBallparkController._tickTime(this.tickInterval) : ball.mNewTime;
                     ball.mNewTime = timestamp;
+                }
+                // Source: destiny/src/Ballpark.cpp:561-578. Native quirk: growth
+                // commits no motion/orientation samples and never reaches full radius.
+                if (ball.mMode === Mode.DSTBALL_MUSHROOM)
+                {
+                    const elapsed = (this.currentTime - ball.mEffectStamp) * this.tickInterval;
+                    if (!Number.isInteger(elapsed) || elapsed < -2147483648 || elapsed > 2147483647)
+                        throw new RangeError("Mushroom elapsed milliseconds exceed native signed-int32 arithmetic");
+                    const fraction = f32(f32(f32(elapsed) * f32(0.001)) / f32(ball.mGoto[0]));
+                    if (fraction < 1)
+                    {
+                        ball.mRadius = f32(ball.mFollowRange * f32(Math.pow(fraction, 0.25)));
+                        this.InsertBallInBoxes(ball);
+                    }
+                    else this.RemoveBall(ball.mId);
+                    continue;
                 }
                 for (let q = 0; q < 3; ++q)
                 {
@@ -2417,6 +2441,9 @@ export class CjsBallparkController
                     ball.DispatchCollisions();
                 }
             }
+            // Source: destiny/src/Ballpark.cpp:641-648. Recheck readiness after
+            // all commits because callbacks can change a queued troll's mode/deadline.
+            for (const ball of trolls) this.PetrifyTroll(ball);
             this.currentTime++;
         }
         finally
@@ -2469,6 +2496,15 @@ export class CjsBallparkController
                 break;
             case Mode.DSTBALL_STOP:
                 this.EvolveStop(ball);
+                break;
+            // Native switch default supplies zero steering for these state modes.
+            // Source: destiny/src/Ballpark.cpp:791-839.
+            case Mode.DSTBALL_MUSHROOM:
+            case Mode.DSTBALL_TROLL:
+            case Mode.DSTBALL_RIGID:
+            case Mode.DSTBALL_FIELD:
+            case Mode.DSTBALL_BOID:
+            case Mode.DSTBALL_MINIBALL:
                 break;
             default:
                 throw new Error(`Destiny mode ${ball.mode} is not implemented`);
@@ -3753,6 +3789,55 @@ export class CjsBallparkController
     }
 
     /**
+     * Creates a fixed expanding sphere at its owner's position using native ID zero.
+     * Adaptation: checked IDs and existing oriented creation cores replace native
+     * objects; range narrows to float32. Core creation's documented JS input and
+     * replacement differences also apply. NaN range/duration retain native guards.
+     * Source: destiny/src/Ballpark.cpp:3719-3789.
+     * @param {bigint|number} ownerId Exact signed owner identity, without absolute lookup.
+     * @param {number} range Final radius parameter, rejected only when nonpositive.
+     * @param {number} time Growth duration in seconds, rejected only when nonpositive.
+     * @returns {void} The created ball remains fixed until SetBallFree is called.
+     */
+    @meta.blue.method
+    @meta.adapted
+    AddMushroom(ownerId, range, time)
+    {
+        ownerId = CjsDestinyBall._toInt64(ownerId);
+        range = f32(range);
+        if (range <= 0 || time <= 0) { console.warn("Inconsistent parameters for mushroom. Canceled."); return; }
+        const owner = this.GetBall(ownerId);
+        if (!owner) { console.warn("Non existing parent for mushroom. Canceled."); return; }
+        const x = owner.mNewPos[0], y = owner.mNewPos[1], z = owner.mNewPos[2];
+        const mushroom = g_useDynamicalOrientation
+            ? this.AddDynamicallyOrientedBall(0n, f32(1e20), 0, 0, 0, false, false, true, false, false,
+                x, y, z, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1)
+            : this.AddOldStyleOrientedBall(0n, f32(1e20), 0, 0, false, false, true, false, false,
+                x, y, z, 0, 0, 0, 1, 1);
+        mushroom.mFollowRange = range;
+        mushroom.mGoto[0] = time;
+        mushroom.mOwnerId = ownerId;
+        mushroom.mEffectStamp = this.currentTime;
+        mushroom.SetMode(Mode.DSTBALL_MUSHROOM);
+    }
+
+    /**
+     * Binds the three required mushroom arguments without an evolution guard.
+     * Adaptation: positional JS arguments replace Python tuple parsing.
+     * Source: destiny/src/Thunkers.cpp:306-325.
+     * @param {bigint|number} ownerId Existing signed owner identity.
+     * @param {number} range Float32 radius parameter.
+     * @param {number} time Double duration in seconds.
+     * @returns {void} Delegates to AddMushroom.
+     */
+    @meta.adapted
+    PyAddMushroom(ownerId, range, time)
+    {
+        if (arguments.length !== 3) throw new TypeError("PyAddMushroom requires 3 arguments");
+        this.AddMushroom(ownerId, range, time);
+    }
+
+    /**
      * Sets up missile pursuit, tolerating a missing owner but requiring a live target.
      * Adaptation: checked BigInt IDs replace native integers, references/Sets
      * replace pointers/unordered sets, and scalar locals preserve Vector3d values.
@@ -3993,6 +4078,196 @@ export class CjsBallparkController
             ball.mFollowRange = 0;
         }
         ball.SetMode(Mode.DSTBALL_STOP);
+    }
+
+    /**
+     * Stops the old command and selects rigid mode without changing free membership.
+     * Adaptation: checked BigInt identity and JS references replace native map access.
+     * Source: destiny/src/Ballpark.cpp:6278-6289.
+     * @param {bigint|number} id Ball identity.
+     * @returns {void} Missing balls are ignored.
+     */
+    @meta.blue.method
+    @meta.adapted
+    SetBallRigid(id)
+    {
+        const ball = this.GetBall(id);
+        if (!ball) return;
+        this.Stop(ball);
+        ball.SetMode(Mode.DSTBALL_RIGID);
+    }
+
+    /**
+     * Makes a ball free and interactive until its delayed petrification tick.
+     * Adaptation: JS checked integers reject native signed overflow; callbacks
+     * retain native Stop/free/interactive/stamp/mode ordering.
+     * Source: destiny/src/Ballpark.cpp:6290-6313.
+     * @param {bigint|number} id Ball identity.
+     * @param {number} delay Signed-int32 tick count, clamped to at least one.
+     * @returns {void} Existing velocity survives entry into troll mode.
+     */
+    @meta.blue.method
+    @meta.adapted
+    SetBallTroll(id, delay)
+    {
+        if (!Number.isInteger(delay) || delay < -2147483648 || delay > 2147483647)
+            throw new RangeError("Troll delay must fit native int32");
+        const ball = this.GetBall(id);
+        if (!ball) return;
+        delay = Math.max(1, delay);
+        this.Stop(ball);
+        this.SetBallFree(id, true);
+        this.SetBallInteractive(id, true);
+        const stamp = this.currentTime + delay;
+        if (!Number.isInteger(stamp) || stamp < -2147483648 || stamp > 2147483647)
+            throw new RangeError("Troll deadline exceeds native signed-int32 arithmetic");
+        ball.mEffectStamp = stamp;
+        ball.SetMode(Mode.DSTBALL_TROLL);
+    }
+
+    /**
+     * Tests native troll mode and an inclusive deadline using the current tick.
+     * Source: destiny/src/Ballpark.cpp:6315-6326.
+     * @param {CjsDestinyBall} ball Ball to inspect.
+     * @returns {boolean} Whether its troll deadline has arrived.
+     */
+    @meta.implemented
+    TrollReady(ball)
+    {
+        if (ball.mMode !== Mode.DSTBALL_TROLL) return false;
+        if (ball.mEffectStamp > this.currentTime) return false;
+        return true;
+    }
+
+    /**
+     * Rechecks a queued troll, fixes it in space, then selects rigid mode.
+     * Adaptation: JS references replace native pointers; setters retain callbacks
+     * and child-shape attachment. Native RIGID wins over the header's STOP claim.
+     * Native quirk: child insertion during Evolve skips aggregate map registration.
+     * Source: destiny/src/Ballpark.cpp:6327-6337; destiny/src/Ballpark.h:670-676.
+     * @param {CjsDestinyBall} ball Previously queued troll reference.
+     * @returns {void} Readiness failure leaves the ball unchanged.
+     */
+    @meta.adapted
+    PetrifyTroll(ball)
+    {
+        if (!this.TrollReady(ball)) return;
+        this.SetBallFree(ball.mId, false);
+        this.SetBallInteractive(ball.mId, false);
+        ball.SetMode(Mode.DSTBALL_RIGID);
+    }
+
+    /**
+     * Stores collision affiliation before optional field-mode transitions.
+     * Adaptation: checked BigInt/int32 inputs replace native scalar arguments;
+     * direct backing-field writes avoid JS property notification recursion.
+     * Source: destiny/src/Ballpark.cpp:4852-4880.
+     * @param {bigint|number} id Ball identity.
+     * @param {bigint|number} harmonic Native signed-int64 harmonic value.
+     * @param {number} corporationID Native signed-int32 corporation value.
+     * @param {number} allianceID Native signed-int32 alliance value.
+     * @param {boolean} field Whether to enter FIELD mode.
+     * @returns {void} Disabling FIELD stops it; other modes remain unchanged.
+     */
+    @meta.blue.method
+    @meta.adapted
+    SetBallHarmonic(id, harmonic, corporationID, allianceID, field)
+    {
+        harmonic = CjsDestinyBall._toInt64(harmonic);
+        for (const value of [corporationID, allianceID])
+            if (!Number.isInteger(value) || value < -2147483648 || value > 2147483647)
+                throw new RangeError("Collision affiliation must fit native int32");
+        const ball = this.GetBall(id);
+        if (!ball) return;
+        ball.mHarmonic = harmonic;
+        ball.mCorporationID = corporationID;
+        ball.mAllianceID = allianceID;
+        if (field) { this.Stop(ball); ball.SetMode(Mode.DSTBALL_FIELD); }
+        else if (ball.mMode === Mode.DSTBALL_FIELD) this.Stop(ball);
+    }
+
+    /**
+     * Binds the required rigid command argument before calling the native core.
+     * Adaptation: positional JS arguments replace Python tuple parsing.
+     * Source: destiny/src/Thunkers.cpp:510-524.
+     * @param {bigint|number} id Ball identity.
+     * @returns {void} Delegates to SetBallRigid.
+     */
+    @meta.adapted
+    PySetBallRigid(id)
+    {
+        if (arguments.length !== 1) throw new TypeError("PySetBallRigid requires 1 argument");
+        this.SetBallRigid(id);
+    }
+
+    /**
+     * Binds the required troll identity and delay before calling the native core.
+     * Adaptation: positional JS arguments replace Python tuple parsing.
+     * Source: destiny/src/Thunkers.cpp:530-547.
+     * @param {bigint|number} id Ball identity.
+     * @param {number} delay Signed-int32 tick delay.
+     * @returns {void} Delegates to SetBallTroll.
+     */
+    @meta.adapted
+    PySetBallTroll(id, delay)
+    {
+        if (arguments.length !== 2) throw new TypeError("PySetBallTroll requires 2 arguments");
+        this.SetBallTroll(id, delay);
+    }
+
+    /**
+     * Binds harmonic fields and converts the Python integer field flag to bool.
+     * Adaptation: JS arguments, checked values and exceptions replace tuple parsing.
+     * Source: destiny/src/Thunkers.cpp:952-975.
+     * @param {bigint|number} id Ball identity.
+     * @param {bigint|number} harmonic Signed-int64 harmonic.
+     * @param {number} corporationID Signed-int32 corporation.
+     * @param {number} allianceID Signed-int32 alliance.
+     * @param {number|boolean} field Nonzero selects field mode.
+     * @returns {void} Delegates to SetBallHarmonic.
+     */
+    @meta.adapted
+    PySetBallHarmonic(id, harmonic, corporationID, allianceID, field)
+    {
+        if (arguments.length !== 5) throw new TypeError("PySetBallHarmonic requires 5 arguments");
+        if (typeof field === "boolean") field = Number(field);
+        if (!Number.isInteger(field) || field < -2147483648 || field > 2147483647)
+            throw new RangeError("Field flag must fit native int32");
+        this.SetBallHarmonic(id, harmonic, corporationID, allianceID, field !== 0);
+    }
+
+    /**
+     * Selects passive boid mode or stops the ball, matching the Python-only donor.
+     * Adaptation: JS positional arguments and checked integers replace tuple parsing.
+     * Source: destiny/src/Thunkers.cpp:1003-1026.
+     * @param {bigint|number} id Ball identity.
+     * @param {number|boolean} turnOn Nonzero selects BOID without stopping first.
+     * @returns {void} Missing balls are ignored.
+     */
+    @meta.adapted
+    PySetBoid(id, turnOn)
+    {
+        if (arguments.length !== 2) throw new TypeError("PySetBoid requires 2 arguments");
+        if (typeof turnOn === "boolean") turnOn = Number(turnOn);
+        if (!Number.isInteger(turnOn) || turnOn < -2147483648 || turnOn > 2147483647)
+            throw new RangeError("Boid flag must fit native int32");
+        const ball = this.GetBall(id);
+        if (ball) { if (turnOn) ball.SetMode(Mode.DSTBALL_BOID); else this.Stop(ball); }
+    }
+
+    /**
+     * Exposes the Blue name for the Python-only boid command.
+     * Adaptation: explicit delegation replaces Carbon's method alias.
+     * Source: destiny/src/Ballpark_Blue.cpp:599-604.
+     * @param {...unknown} args Two required PySetBoid arguments.
+     * @returns {void} Delegates without inventing flocking behavior.
+     */
+    @meta.blue.renamed("PySetBoid")
+    @meta.adapted
+    SetBoid(...args)
+    {
+        if (args.length !== 2) throw new TypeError("SetBoid requires 2 arguments");
+        this.PySetBoid(...args);
     }
 
     /**

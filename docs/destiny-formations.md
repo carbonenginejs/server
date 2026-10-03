@@ -7,7 +7,8 @@ Summary: Native command ordering, follower cleanup and formation ownership/steer
 
 The implementation follows Destiny baseline `114e89f`. GOTO, FOLLOW, ORBIT,
 STOP and FORMATION can evolve with the existing legacy or dynamic orientation
-paths. [Warp](destiny-warp.md) and [missiles](destiny-missiles.md) are also implemented; other special modes remain unfinished.
+paths. [Warp](destiny-warp.md), [missiles](destiny-missiles.md) and the native
+[special-mode lifecycle](destiny-special-modes.md) are also implemented.
 
 ## Command transitions
 

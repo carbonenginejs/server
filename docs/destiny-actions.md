@@ -30,9 +30,15 @@ argument to `SetBallPosition`.
 | `orbit`, `follow_ball`, `stop` | `Orbit`, `FollowBall`, `Stop` |
 | `warp_to`, `entity_warp_in` | `WarpTo`, `EntityWarpIn` |
 | `launch_missile`, `set_ball_massive` | `LaunchMissile`, `SetBallMassive` |
+| `set_ball_troll`, `set_ball_harmonic` | `SetBallTroll`, `SetBallHarmonic` |
 | `set_ball_velocity`, `set_ball_position` | `SetBallVelocity`, `SetBallPosition` |
 | `set_ball_mass`, `set_ball_agility`, `set_ball_radius` | `SetBallMass`, `SetBallAgility`, `SetBallRadius` |
 | `set_speed_fraction`, `set_max_speed`, `set_ball_free` | `SetSpeedFraction`, `SetMaxSpeed`, `SetBallFree` |
+
+When enabling a forcefield, `set_ball_harmonic` first queues SetBallMassive:
+true if any affiliation differs from -1, false otherwise. It then queues harmonic
+state. Disabling a field queues only harmonic state. Direct SetBallHarmonic does
+not change massiveness. Harmonic values normalize to signed-int64 BigInt.
 
 The initial stamp is zero when the park's `currentTime` is zero, otherwise `currentTime + 1`.
 `set_stamp_for_system(stamp)` labels subsequent commands. Stamps are tick

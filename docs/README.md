@@ -15,6 +15,7 @@ Summary: Current APIs, source correspondence and remaining port work.
 - [Movement transitions and formations](destiny-formations.md)
 - [Warp simulation and client sampling](destiny-warp.md)
 - [Missile launch, pursuit and collision events](destiny-missiles.md)
+- [Special movement modes and fields](destiny-special-modes.md)
 - [Collision history records](destiny-collision-records.md)
 - [Spatial partition](../destiny/partition/README.md)
 - [Bubble lifecycle and activity](destiny-bubbles.md)

@@ -121,9 +121,11 @@ Optional dynamical orientation supplies steering, angular integration and client
 Warp commands, evolution and client sampling are implemented; see [warp](docs/destiny-warp.md).
 Python creation dispatch is exposed separately through `PyAddBall`.
 [Missile launch, pursuit and collision events](docs/destiny-missiles.md) are implemented.
+[Mushroom growth, troll petrification and field controls](docs/destiny-special-modes.md)
+complete the native movement-mode dispatch.
 Visibility,
 replication, combat, and drone command policy are not implemented. Unsupported
-mobile movement modes throw before advancing the tick.
+mode values throw before advancing the tick.
 
 IDs use signed-int64 BigInts, with safe Number inputs accepted. Mobile balls require positive finite mass and
 agility. Changes to physical fields should go through controller setters; the

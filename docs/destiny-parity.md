@@ -522,7 +522,7 @@ The maxVelocity accessor now narrows to the native float32 storage (Ball.h:126,
 Ball_Blue.cpp:48-54), correcting an earlier direct-property precision gap at strict
 warp thresholds. Controller creation/setters already performed this conversion.
 That checkpoint added twenty-seven tests, reaching 540. No native executable or graphical
-integration was run; replication, sensors and remaining movement modes stay open.
+integration was run at that checkpoint; replication and sensors remain open.
 
 ## Missile launch and collision completion
 
@@ -549,3 +549,36 @@ Thirty-two added tests bring the suite to 572: four donor flight scenarios under
 each solver, native launch fixtures, actual target-hit dispatch, source-derived
 completion boundaries, dynamic-orientation selection and exceptional pool cleanup.
 No native executable, transport or gameplay damage implementation is claimed.
+
+## Special lifecycle and passive modes
+
+[Special modes](destiny-special-modes.md) now cover mushroom creation/growth/expiry,
+troll entry/readiness/petrification, rigid/boid commands and harmonic affiliation.
+The full thirteen-value enum reaches its native steering or passive branch.
+Unknown values retain explicit JS rejection; mobile mass/agility validation remains.
+Network export, persistence and proximity handling are still unfinished.
+
+Growth uses float32 fraction, power and radius stages, runs after timestamps and
+skips motion/orientation sample commit. The old radius survives expiry. Troll
+references collect in an owned per-call list and petrify after all commits,
+with a second readiness check. Scalar arguments and owned references survive
+callbacks without shared live scratch. Signed elapsed/deadline overflow throws
+instead of assigning portable behavior to native undefined arithmetic.
+
+Direct harmonic commands store affiliation before callbacks; Blue-style property
+writes notify with field=false, so unchanged assignment exits FIELD. Queued field
+commands separately select massiveness before affiliation. Boid enabling retains
+old follow links because it does not call Stop. MiniBall creation during troll
+petrification preserves native spatial-only insertion while inEvolve is true.
+
+The iterative mushroom-owner filter is asymmetric. A lower-ID mushroom can
+collide with its owner; separating contacts retain default collider zero, miss
+owner-ID duplicate detection and repeatedly consume the iteration cap. Legacy
+owner exclusion is not generalized to the iterative path. Source-derived tests
+pin both outcomes, in addition to the literal donor growth trajectory.
+
+Twenty-three new tests bring the suite to 595, including both solvers, staged
+sample retention, delayed freezing, nested evolution, callback rescheduling,
+Mini creation, harmonic notifications, action ordering and checked overflow.
+Donor remains 114e89f; no changed upstream behavior or native executable oracle
+is claimed. Existing AddBall replacement adaptations remain a separate audit.

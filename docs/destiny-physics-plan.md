@@ -41,7 +41,8 @@ and OrientedBox now implement geometry, membership and direct response methods,
 with the native fractional integrator. Ballpark ownership and legacy collision
 scheduling now work. Iterative discovery, scheduling, impulses and conditional
 cache cleanup, [Mini ownership](destiny-minis.md) and [warp integration](destiny-warp.md)
-are implemented. Remaining special movement modes still need their collision review.
+are implemented. [Special-mode lifecycle and collision quirks](destiny-special-modes.md)
+are now covered; proximity and replication integration remain open.
 
 Partition, Box, Key/KeyHash, all three sorted-set comparers and the
 Partitionable/StaticCollidable membership bases now work independently. Forty
@@ -84,9 +85,9 @@ implementation, Blue exposure, wrappers and tests together.
 
 ## Boundaries that must stay explicit
 
-**Every movement mode needs a disposition.** GOTO, FOLLOW, STOP and ORBIT are
-partially implemented. WARP, MISSILE and FORMATION have dedicated evolution
-code to port. MUSHROOM and TROLL also depend on tick/lifecycle handling.
+**Every movement mode needs a disposition.** GOTO, FOLLOW, STOP, ORBIT,
+WARP, MISSILE and FORMATION now have their native evolution paths.
+[MUSHROOM and TROLL](destiny-special-modes.md) implement the tick/lifecycle handling.
 MINIBALL, FIELD and RIGID have shape/state/filter roles; they must not be
 invented as independent steering algorithms. BOID is set by `PySetBoid`, but
 the reviewed `EvolveBehaviorForBall` has no BOID steering branch. Reproduce its
@@ -264,7 +265,9 @@ are implemented with both native formation trajectories. Existing goto/follow/or
 commands now preserve native mode-event and follower-cleanup ordering. Warp alignment,
 phases, exit, entity warp-in and client sampling are implemented. [Missile launch,
 pursuit and collision completion](destiny-missiles.md) are implemented through both
-collision solvers. Other special movement modes remain unfinished.
+collision solvers. Mushroom growth/expiry, delayed troll petrification, rigid,
+boid and harmonic field controls now cover all native mode values. Network
+transition export and persistence for these modes remain unfinished.
 
 Implement warp alignment and entry predicates, phase constants, distance/velocity
 evaluation, short and long warps, termination, entity warp-in and source destination

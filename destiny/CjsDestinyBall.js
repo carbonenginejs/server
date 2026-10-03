@@ -1921,6 +1921,80 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     }
 
     /**
+     * Reads the native collision harmonic used by field filtering.
+     * Adaptation: signed-int64 BigInt preserves the complete native value.
+     * Source: destiny/src/Ball_Blue.cpp:126-134.
+     * @returns {bigint} Current collision harmonic.
+     */
+    @meta.type.int64
+    @meta.adapted
+    get harmonic() { return this.mHarmonic; }
+
+    /**
+     * Stores harmonic and notifies the park with field disabled, even if unchanged.
+     * Adaptation: checked BigInt and direct dispatch replace Blue storage/OnModified.
+     * Source: destiny/src/Ball.cpp:1511-1512,1617-1620.
+     * @param {bigint|number} value Signed-int64 harmonic.
+     * @returns {void} An attached FIELD ball is stopped by its notification.
+     */
+    @meta.adapted
+    set harmonic(value)
+    {
+        this.mHarmonic = CjsDestinyBall._toInt64(value);
+        if (this.mPark) this.mPark.SetBallHarmonic(this.mId, this.mHarmonic, this.mCorporationID, this.mAllianceID, false);
+    }
+
+    /**
+     * Reads the native corporation used by field filtering.
+     * Source: destiny/src/Ball_Blue.cpp:136-144.
+     * @returns {number} Signed-int32 corporation value.
+     */
+    @meta.type.int32
+    @meta.implemented
+    get corporationID() { return this.mCorporationID; }
+
+    /**
+     * Stores corporation and invokes the native non-field notification branch.
+     * Adaptation: checked JS storage and direct dispatch replace Blue OnModified.
+     * Source: destiny/src/Ball.cpp:1511-1512,1621-1624.
+     * @param {number} value Signed-int32 corporation value.
+     * @returns {void} Detached balls store without notifying a park.
+     */
+    @meta.adapted
+    set corporationID(value)
+    {
+        if (!Number.isInteger(value) || value < -2147483648 || value > 2147483647)
+            throw new RangeError("Corporation ID must fit native int32");
+        this.mCorporationID = value;
+        if (this.mPark) this.mPark.SetBallHarmonic(this.mId, this.mHarmonic, this.mCorporationID, this.mAllianceID, false);
+    }
+
+    /**
+     * Reads the native alliance used by field filtering.
+     * Source: destiny/src/Ball_Blue.cpp:146-154.
+     * @returns {number} Signed-int32 alliance value.
+     */
+    @meta.type.int32
+    @meta.implemented
+    get allianceID() { return this.mAllianceID; }
+
+    /**
+     * Stores alliance and invokes the native non-field notification branch.
+     * Adaptation: checked JS storage and direct dispatch replace Blue OnModified.
+     * Source: destiny/src/Ball.cpp:1511-1512,1625-1628.
+     * @param {number} value Signed-int32 alliance value.
+     * @returns {void} Detached balls store without notifying a park.
+     */
+    @meta.adapted
+    set allianceID(value)
+    {
+        if (!Number.isInteger(value) || value < -2147483648 || value > 2147483647)
+            throw new RangeError("Alliance ID must fit native int32");
+        this.mAllianceID = value;
+        if (this.mPark) this.mPark.SetBallHarmonic(this.mId, this.mHarmonic, this.mCorporationID, this.mAllianceID, false);
+    }
+
+    /**
      * Invokes Carbon's process-global detached-ball callback when one is registered.
      * Adaptation: shared JS backing avoids a Ball-to-Ballpark module cycle; the
      * park exposes the native static name. JS exceptions propagate instead of

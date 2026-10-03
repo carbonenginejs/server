@@ -443,6 +443,41 @@ export class Actions
     }
 
     /**
+     * Queues delayed troll petrification at the current history stamp.
+     * Adaptation: checked BigInt identity and JS arrays replace Python values.
+     * Source: destiny/python/destiny/net/server/_actions.py:133-148.
+     * @param {bigint|number} src_id Ball identity.
+     * @param {number} delay_ticks Tick delay, validated when applied by the park.
+     * @returns {void} Appends SetBallTroll without executing it.
+     */
+    @meta.adapted
+    set_ball_troll(src_id, delay_ticks)
+    {
+        this._add_to_system_history(src_id, "SetBallTroll", [delay_ticks]);
+    }
+
+    /**
+     * Queues field participation before harmonic affiliation when enabling a field.
+     * Adaptation: harmonic normalizes to checked BigInt before sentinel comparison;
+     * JS arrays replace Python tuples. Core controller calls do not set massiveness.
+     * Source: destiny/python/destiny/net/server/_actions.py:475-508.
+     * @param {bigint|number} src_id Ball identity.
+     * @param {bigint|number} harmonic_value Signed-int64 collision harmonic.
+     * @param {number} corporation_id Corporation value, retained until application.
+     * @param {number} alliance_id Alliance value, retained until application.
+     * @param {boolean} is_forcefield Whether to enter field mode.
+     * @returns {void} Appends one harmonic event and, for fields, one massiveness event.
+     */
+    @meta.adapted
+    set_ball_harmonic(src_id, harmonic_value, corporation_id, alliance_id, is_forcefield)
+    {
+        harmonic_value = CjsDestinyBall._toInt64(harmonic_value);
+        if (is_forcefield)
+            this.set_ball_massive(src_id, harmonic_value !== -1n || corporation_id !== -1 || alliance_id !== -1);
+        this._add_to_system_history(src_id, "SetBallHarmonic", [harmonic_value, corporation_id, alliance_id, is_forcefield]);
+    }
+
+    /**
      * Native weak-reference Signal delivery is not part of this queue subset.
      *
      * @returns {never} Throws until native Signal delivery is ported.
