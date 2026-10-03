@@ -117,7 +117,8 @@ legacy and iterative sphere/static-shape collision response and a separate movem
 Massive moving balls use native partition candidates and collision forces.
 Optional dynamical orientation supplies steering, angular integration and client sampling.
 [Mini shape ownership](docs/destiny-minis.md) supports fixed-parent colliders.
-Visibility, Python creation dispatch, warp, missiles, formations,
+[Formation loading and following](docs/destiny-formations.md) are implemented.
+Visibility, Python creation dispatch, warp, missiles,
 replication, combat, and drone command policy are not implemented. Unsupported
 mobile movement modes throw before advancing the tick.
 

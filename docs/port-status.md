@@ -7,11 +7,11 @@ Summary: Current implementation and the families still required for completion.
 
 The target is the whole public Destiny donor, not only features used by a racing
 demo. Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
-The current server suite has 485 passing CPU tests against runtime alpha.9.
+The current server suite has 513 passing CPU tests against runtime alpha.9.
 
 | Family | Current status |
 |---|---|
-| Ball/Ballpark | Temporary movement subset: goto, follow, legacy/new orbit, stop and basic lifecycle/setters, exact signed-int64 IDs/timestamps and native local-ID allocation |
+| Ball/Ballpark | Movement subset: goto, follow, legacy/new orbit, formation, native stop transitions and basic lifecycle/setters, exact signed-int64 IDs/timestamps and native local-ID allocation |
 | Actions | Movement commands, timestamps, adjacent deduplication and pending queries |
 | AABB/Planed/Triangle/Collision | Numeric primitives implemented; 44 native fixtures and seven additional cases |
 | Clock/host boundary | Separate time/currentTime, Start/Pause, OnTick, AdjustTimes and deferred ball/capsule cleanup implemented; ClientBall sample caches shift with the clock; network batches pending |
@@ -22,7 +22,8 @@ The current server suite has 485 passing CPU tests against runtime alpha.9.
 | Bubbles and activity | Insertion, initialization, delta bookkeeping, subscriptions and activity implemented; conflict resolution and network batches pending |
 | Legacy and iterative collision response | Fractional integration, both response paths, collision records, discovery, impulses, recursive invalidation, scheduling and conditional cache cleanup implemented; warp integration pending |
 | New orbit | Both orientation paths implemented; all four native scenarios pass; physical-heading fallback implemented |
-| Orientation, warp, missiles, formations and remaining modes | Legacy and dynamic steering/evolution/sampling, impact rotation, native oriented creation and angular setters implemented; remaining movement modes pending |
+| Formations | Loading, 16-bit reservations, leader assignment, native follow transitions and rotated steering implemented; both donor trajectories pass |
+| Orientation, warp, missiles and remaining modes | Legacy and dynamic steering/evolution/sampling, impact rotation, native oriented creation and angular setters implemented; remaining movement modes pending |
 | Visibility, range/volume queries, sensors and relative motion | Pending |
 | ClientBall interpolation, snapshots and binary streams | Number/BigInt tick position, velocity, acceleration, legacy/impact/dynamic rotation, deltas and ego reference implemented; interface registration, relative motion, snapshots and streams pending |
 | Server tickers, bubble updates and recipient batching | Pending |

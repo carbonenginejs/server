@@ -116,7 +116,7 @@ test(`${name} overlap response, equal-time strength, later-time overwrite and du
     assert.deepEqual(position, [4, 5, 6]);
     ball.mLastC = [100, 0, 0];
     shape.ReactToCollision(ball, position, velocity, 2, [2, 0, 0], 0);
-    assert.deepEqual(ball.mLastC, [100, 0, 0]);
+    assert.deepEqual(Array.from(ball.mLastC), [100, 0, 0]);
     ball.mLastCollision = 0.75;
     shape.ReactToCollision(ball, position, velocity, 2, [2, 0, 0], 0);
     vector(ball.mLastC, [force, 0, 0]);
@@ -146,7 +146,7 @@ test("Both shape responses reproduce reflected exponential velocity and speculat
         vector(v, [-4 * full, 2 * full, 0]);
         vector(p, [4 / 1.5 * (1 - half) ** 2, 2 / 1.5 * (1 - full), 0]);
         vector(ball.mLastC, [-0.85 * 2 * 4 * full * 3 / (2 * (1 - full)), 0, 0]);
-        assert.deepEqual(ball.mNewVel, [4, 2, 0]); assert.deepEqual(ball.mNewPos, [0, 0, 0]);
+        assert.deepEqual(Array.from(ball.mNewVel), [4, 2, 0]); assert.deepEqual(Array.from(ball.mNewPos), [0, 0, 0]);
         const unchanged = [...p];
         shape.ReactToCollision(ball, p, v, 2, [2, 0, 0], -1);
         assert.deepEqual(p, unchanged); assert.equal(ball.mCollisions.length, 1);
@@ -173,7 +173,7 @@ test("Legacy Capsule zero-axis divisions retain native nonfinite roots and no im
     const shape = capsule([0, 0, 0], [0, 0, 0]), ball = movingBall(); shape.mPark = park();
     shape.HandleCollisionNonIteratively(ball, [0, 0, 0], [1, 0, 0], 2, [1, 0, 0]);
     assert.equal(ball.mCollisions.length, 0);
-    assert.deepEqual(ball.mLastC, [0, 0, 0]);
+    assert.deepEqual(Array.from(ball.mLastC), [0, 0, 0]);
 });
 
 test("Fractional Integrate agrees with analytic drag and composes across substeps", () =>

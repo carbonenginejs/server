@@ -36,6 +36,8 @@ const ORBITAL_PRECESSION = 0.001;
 @meta.blue.inherit(IBlueEvents)
 export class CjsBallparkController
 {
+    mFormations = [];
+
     mTime = 0n;
     mLocalCnt = -1n;
     mLocalHiCnt = -1073741824n;
@@ -846,19 +848,20 @@ export class CjsBallparkController
         ball.isMoribund = false;
         this.moribundBalls.delete(ball);
         ball.mEffectStamp = 0;
+        ball.mFormationID = -1;
         ball.mOwnerId = 0n;
         ball.mCorporationID = -1;
         ball.mAllianceID = -1;
         ball.mHarmonic = -1n;
         ball.followId = 0n;
         ball.followRange = 10;
-        ball.mode = Mode.DSTBALL_STOP;
         this.SetBallTimeFactor(ball);
         if (ball.isFree)
         {
             this._insertFreeBall(ball);
         }
         else if (!created) this._removeFreeBall(ball.mId);
+        ball.SetMode(Mode.DSTBALL_STOP);
         this.InsertBallInBoxes(ball);
         return ball;
     }
@@ -1944,9 +1947,10 @@ export class CjsBallparkController
 
     /**
      * Detaches followers; interactive orbiters and missiles retain their velocity direction.
-     * Adaptation: JS IDs and scalar velocities replace native map/vector arguments.
-     * The copied Set replaces a native unordered set; invalid links are removed
-     * without native logging. Missile steering itself remains unported.
+     * Adaptation: JS IDs and object references replace native map/pointer arguments.
+     * Snapshot iteration replaces native unordered-set traversal; invalid links
+     * are diagnosed and removed. Missile steering itself remains unported.
+     * Source: destiny/src/Ballpark.cpp:5416-5472.
      *
      * @param {CjsDestinyBall|null} ball Target whose incoming follower links are detached.
      * @returns {void} No return value.
@@ -1960,6 +1964,7 @@ export class CjsBallparkController
             const follower = this.GetBall(id);
             if (!follower || follower.followId !== ball.id || follower._followPtr !== ball)
             {
+                console.error("StopAllFollowers: invalid follower link", ball.id, id);
                 ball._followers.delete(id);
                 continue;
             }
@@ -1967,9 +1972,9 @@ export class CjsBallparkController
                 || (follower.isInteractive && follower.mode === Mode.DSTBALL_ORBIT))
             {
                 if (follower.mode === Mode.DSTBALL_MISSILE) follower.isMassive = false;
-                this.GotoDirection(id, follower.vx, follower.vy, follower.vz);
+                this.GotoDirection(follower, follower.mNewVel);
             }
-            else this.Stop(id);
+            else this.Stop(follower);
         }
     }
 
@@ -1990,7 +1995,7 @@ export class CjsBallparkController
     {
         const ball = this.GetBall(id);
         if (!ball) return;
-        this.Stop(id);
+        this.Stop(ball);
         this.StopAllFollowers(ball);
         ball.isMoribund = true;
         // Source: destiny/src/Ballpark.cpp:5496-5528. Fixed-parent children ignore its delay.
@@ -2045,9 +2050,9 @@ export class CjsBallparkController
     }
 
     /**
-     * Clears owned balls without final-cleanup events or changing the clocks.
-     * Adaptation: detaches outstanding Ball handles and clears the ball deletion
-     * queue because native owner/refcount teardown has no JS equivalent. Shape
+     * Clears owned balls without mode/final-cleanup events or changing the clocks.
+     * Adaptation: clears the ball deletion queue because native owner/refcount
+     * teardown has no JS equivalent. Retained handles keep mode/follower state. Shape
      * queues and aggregate-only shape detachment retain native ClearAll behavior.
      *
      * @returns {void} No return value.
@@ -2056,12 +2061,9 @@ export class CjsBallparkController
     @meta.adapted
     ClearAll()
     {
-        // ClearAll does not send per-ball final-cleanup events in Carbon.
-        // JS handles remain live, so detach their follower links explicitly.
+        // Source: destiny/src/Ballpark.cpp:5894-5953. ClearAll never calls Stop.
         for (const ball of this._balls.values())
         {
-            this.Stop(ball.id);
-            ball.isMoribund = true;
             ball.DeleteFromBoxes();
             ball.mPark = null;
         }
@@ -2207,7 +2209,8 @@ export class CjsBallparkController
                 throw new RangeError(`Mobile ball ${ball.id} requires positive finite mass and agility`);
             }
             if (ball.mode !== Mode.DSTBALL_STOP && ball.mode !== Mode.DSTBALL_GOTO
-                && ball.mode !== Mode.DSTBALL_FOLLOW && ball.mode !== Mode.DSTBALL_ORBIT)
+                && ball.mode !== Mode.DSTBALL_FOLLOW && ball.mode !== Mode.DSTBALL_ORBIT
+                && ball.mode !== Mode.DSTBALL_FORMATION)
             {
                 throw new Error(`Destiny mode ${ball.mode} is not implemented`);
             }
@@ -2315,7 +2318,7 @@ export class CjsBallparkController
     }
 
     /**
-     * Adaptation: four supported modes, writing scalar mLastG components in place.
+     * Adaptation: supported modes write mLastG components in place.
      * Native heading/roll previews reshape thrust without committing physical
      * orientation; the tick's separate integration pass stages angular results.
      * Warp and other unsupported movement modes still throw before this branch.
@@ -2340,6 +2343,9 @@ export class CjsBallparkController
                 break;
             case Mode.DSTBALL_FOLLOW:
                 this.EvolveFollow(ball);
+                break;
+            case Mode.DSTBALL_FORMATION:
+                this.EvolveFormation(ball);
                 break;
             case Mode.DSTBALL_ORBIT:
                 this.EvolveOrbit(ball, this.currentTime);
@@ -2413,6 +2419,40 @@ export class CjsBallparkController
     EvolveGoto(ball)
     {
         this.GotoThrust(ball, ball.gotoX, ball.gotoY, ball.gotoZ);
+    }
+
+    /**
+     * Steers toward the leader's rotated formation offset, including both radii.
+     * Adaptation: mLastG replaces the native Vector3d return; a pooled float32
+     * offset survives reentry through the leader's rotation method and is returned
+     * on throws. Negative native vector indexing raises in JS rather than reading memory.
+     * Source: destiny/src/Ballpark.cpp:1023-1061.
+     * @param {CjsDestinyBall} ball Formation follower with a native target link.
+     * @returns {void} Invalid formation IDs or high slots produce zero thrust.
+     */
+    @meta.adapted
+    EvolveFormation(ball)
+    {
+        vec3.zero(ball.mLastG);
+        const other = ball.mFollowPtr;
+        if (other.mFormationID < 0 || other.mFormationID > this.mFormations.length - 1) return;
+        const slot = (ball.mEffectStamp << 24) >> 24;
+        const formation = this.mFormations[other.mFormationID];
+        if (slot > formation.length - 1) return;
+        const offset = formation[slot];
+        let length = Math.sqrt(offset[0] * offset[0] + offset[1] * offset[1] + offset[2] * offset[2]);
+        if (length === 0) length = 1;
+        const x = other.mNewPos[0], y = other.mNewPos[1], z = other.mNewPos[2];
+        const distance = ball.mRadius + other.mRadius + length, inverse = 1 / length;
+        const vec3_0 = vec3.alloc();
+        try
+        {
+            vec3.set(vec3_0, distance * offset[0] * inverse, distance * offset[1] * inverse, distance * offset[2] * inverse);
+            other.GetRotatedVector(vec3_0);
+            vec3.set(ball.mGoto, x + vec3_0[0], y + vec3_0[1], z + vec3_0[2]);
+        }
+        finally { vec3.unalloc(vec3_0); }
+        this.GotoThrust(ball, ball.mGoto[0], ball.mGoto[1], ball.mGoto[2]);
     }
 
     /**
@@ -3052,50 +3092,231 @@ export class CjsBallparkController
     }
 
     /**
-     * Adaptation: ID overload only; same finite-target guard and restart at zero throttle.
+     * Appends a native formation from caller-supplied local offset vectors.
+     * Adaptation: JS arrays replace Python tuples/native vectors and owned f64
+     * factories copy offsets. Malformed input throws instead of leaving a Python error.
+     * Source: destiny/src/Ballpark.cpp:6651-6671.
+     * @param {Array<Float64Array|number[]>} vectorList Local offsets to copy.
+     * @returns {void} Names are not stored by the native formation container.
+     */
+    @meta.adapted
+    AddFormation(vectorList)
+    {
+        const vectors = [];
+        const length = vectorList.length;
+        for (let i = 0; i < length; ++i)
+        {
+            const value = vectorList[i];
+            vectors.push(vec3d.fromValues(value[0], value[1], value[2]));
+        }
+        this.mFormations.push(vectors);
+    }
+
+    /**
+     * Replaces formation definitions from native name/vector-list pairs.
+     * Adaptation: caller-owned JS arrays replace Python tuples; names are ignored,
+     * existing ball IDs/slot reservations are not reset, and errors retain earlier appends.
+     * Source: destiny/src/Thunkers.cpp:1921-1945.
+     * @param {Array} formationList Pairs of display name and local offset vectors.
+     * @returns {void} Clears then appends definitions in input order.
+     */
+    @meta.blue.method
+    @meta.adapted
+    LoadFormations(formationList)
+    {
+        this.mFormations.length = 0;
+        const count = formationList.length;
+        for (let i = 0; i < count; ++i) this.AddFormation(formationList[i][1]);
+    }
+
+    /**
+     * Assigns a leader formation and stops followers whose slots no longer fit.
+     * Adaptation: signed-char narrowing follows the native boundary; a JS snapshot
+     * owns stop candidates across callbacks. Negative native vector indices throw
+     * on access rather than reading invalid memory. The reversed shrink-reset loop stays.
+     * Source: destiny/src/Ballpark.cpp:6673-6727; destiny/src/Thunkers.cpp:1899-1917.
+     * @param {bigint|number} id Leader identity.
+     * @param {number} formationID Signed-char formation index; -1 disables leadership.
+     * @returns {void} Does not reserve slots or update followers when reusing an ID.
+     */
+    @meta.blue.method
+    @meta.adapted
+    SetBallFormation(id, formationID)
+    {
+        formationID = (formationID << 24) >> 24;
+        const ball = this.GetBall(id);
+        if (!ball || formationID > this.mFormations.length - 1) return;
+        if (ball.mFormationID >= 0)
+        {
+            if (formationID === -1)
+            {
+                this.StopAllFollowers(ball);
+                ball.mFormationSlots = 0;
+            }
+            else if (formationID !== ball.mFormationID)
+            {
+                const newLength = this.mFormations[formationID].length;
+                if (this.mFormations[ball.mFormationID].length > newLength)
+                {
+                    const stopCandidates = [];
+                    for (const followerId of ball.mFollowers)
+                    {
+                        const follower = this.GetBall(followerId);
+                        if (follower.mMode !== Mode.DSTBALL_FORMATION) continue;
+                        if (follower.mEffectStamp > newLength - 1) stopCandidates.push(follower);
+                    }
+                    for (const follower of stopCandidates) this.Stop(follower);
+                    for (let i = this.mFormations[ball.mFormationID].length; i < newLength; ++i)
+                    {
+                        if (i >= 16) throw new RangeError("Formation bitset index is out of range");
+                        ball.mFormationSlots &= ~(1 << i);
+                    }
+                }
+            }
+        }
+        ball.mFormationID = formationID;
+    }
+
+    /**
+     * Joins a leader's formation without implicitly reserving its slot.
+     * Adaptation: signed-char slot narrowing and JS references replace native
+     * char/pointers. Native negative slots are retained until their later invalid access.
+     * Source: destiny/src/Ballpark.cpp:3951-4001; destiny/src/Thunkers.cpp:1098-1118.
+     * @param {bigint|number} id Follower identity.
+     * @param {bigint|number} targetId Leader identity.
+     * @param {number} slot Native formation slot, normally returned by ReserveFormationSlot.
+     * @returns {void} Bubble/cloak rejection occurs after stopping the previous order.
+     */
+    @meta.blue.method
+    @meta.adapted
+    FormationFollow(id, targetId, slot)
+    {
+        slot = (slot << 24) >> 24;
+        const ball = this.GetBall(id);
+        if (!ball) return;
+        targetId = CjsDestinyBall._toInt64(targetId);
+        if (ball.mId === targetId) return;
+        const target = this.GetBall(targetId);
+        if (!target || target.mFormationID < 0 || target.mFormationID > this.mFormations.length - 1) return;
+        if (slot > this.mFormations[target.mFormationID].length - 1) return;
+        this.Stop(ball);
+        if (ball.mNewBubble !== target.mNewBubble || target.isCloaked) return;
+        ball.mFollowId = targetId;
+        ball.mFollowPtr = target;
+        ball.mEffectStamp = slot;
+        ball.SetMode(Mode.DSTBALL_FORMATION);
+        target.mFollowers.add(ball.mId);
+    }
+
+    /**
+     * Applies Python's negative-target restriction before native following.
+     * Adaptation: typed JS arguments replace tuple parsing and RangeError replaces BeOS error state.
+     * Source: destiny/src/Thunkers.cpp:244-269.
+     * @param {bigint|number} id Follower identity.
+     * @param {bigint|number} targetId Nonnegative target identity.
+     * @param {number} [range=1] Native float surface separation.
+     * @returns {void} Delegates to the native core after the wrapper guard.
+     */
+    @meta.adapted
+    PyFollowBall(id, targetId, range = 1)
+    {
+        targetId = CjsDestinyBall._toInt64(targetId);
+        if (targetId < 0n) throw new RangeError("Cannot follow a negative ball ID");
+        this.FollowBall(id, targetId, range);
+    }
+
+    /**
+     * Applies Python's negative-target restriction before native orbiting.
+     * Adaptation: typed JS arguments replace tuple parsing and RangeError replaces BeOS error state.
+     * Source: destiny/src/Thunkers.cpp:330-355.
+     * @param {bigint|number} id Orbiter identity.
+     * @param {bigint|number} targetId Nonnegative target identity.
+     * @param {number} [range=1] Native float surface separation.
+     * @returns {void} Delegates to the native core after the wrapper guard.
+     */
+    @meta.adapted
+    PyOrbit(id, targetId, range = 1)
+    {
+        targetId = CjsDestinyBall._toInt64(targetId);
+        if (targetId < 0n) throw new RangeError("Cannot orbit a negative ball ID");
+        this.Orbit(id, targetId, range);
+    }
+
+    /**
+     * Sets a destination after native stop callbacks and restarts zero throttle.
+     * Adaptation: argument shape selects ID/scalars or Ball/vector overloads;
+     * the scalar wrapper borrows f64 storage across callbacks and returns it on throws.
+     * Source: destiny/src/Ballpark.cpp:4513-4548.
      *
-     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
-     * @param {number} x Position component in meters.
-     * @param {number} y Position component in meters.
-     * @param {number} z Position component in meters.
+     * @param {bigint|number|CjsDestinyBall} id Signed-int64 identity or native Ball reference.
+     * @param {number|Float64Array|number[]} x Position X, or the reference overload's target vector.
+     * @param {number} [y] Position Y in the scalar overload.
+     * @param {number} [z] Position Z in the scalar overload.
      * @returns {void} No return value.
      */
     @meta.blue.method
     @meta.adapted
     GotoPoint(id, x, y, z)
     {
-        const ball = this.GetBall(id);
-        if (!ball || ![x, y, z].every(Number.isFinite)) return;
-        this.Stop(id);
-        ball.gotoX = x;
-        ball.gotoY = y;
-        ball.gotoZ = z;
+        if (typeof id !== "object")
+        {
+            const ball = this.GetBall(id);
+            if (!ball) return;
+            const vec3d_0 = vec3d.alloc();
+            try
+            {
+                vec3.set(vec3d_0, x, y, z);
+                this.GotoPoint(ball, vec3d_0);
+            }
+            finally { vec3d.unalloc(vec3d_0); }
+            return;
+        }
+        const ball = id, point = x;
+        if (!Number.isFinite(point[0]) || !Number.isFinite(point[1]) || !Number.isFinite(point[2])) return;
+        this.Stop(ball);
+        vec3.copy(ball.mGoto, point);
         if (ball.speedFraction === 0) ball.speedFraction = 1;
-        ball.mode = Mode.DSTBALL_GOTO;
+        ball.SetMode(Mode.DSTBALL_GOTO);
     }
 
     /**
-     * Adaptation: ID overload; keeps Carbon's distant target (1e17 units).
+     * Normalizes a direction and orders a native destination 1e17 units away.
+     * Adaptation: argument shape selects ID/scalars or Ball/vector overloads;
+     * components copy by value before callbacks, matching native Vector3d.
+     * Source: destiny/src/Ballpark.cpp:4471-4505; destiny/src/Vector3d.h:62-72.
      *
-     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
-     * @param {number} x Direction component.
-     * @param {number} y Direction component.
-     * @param {number} z Direction component.
+     * @param {bigint|number|CjsDestinyBall|null} id Signed-int64 identity or native Ball reference.
+     * @param {number|Float64Array|number[]} x Direction X or the reference overload's vector.
+     * @param {number} [y] Direction Y in the scalar overload.
+     * @param {number} [z] Direction Z in the scalar overload.
      * @returns {void} No return value.
      */
     @meta.blue.method
     @meta.adapted
     GotoDirection(id, x, y, z)
     {
-        const ball = this.GetBall(id);
-        if (!ball || ![x, y, z].every(Number.isFinite)) return;
+        const reference = typeof id === "object";
+        const ball = reference ? id : this.GetBall(id);
+        if (!ball) return;
+        if (reference) { z = x[2]; y = x[1]; x = x[0]; }
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return;
         const length = Math.sqrt(x * x + y * y + z * z);
-        const inverse = length === 0 ? 0 : 1 / length;
-        this.GotoPoint(id, ball.x + x * inverse * 1e17, ball.y + y * inverse * 1e17, ball.z + z * inverse * 1e17);
+        if (length !== 0) { const inverse = 1 / length; x *= inverse; y *= inverse; z *= inverse; }
+        const vec3d_0 = vec3d.alloc();
+        try
+        {
+            vec3.set(vec3d_0, ball.x + x * 1e17, ball.y + y * 1e17, ball.z + z * 1e17);
+            this.GotoPoint(ball, vec3d_0);
+        }
+        finally { vec3d.unalloc(vec3d_0); }
     }
 
     /**
-     * Adaptation: all balls share one region; native target validity checks retained.
+     * Follows a valid uncloaked target in the same native bubble.
+     * Adaptation: JS references/Sets replace native pointers/unordered sets; float
+     * narrowing and the Python wrapper's default range are retained. This core
+     * allows negative IDs; PyFollowBall applies the separate Python restriction.
+     * Source: destiny/src/Ballpark.cpp:3878-3945; destiny/src/Thunkers.cpp:244-269.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {bigint|number} targetId Signed-int64 target identity; Number inputs must be safe integers.
@@ -3106,21 +3327,29 @@ export class CjsBallparkController
     @meta.adapted
     FollowBall(id, targetId, range = 1)
     {
-        const ball = this.GetBall(id);
-        const target = this.GetBall(targetId);
         range = Math.fround(range);
-        if (!ball || !target || ball === target || target.isMoribund
-            || target.isCloaked || !Number.isFinite(range)) return;
-        this.Stop(id);
+        if (!Number.isFinite(range)) return;
+        const ball = this.GetBall(id);
+        if (!ball) return;
+        targetId = CjsDestinyBall._toInt64(targetId);
+        if (ball.id === targetId) return;
+        const target = this.GetBall(targetId);
+        if (!target || target.isMoribund || ball.mNewBubble !== target.mNewBubble || target.isCloaked) return;
+        this.Stop(ball);
         ball.followId = target.id;
         ball._followPtr = target;
         ball.followRange = range;
-        ball.mode = Mode.DSTBALL_FOLLOW;
+        ball.SetMode(Mode.DSTBALL_FOLLOW);
+        if (target._followers.has(ball.id)) console.error("FollowBall: ball already flagged as follower", ball.id, target.id);
         target._followers.add(ball.id);
     }
 
     /**
-     * Adaptation: single region, native float range and target validity checks.
+     * Orbits a valid uncloaked target in the same native bubble.
+     * Adaptation: JS references/Sets replace native pointers/unordered sets; float
+     * narrowing and the Python default range are retained. PyOrbit separately
+     * applies the Python negative-target-ID restriction.
+     * Source: destiny/src/Ballpark.cpp:4006-4071; destiny/src/Thunkers.cpp:330-355.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {bigint|number} targetId Signed-int64 target identity; Number inputs must be safe integers.
@@ -3131,39 +3360,61 @@ export class CjsBallparkController
     @meta.adapted
     Orbit(id, targetId, range = 1)
     {
-        const ball = this.GetBall(id);
-        const target = this.GetBall(targetId);
         range = Math.fround(range);
-        if (!ball || !target || ball === target || target.isMoribund
-            || target.isCloaked || !Number.isFinite(range)) return;
-        this.Stop(id);
+        if (!Number.isFinite(range)) return;
+        const ball = this.GetBall(id);
+        if (!ball) return;
+        targetId = CjsDestinyBall._toInt64(targetId);
+        if (ball.id === targetId) return;
+        const target = this.GetBall(targetId);
+        if (!target || target.isMoribund || ball.mNewBubble !== target.mNewBubble || target.isCloaked) return;
+        this.Stop(ball);
         ball.followId = target.id;
         ball._followPtr = target;
         ball.followRange = range;
-        ball.mode = Mode.DSTBALL_ORBIT;
+        ball.SetMode(Mode.DSTBALL_ORBIT);
         target._followers.add(ball.id);
     }
 
     /**
      * Stops the ball through the native mode-change callback path, retaining velocity.
-     * Adaptation: ID overload; formation-slot and network-state cleanup remain unported.
+     * Adaptation: argument shape selects native ID or pointer overloads. JS references
+     * and Sets replace native pointers/sets. A broken native follow pointer throws
+     * instead of invoking the native assertion; logging uses console diagnostics.
      * Source: destiny/src/Ballpark.cpp:4556-4643.
      *
-     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
+     * @param {bigint|number|CjsDestinyBall} id Signed-int64 identity or native Ball reference.
      * @returns {void} No return value.
      */
     @meta.blue.method
     @meta.adapted
     Stop(id)
     {
-        const ball = this.GetBall(id);
-        if (!ball) return;
-        if (ball._followPtr)
+        const reference = typeof id === "object";
+        const ball = reference ? id : this.GetBall(id);
+        if (!reference && (!ball || ball.mMode === Mode.DSTBALL_STOP)) return;
+        const mode = ball.mMode;
+        if (mode === Mode.DSTBALL_FOLLOW || mode === Mode.DSTBALL_ORBIT
+            || mode === Mode.DSTBALL_MISSILE || mode === Mode.DSTBALL_FORMATION)
         {
-            ball._followPtr._followers.delete(ball.id);
-            ball._followPtr = null;
-            ball.followId = 0n;
-            ball.followRange = 0;
+            if (!ball.mFollowPtr) throw new Error("Stop: native follow mode requires a target pointer");
+            let found = false;
+            if (this.isMaster) found = ball.mFollowPtr.mFollowers.delete(ball.mId);
+            else
+            {
+                const target = this.GetBall(ball.mFollowId);
+                if (!target) console.error("Stop: followId does not identify a ball", ball.mId, ball.mFollowId);
+                else if (target !== ball.mFollowPtr) console.error("Stop: follow pointer does not match followId", ball.mId);
+                else found = target.mFollowers.delete(ball.mId);
+            }
+            if (!found) console.warn("Stop: ball was absent from target followers", ball.mId);
+            if (this.isMaster && ball.mMode === Mode.DSTBALL_FORMATION)
+                ball.mFollowPtr.FreeFormationSlot(ball.mEffectStamp);
+            ball.mEffectStamp = 0;
+            ball.mFollowPtr = null;
+            ball.mFollowId = 0n;
+            ball.mOwnerId = 0n;
+            ball.mFollowRange = 0;
         }
         ball.SetMode(Mode.DSTBALL_STOP);
     }
@@ -3427,7 +3678,7 @@ export class CjsBallparkController
         }
         else
         {
-            this.Stop(id);
+            this.Stop(ball);
             this.SetBallVelocity(id, 0, 0, 0);
             this._removeFreeBall(ball.mId);
             this.InsertBallInBoxes(ball);

@@ -39,6 +39,10 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
 
     mMiniBoxes = new BlueList(CjsDestinyMiniBox);
 
+    mFormationID = -1;
+
+    mFormationSlots = 0;
+
     mMaxAngVel = 1;
 
     mRoll = 0;
@@ -620,12 +624,18 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
         }
     }
 
-    mNewPos = [1e10, 1e10, 1e10];
-    mNewVel = [0, 0, 0];
-    mOldVel = [0, 0, 0];
-    mGoto = [0, 0, 0];
-    mLastG = [0, 0, 0];
-    mLastC = [0, 0, 0];
+    mNewPos = vec3d.fromValues(1e10, 1e10, 1e10);
+
+    mNewVel = vec3d.create();
+
+    mOldVel = vec3d.create();
+
+    mGoto = vec3d.create();
+
+    mLastG = vec3d.create();
+
+    mLastC = vec3d.create();
+
     mLastCollision = -1;
     mCollisions = [];
     mMass = 0;
@@ -1747,6 +1757,60 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
         {
             vec3d.unalloc(vec3d_3); vec3d.unalloc(vec3d_2); vec3d.unalloc(vec3d_1); vec3d.unalloc(vec3d_0);
         }
+    }
+
+    /**
+     * Reads the native readonly Blue byte view of the signed-char formation identity.
+     * Adaptation: masks the backing char to reproduce Blue's unsigned field read.
+     * Source: destiny/src/Ball_Blue.cpp:436-442.
+     * @returns {number} Formation byte, including 255 for the native -1 sentinel.
+     */
+    @meta.type.uint8
+    @meta.adapted
+    get formationID() { return this.mFormationID & 255; }
+
+    /**
+     * Reserves the first unused slot in the leader's current formation.
+     * Adaptation: a 16-bit Number mask replaces std::bitset; JS arrays own vectors.
+     * Source: destiny/src/Ball.cpp:2275-2306.
+     * @returns {number} Slot index or native -1 for unavailable/invalid formations.
+     */
+    @meta.blue.method
+    @meta.adapted
+    ReserveFormationSlot()
+    {
+        if (this.mFormationID === -1 || !this.mPark) return -1;
+        if (this.mFormationID > this.mPark.mFormations.length - 1) return -1;
+        const count = this.mPark.mFormations[this.mFormationID].length;
+        if (count > 16) return -1;
+        for (let i = 0; i < count; ++i)
+        {
+            if (this.mFormationSlots & (1 << i)) continue;
+            this.mFormationSlots |= 1 << i;
+            return i;
+        }
+        return -1;
+    }
+
+    /**
+     * Clears one reserved slot when the native formation-size check permits it.
+     * Adaptation: BigInt reproduces the uint64 size_t comparison, including empty
+     * formation underflow. RangeError replaces std::bitset::reset out_of_range.
+     * Source: destiny/src/Ball.cpp:2324-2351.
+     * @param {number|bigint} slot Native size_t slot; a negative integer wraps unsigned.
+     * @returns {void} Does not stop or unlink followers occupying the slot.
+     */
+    @meta.blue.method
+    @meta.adapted
+    FreeFormationSlot(slot)
+    {
+        if (this.mFormationID === -1 || !this.mPark) return;
+        if (this.mFormationID > this.mPark.mFormations.length - 1) return;
+        const count = this.mPark.mFormations[this.mFormationID].length;
+        const index = BigInt.asUintN(64, BigInt(slot));
+        if (index > BigInt.asUintN(64, BigInt(count) - 1n)) return;
+        if (index >= 16n) throw new RangeError("Formation bitset index is out of range");
+        this.mFormationSlots &= ~(1 << Number(index));
     }
 
     /**

@@ -19,7 +19,9 @@ Import `CjsBallparkController` and `CjsDestinyBall` from
 | `GotoDirection(id, x, y, z)` | Normalizes direction and chooses a point `1e17` meters away. |
 | `FollowBall(id, targetId, range = 1)` | Keeps the specified surface separation, including both radii. |
 | `Orbit(id, targetId, range = 1)` | Selects native legacy/new orbit through the global setting; legacy is the default. |
-| `Stop(id)` | Detaches its target and removes thrust; velocity decays through drag. |
+| `Stop(id)` | Stops movement and clears native follow-mode links; velocity decays through drag. |
+| `LoadFormations(definitions)` / `SetBallFormation(id, index)` | Loads named offset lists and assigns a leader formation. |
+| `FormationFollow(id, targetId, slot)` | Follows a reserved leader-relative offset; see the formation guide. |
 | `SetBallPosition(id, x, y, z)` | Sets current and previous position. |
 | `SetBallVelocity(id, vx, vy, vz)` | Sets current and previous velocity. |
 | `SetBallMass(id, mass)` | Changes positive mass and recalculates drag. |
@@ -30,7 +32,7 @@ Import `CjsBallparkController` and `CjsDestinyBall` from
 | `SetBallFree(id, isFree)` | Enables movement or makes the object static, stopping and zeroing its velocity. |
 
 Missing valid-ID commands are ignored; invalid integer representations throw. Follow/orbit requests for self, missing,
-cloaked, or moribund targets leave the existing order unchanged. Changing a target's
+cloaked, moribund, or different-bubble targets leave the existing order unchanged. Changing a target's
 flags directly does not emit gameplay events or cancel existing commands.
 
 The ball exposes scalar `x/y/z`, `vx/vy/vz`, `gotoX/gotoY/gotoZ`, `mode`,
@@ -50,7 +52,9 @@ bubble bookkeeping and activity now follow native insertion/setter/Evolve hooks.
 See the [bubble lifecycle](../docs/destiny-bubbles.md) and [partition guide](partition/README.md).
 
 `CjsDestinyBall.DSTBALLMODE` retains all thirteen source enum members and values.
-Only GOTO, FOLLOW, STOP, and ORBIT are supported movement modes. Both orbit
+GOTO, FOLLOW, STOP, ORBIT and FORMATION are supported movement modes.
+See [movement transitions and formations](../docs/destiny-formations.md) for native
+overloads, event ordering and slot ownership. Both orbit
 algorithms work with dynamical orientation disabled; see [global settings](../docs/destiny-settings.md). Enum presence does
 not mean a behavior is implemented.
 
@@ -96,8 +100,8 @@ mutate stored IDs or follower sets directly.
 The optional PyOS bridge supplies synchronous SendEvent(target, context, name,
 null, format, ...args) and PyError(). Formats are `(i)` for pre/post tick
 counters, `()` for final cleanup and `ii` for mode changes. Leaving warp also
-uses PostEvent(park, context, name, "Li", id, 0). MiniBall creation and Stop
-route through SetMode; remaining movement assignments still need event wiring. A missing handler is
+uses PostEvent(park, context, name, "Li", id, 0). Creation, goto, follow, orbit, formation and stop commands
+route through SetMode. A missing handler is
 successful dispatch; handler return values do not determine dispatch success.
 The host catches handler exceptions and returns false; the park calls PyError
 and continues. A null bridge means no Python subscribers. Async handlers are
@@ -113,7 +117,8 @@ RemoveBall marks delayed balls moribund immediately, stopping their participatio
 Cleanup removes all overdue balls, plus up to seven within the two-counter buffer
 per call. Selection among equally eligible buffered balls uses JS Set insertion
 order instead of native unordered pointer hashing. Re-add cancels pending deletion.
-ClearAll releases references without final-cleanup callbacks or resetting clocks.
+ClearAll releases park references without mode/final-cleanup callbacks or resetting
+clocks; externally retained handles keep their mode, follower links and reservations.
 Capsule cleanup, automatic bubble membership and ClientBall timestamp-cache
 shifts now work. See [geometry and ownership](../docs/destiny-geometry.md)
 for native shape cleanup quirks.

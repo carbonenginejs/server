@@ -52,7 +52,7 @@ test("Potential coincident overlap restores both positions and chooses signed-ID
 {
     const { park, a, b } = pair();
     park.Potential(a, b);
-    close(a.mLastC[0], 2.55); assert.deepEqual(a.mNewPos, [0, 0, 0]); assert.deepEqual(b.mNewPos, [0, 0, 0]);
+    close(a.mLastC[0], 2.55); assert.deepEqual(Array.from(a.mNewPos), [0, 0, 0]); assert.deepEqual(Array.from(b.mNewPos), [0, 0, 0]);
     assert.deepEqual(a.mCollisions, [2n]); assert.equal(a.mLastCollision, 0);
     park.Potential(b, a); close(b.mLastC[0], -2.55);
 });
@@ -61,17 +61,17 @@ test("Potential separating overlap can recurse without recording any contact", (
 {
     const { park, a, b } = pair(); a.mNewVel[0] = 1; b.mNewVel[0] = -1;
     park.Potential(a, b);
-    assert.deepEqual(a.mNewPos, [0, 0, 0]); assert.deepEqual(b.mNewPos, [0, 0, 0]);
-    assert.deepEqual(a.mCollisions, []); assert.deepEqual(a.mLastC, [0, 0, 0]);
+    assert.deepEqual(Array.from(a.mNewPos), [0, 0, 0]); assert.deepEqual(Array.from(b.mNewPos), [0, 0, 0]);
+    assert.deepEqual(a.mCollisions, []); assert.deepEqual(Array.from(a.mLastC), [0, 0, 0]);
 });
 
 test("Potential rejects earlier force and missile-target force but still records contact", () =>
 {
     const { park, a, b } = pair(); b.isFree = false;
     a.mLastCollision = 0.5; a.mLastC = [9, 8, 7];
-    park.Potential(a, b); assert.deepEqual(a.mLastC, [9, 8, 7]); assert.deepEqual(a.mCollisions, [2n]);
+    park.Potential(a, b); assert.deepEqual(Array.from(a.mLastC), [9, 8, 7]); assert.deepEqual(a.mCollisions, [2n]);
     a.mLastCollision = -1; a.mMode = Ball.DSTBALLMODE.DSTBALL_MISSILE; a.mFollowId = b.id;
-    park.Potential(a, b); assert.deepEqual(a.mLastC, [9, 8, 7]); assert.equal(a.mLastCollision, -1);
+    park.Potential(a, b); assert.deepEqual(Array.from(a.mLastC), [9, 8, 7]); assert.equal(a.mLastCollision, -1);
     assert.deepEqual(a.mCollisions, [2n, 2n]);
 });
 
@@ -100,5 +100,5 @@ test("Evolve evaluates all behavior before collision and retains nonmassive last
     park.Evolve();
     assert.deepEqual(calls, ["behavior1", "behavior2", "collision1"]);
     assert.ok(a.x > 0); assert.equal(b.x, 0); assert.equal(b.mLastCollision, 0.75);
-    assert.deepEqual(b.mLastC, [0, 0, 0]); assert.deepEqual(b.mCollisions, []);
+    assert.deepEqual(Array.from(b.mLastC), [0, 0, 0]); assert.deepEqual(b.mCollisions, []);
 });

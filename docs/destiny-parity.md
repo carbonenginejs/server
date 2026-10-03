@@ -34,30 +34,31 @@ has been introduced. Nothing was promoted from generated source or regenerated.
 
 ## Adaptations and constraints
 
-- Native `Vector3d` movement values are scalar JS Numbers, following the Blue
-  position/velocity surface. This preserves double precision without allocating
-  f32 runtime vectors. Server-owned `destiny/math/vec3d.js` supplies float64
-  storage for new scratch and pooled recursion frames; arithmetic continues to
-  use runtime vec3 operations. Existing Number-array state remains double precision.
+- Native `Vector3d` movement values use double-precision JS components. Ball
+  position, velocity, target and force fields now use server-owned `vec3d` factory
+  storage; the inherited previous-position field still uses a Number array.
+  Server-owned float64 scratch/pools preserve precision; arithmetic continues to
+  use runtime vec3 operations. Runtime allocation defaults are unchanged.
 - Native float parameters are rounded with `Math.fround` at controller boundaries.
   Setters maintain the cached drag factor. Direct field writes bypass native-like
   validation and hooks, so physical changes must use the controller.
 - IDs and native timestamps use signed-int64 BigInts, with checked safe Number
   inputs. Maps, follower links and Actions share canonical IDs. Native local-ID
-  allocation is implemented; Blue-specific negative-target rejection remains unported.
+  allocation is implemented; PyFollowBall/PyOrbit apply Blue-specific negative-target rejection.
 - There is a single implicit region. Removal supports native delay/buffering and
   an optional injected PyOS bridge for tick/final-cleanup callbacks. Collision
   forces and legacy client orientation/interpolation are implemented; networking,
   full orientation and spatial notifications remain incomplete.
   Boolean flags are retained as data; only `isFree`/`isMoribund` affect tick participation,
-  and follow/orbit validate target cloaking/death when receiving a command.
+  and follow/orbit validate target cloaking/death and bubble identity when receiving a command.
 - Mobile balls with nonpositive or nonfinite mass/agility fail before tick mutation.
   Static balls may have zero mass. This avoids pretending the native zero-mass thrust
   division is a supported movement case. Unknown/unsupported mobile modes also throw.
 - Nonfinite input is rejected or ignored, as documented by the method. This extends
   native guards to finite f32 conversions and position/velocity setters.
 - Re-adding a follower explicitly detaches its previous target. Re-adding a target
-  retains its object identity and valid incoming follower references.
+  retains its object identity and valid incoming follower references. This remains
+  an adaptation; native replacement-state and callback-phase parity needs a separate audit.
 - The legacy orbit zero-distance, zero-total-radius tangent computes `0/0` in the
   donor (`Ballpark.cpp:1287–1294`). This port skips that undefined tangent and applies
   zero thrust. This deliberate correction is covered by a regression test.
@@ -477,3 +478,18 @@ a four-ball recursive graph, reentrant sampling and exceptional pool cleanup.
 Collision discovery, iterative scheduling and conditional cache cleanup now
 connect these kernels to Evolve. See the [collision contract](destiny-collision-records.md)
 for source ordering, pool ownership, settings hazards and native comparison quirks.
+
+
+## Movement transitions and formations
+
+The [formation guide](destiny-formations.md) records native pointer/ID overloads,
+command guard order, callback-visible state, replica follower validation and
+master reservation cleanup. Creation and implemented commands use SetMode.
+ClearAll now follows native teardown without calling Stop or changing retained
+movement/follower state. Formation vectors use owned float64 factories; rotated
+float32 temporaries and goto wrapper vectors return to their pools on throws.
+
+Twenty-eight new tests bring the suite to 513, including both literal donor
+formation trajectories. Native signed/unsigned formation bytes, empty-size
+underflow, stale reservation bits and callback reentry are covered. No native
+executable or networked formation synchronization is claimed.

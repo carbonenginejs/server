@@ -23,7 +23,7 @@ and its recorded adaptations are described in [destiny-parity.md](destiny-parity
 
 `CjsBallparkController` and `CjsDestinyBall` currently provide object lifecycle,
 fixed one-second ticks, drag integration, goto point/direction, follow, legacy/new
-orbit, and stopping. Seventeen tests passed when this plan was prepared,
+orbit, formation following and stopping. Seventeen tests passed when this plan was prepared,
 including six numeric donor trajectories. Automatic bubbles and legacy collisions
 now work; full orientation, queries, warp and replication remain unfinished.
 
@@ -258,6 +258,11 @@ cleanup. In symmetric ambiguous contacts, investigate native iteration order
 before imposing a new sort and calling it parity.
 
 ## Phase 6 Remaining movement and special physical states
+
+Current: [formation loading, reservations and rotated following](destiny-formations.md)
+are implemented with both native formation trajectories. Existing goto/follow/orbit/stop
+commands now preserve native mode-event and follower-cleanup ordering. Warp, missiles
+and the other special movement modes remain unfinished.
 
 Implement warp alignment and entry predicates, phase constants, distance/velocity
 evaluation, short and long warps, termination, entity warp-in and source destination

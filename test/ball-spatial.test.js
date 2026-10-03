@@ -18,8 +18,13 @@ const active = ball => ball.mActiveBoxes.flatMap((value, index) => value ? [inde
 test("Ball inherits native spatial state and scalar accessors share its storage", () =>
 {
     const a = new Ball(), b = new Ball();
+    for (const field of ["mNewPos", "mNewVel", "mOldVel", "mGoto", "mLastG", "mLastC"])
+    {
+        assert.ok(a[field] instanceof Float64Array);
+        assert.notEqual(a[field], b[field]);
+    }
     assert.equal(Object.getPrototypeOf(Ball.prototype), Partitionable.prototype);
-    assert.deepEqual(a.mNewPos, [1e10, 1e10, 1e10]);
+    assert.deepEqual(Array.from(a.mNewPos), [1e10, 1e10, 1e10]);
     assert.deepEqual(a.mOldPos, [0, 0, 0]);
     assert.equal(a.mPark, null);
     assert.deepEqual(a.mMod, [-2, -2, -2]);
@@ -39,8 +44,8 @@ test("Ball inherits native spatial state and scalar accessors share its storage"
     assert.equal(a.mGoto[0], 7);
     a._oldX = 8;
     assert.equal(a.mOldPos[0], 8);
-    assert.deepEqual(b.mNewPos, [1e10, 1e10, 1e10]);
-    assert.deepEqual(b.mNewVel, [0, 0, 0]);
+    assert.deepEqual(Array.from(b.mNewPos), [1e10, 1e10, 1e10]);
+    assert.deepEqual(Array.from(b.mNewVel), [0, 0, 0]);
 });
 
 test("Inflated radius uses the native cached factor and physical radius for fixed balls", () =>

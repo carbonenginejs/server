@@ -61,8 +61,8 @@ repair or duplicate cleanup. A generated duplicate ID still allocates a new
 object and reports the collision, preserving the donor's displacement hazard.
 
 `SetMode` sends exit-warp before mode-change and stores the mode after callbacks
-(`Ball.cpp:905-938`). MiniBall creation and `Stop` use it, including child removal.
-Other pre-existing movement assignments still need migration to this event path.
+(`Ball.cpp:905-938`). Creation, goto, follow, orbit, formation and `Stop` use it, including child removal.
+See [movement transitions](destiny-formations.md) for callback ordering.
 No warp behavior is implied by exposing the exit-warp notification.
 
 ## Lifecycle and callbacks
