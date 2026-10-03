@@ -7,7 +7,7 @@ Summary: Current implementation and the families still required for completion.
 
 The target is the whole public Destiny donor, not only features used by a racing
 demo. Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
-The current server suite has 699 passing CPU tests against runtime alpha.9.
+The current server suite has 720 passing CPU tests against runtime alpha.9.
 
 | Family | Current status |
 |---|---|
@@ -24,8 +24,8 @@ The current server suite has 699 passing CPU tests against runtime alpha.9.
 | New orbit | Both orientation paths implemented; all four native scenarios pass; physical-heading fallback implemented |
 | Formations | Loading, 16-bit reservations, leader assignment, native follow transitions and rotated steering implemented; both donor trajectories pass |
 | Orientation and movement modes | Legacy/dynamic steering/evolution/sampling, impact rotation and oriented creation implemented; warp and missile paths implemented; mushroom growth/expiry, troll petrification, rigid/boid/field controls and passive native mode dispatch implemented; mode stream/export semantics pending |
-| Visibility, range/volume queries, sensors and relative motion | Periodic sensors, destination notifications, target tracking, cloak/uncloak, sphere visibility, range/triangle/cone/capsule queries, full-map scan and distances implemented; relative-motion calculations and accuracy pending |
-| ClientBall interpolation, snapshots and binary streams | Number/BigInt tick position, velocity, acceleration, legacy/impact/dynamic rotation, deltas and ego reference implemented; interface registration, relative motion, snapshots and streams pending |
+| Visibility, range/volume queries, sensors and relative motion | Periodic sensors, destination notifications, target tracking, cloak/uncloak, sphere visibility, range/triangle/cone/capsule queries, full-map scan, distances, relative motion and accuracy implemented |
+| ClientBall interpolation, snapshots and binary streams | Number/BigInt tick position, velocity, acceleration, legacy/impact/dynamic rotation, relative motion, deltas and ego reference implemented; interface registration, snapshots and streams pending |
 | Server tickers, bubble updates and recipient batching | Pending |
 | Client history merging, wait rules, restore and replay | Pending |
 | Settings and settings utility functions | Native globals, configuration snapshots, bindings and aliases implemented |

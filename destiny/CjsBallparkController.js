@@ -4610,6 +4610,83 @@ export class CjsBallparkController
     }
 
     /**
+     * Calculates Carbon accuracy, replacing range and tracking references on success.
+     * Adaptation: {value} records represent native double references; seven scalar
+     * arguments select the Blue wrapper and return its three-element list instead.
+     * Scalar doubles replace local vectors. Native negative roundoff is not clamped.
+     * Source: destiny/src/Ballpark.cpp:5156-5217; destiny/src/Ballpark.h:777-790;
+     * destiny/src/Ballpark_Blue.cpp:549-555.
+     * @param {bigint|number} srcId Source identity.
+     * @param {bigint|number} dstId Target identity.
+     * @param {object|number|boolean|bigint} optimalRange Range reference, or scalar Blue argument.
+     * @param {number|boolean|bigint} falloff Falloff distance; only zero is rejected.
+     * @param {object|number|boolean|bigint} trackingSpeed Tracking reference, or scalar Blue argument.
+     * @param {number|boolean|bigint} signatureRadius Target signature radius.
+     * @param {number|boolean|bigint} optimalSignatureRadius Optimal signature radius.
+     * @returns {number|number[]} Accuracy for reference arguments, or the Blue result list.
+     */
+    @meta.blue.method
+    @meta.adapted
+    GetAccuracy(srcId, dstId, optimalRange, falloff, trackingSpeed, signatureRadius, optimalSignatureRadius)
+    {
+        if (arguments.length !== 7) throw new TypeError("GetAccuracy requires 7 arguments");
+        if (typeof optimalRange !== "object" && typeof trackingSpeed !== "object")
+            return this.PyGetAccuracy(srcId, dstId, optimalRange, falloff, trackingSpeed, signatureRadius, optimalSignatureRadius);
+        if (!optimalRange || !trackingSpeed || typeof optimalRange !== "object" || typeof trackingSpeed !== "object")
+            throw new TypeError("GetAccuracy requires two numeric arguments or two value references");
+        srcId = CjsDestinyBall._toInt64(srcId); dstId = CjsDestinyBall._toInt64(dstId);
+        if (srcId === dstId) return 0;
+        const source = this.GetBall(srcId), target = this.GetBall(dstId);
+        if (!source || !target || optimalRange.value < 0) return 0;
+        if (trackingSpeed.value === 0 || signatureRadius === 0 || falloff === 0) return 0;
+        const x = target.mNewPos[0] - source.mNewPos[0], y = target.mNewPos[1] - source.mNewPos[1], z = target.mNewPos[2] - source.mNewPos[2];
+        const dist = Math.sqrt(x * x + y * y + z * z);
+        let shortDist = (dist - target.mRadius) - source.mRadius;
+        if (shortDist < 0) shortDist = 0;
+        if (dist === 0) return 0;
+        const vx = target.mNewVel[0] - source.mNewVel[0], vy = target.mNewVel[1] - source.mNewVel[1], vz = target.mNewVel[2] - source.mNewVel[2];
+        const radialSpeed = (vx * x + vy * y + vz * z) / dist;
+        const speed2 = (vx * vx + vy * vy + vz * vz - radialSpeed * radialSpeed) / (dist * dist);
+        let exponent = optimalSignatureRadius / (trackingSpeed.value * signatureRadius);
+        exponent *= -exponent * speed2;
+        if (shortDist > optimalRange.value)
+            exponent -= (shortDist - optimalRange.value) * (shortDist - optimalRange.value) / (falloff * falloff);
+        optimalRange.value = shortDist;
+        trackingSpeed.value = Math.sqrt(speed2);
+        return Math.pow(2, exponent);
+    }
+
+    /**
+     * Returns the Python accuracy list, including mutated range and tracking outputs.
+     * Adaptation: local value records replace C++ references, and a JS array replaces
+     * PyList. All seven arguments are required despite the donor's optional comment.
+     * Boolean/BigInt scalar inputs follow Python numeric-to-double conversion;
+     * arbitrary Python numeric objects have no JavaScript binding equivalent here.
+     * Source: destiny/src/Thunkers.cpp:2044-2076.
+     * @param {bigint|number} srcId Source identity.
+     * @param {bigint|number} dstId Target identity.
+     * @param {number|boolean|bigint} optimalRange Input optimal range.
+     * @param {number|boolean|bigint} falloff Input falloff.
+     * @param {number|boolean|bigint} trackingSpeed Input tracking speed.
+     * @param {number|boolean|bigint} signatureRadius Target signature radius.
+     * @param {number|boolean|bigint} optimalSignatureRadius Optimal signature radius.
+     * @returns {number[]} Accuracy, output range and output tracking speed.
+     */
+    @meta.adapted
+    PyGetAccuracy(srcId, dstId, optimalRange, falloff, trackingSpeed, signatureRadius, optimalSignatureRadius)
+    {
+        if (arguments.length !== 7) throw new TypeError("PyGetAccuracy requires 7 arguments");
+        optimalRange = CjsBallparkController._accuracyDouble(optimalRange);
+        falloff = CjsBallparkController._accuracyDouble(falloff);
+        trackingSpeed = CjsBallparkController._accuracyDouble(trackingSpeed);
+        signatureRadius = CjsBallparkController._accuracyDouble(signatureRadius);
+        optimalSignatureRadius = CjsBallparkController._accuracyDouble(optimalSignatureRadius);
+        const range = { value: optimalRange }, tracking = { value: trackingSpeed };
+        const accuracy = this.GetAccuracy(srcId, dstId, range, falloff, tracking, signatureRadius, optimalSignatureRadius);
+        return [accuracy, range.value, tracking.value];
+    }
+
+    /**
      * Gets the native bubble dictionary without filtering its pending action values.
      * Adaptation: Map replaces PyDict; missing storage/null input throw JS errors.
      * The -1 bubble creates an empty Map; an absent named bubble returns null.
@@ -5745,6 +5822,28 @@ export class CjsBallparkController
         const b = c1 / c2;
         const dx = a[0] + b * ab[0] - p[0], dy = a[1] + b * ab[1] - p[1], dz = a[2] + b * ab[2] - p[2];
         return dx * dx + dy * dy + dz * dz;
+    }
+
+    /**
+     * Converts an accuracy wrapper's Python-shaped scalar double argument.
+     * Adaptation: primitive Number, Boolean and BigInt cover JavaScript scalar
+     * inputs; BigInt overflow throws while explicit Number NaN/Infinity remain.
+     * The consumer is the d fields in destiny/src/Thunkers.cpp:2057-2066.
+     * @param {number|boolean|bigint} value Numeric scalar without string coercion.
+     * @returns {number} Double-precision argument value.
+     */
+    @meta.ours
+    static _accuracyDouble(value)
+    {
+        if (typeof value === "number") return value;
+        if (typeof value === "boolean") return Number(value);
+        if (typeof value === "bigint")
+        {
+            const result = Number(value);
+            if (!Number.isFinite(result)) throw new RangeError("PyGetAccuracy integer overflows double");
+            return result;
+        }
+        throw new TypeError("PyGetAccuracy requires numeric accuracy parameters");
     }
 
     static collisionFrames = [];

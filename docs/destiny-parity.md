@@ -311,8 +311,8 @@ select position/rotation by output length and fill caller-owned buffers. Float64
 state and distinct class scratch slots protect nested ego-reference sampling.
 See [ClientBall curves](destiny-client-curves.md) for per-contract donor ranges,
 cache quirks and explicitly unsupported native branches. Complete native interface
-registration and relative-motion methods remain
-open; no runtime files were changed to introduce this renderer-method subset.
+registration remains open; relative motion is covered below. No runtime files
+were changed to introduce this renderer-method subset.
 
 ClientBall impact rotation now retains the native cached inverse-inertia formula,
 strict impulse threshold, goal-angle cap, independent growth/recovery phases and
@@ -598,8 +598,8 @@ survive notification callback detachment. Map insertion order replaces native
 unordered traversal, and Math.random replaces the CRT shuffle sequence.
 SetBallRadius now accepts the native pointer overload and rejects only negative
 radii, removing the earlier JS finite-value guard. Cloak commands and sphere
-visibility are covered below; other queries and relative-motion families remain
-unfinished. No native executable oracle ran.
+visibility, spatial queries and relative-motion families are covered below.
+No native executable oracle ran.
 
 ## Cloak commands and sphere visibility
 
@@ -641,3 +641,21 @@ stale bubble entries. Two donor cone fixtures omitted bubble initialization;
 tests preserve those literal cases and add initialized counterparts. Fixed-size
 geometry scratch comes from factories on the class; returned lists are owned.
 Destiny remains 114e89f. No runtime changes or native executable oracle.
+
+## Relative velocities and accuracy
+
+[Relative motion](destiny-relative-motion.md) implements Ball and ClientBall
+calculations with caller-owned output records, native flag dependencies and
+partial-write behavior. ClientBall samples at the donor-selected shared time,
+preserves float32 velocity subtraction, and uses pools across reentrant curve
+calls. Dynamic angular compensation leaves raw transversal speed unchanged.
+
+GetAccuracy retains the source subtraction formula, including negative-roundoff
+NaN tracking and accuracy above one. Reference arguments and the seven-scalar
+Blue wrapper preserve output order and early-return values. The two-tick client
+offset widens to BigInt like GetShiftedTime; final int64 overflow throws.
+
+Twenty-one tests bring the suite to 720, including all seven donor accuracy
+fixtures, independent relative-motion examples, cached curves, nested sampling,
+exception pool balance, precision and reference aliasing. Donor remains 114e89f;
+runtime remains untouched. Interfaces, streams, network batches and replay stay open.

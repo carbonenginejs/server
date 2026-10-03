@@ -411,6 +411,55 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     }
 
     /**
+     * Calculates relative, radial, transversal and angular motion from committed state.
+     * Adaptation: caller-owned out fields replace native reference arguments; scalar
+     * doubles replace stack vectors. Unrequested or singular outputs remain untouched.
+     * Source: destiny/src/Ball.cpp:161-222; destiny/src/Ball.h:365-375.
+     * @param {CjsDestinyBall|null} target Ball measured relative to this ball.
+     * @param {boolean} calcRelative Calculate relative velocity.
+     * @param {boolean} calcRadial Also calculate radial velocity and surface distance.
+     * @param {boolean} calcTransversal Also calculate transversal speed.
+     * @param {boolean} calcAngular Also calculate angular speed, compensating dynamic spin.
+     * @param {object} out Owned relVel vector and radVel, shortDist, transVel, angVel scalars.
+     * @returns {object} The supplied output record, possibly only partially updated.
+     */
+    @meta.adapted
+    CalculateRelativeVelocities(target, calcRelative, calcRadial, calcTransversal, calcAngular, out)
+    {
+        if (!target) return out;
+        if (calcAngular) calcTransversal = true;
+        if (calcTransversal) calcRadial = true;
+        if (calcRadial) calcRelative = true;
+        if (!calcRelative) return out;
+        vec3.subtract(out.relVel, target.mNewVel, this.mNewVel);
+        if (!calcRadial) return out;
+        let x = target.mNewPos[0] - this.mNewPos[0], y = target.mNewPos[1] - this.mNewPos[1], z = target.mNewPos[2] - this.mNewPos[2];
+        const dist = Math.sqrt(x * x + y * y + z * z);
+        if (dist === 0) return out;
+        const shortDist = (dist - target.mRadius) - this.mRadius;
+        out.shortDist = shortDist < 0 ? 0 : shortDist;
+        const reciprocal = 1 / dist;
+        x *= reciprocal; y *= reciprocal; z *= reciprocal;
+        out.radVel = out.relVel[0] * x + out.relVel[1] * y + out.relVel[2] * z;
+        if (!calcTransversal) return out;
+        let tx = out.relVel[0] - out.radVel * x, ty = out.relVel[1] - out.radVel * y, tz = out.relVel[2] - out.radVel * z;
+        out.transVel = Math.sqrt(tx * tx + ty * ty + tz * tz);
+        if (calcAngular)
+        {
+            if (g_useDynamicalOrientation)
+            {
+                const wx = this.mNewAngVel[0], wy = this.mNewAngVel[1], wz = this.mNewAngVel[2];
+                tx -= (wy * z - wz * y) * dist;
+                ty -= (wz * x - wx * z) * dist;
+                tz -= (wx * y - wy * x) * dist;
+                out.angVel = Math.sqrt(tx * tx + ty * ty + tz * tz) / dist;
+            }
+            else out.angVel = out.transVel / dist;
+        }
+        return out;
+    }
+
+    /**
      * Evolves Carbon's velocity-directed, mass-damped legacy orientation.
      * Adaptation: scalar components replace temporary Vector3d objects. Detached
      * reporting uses the native shared callback through a direct JS function.

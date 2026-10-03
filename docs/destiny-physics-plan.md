@@ -301,8 +301,8 @@ are implemented with their distinct filters and native boundary rules.
 Notification ranges, target tracking events and periodic sensors now work,
 including entered/exited sets, dead-bubble handling and callback cleanup.
 Sensor shuffle uses the replaceable Ball.floatrand adapter; it does not reproduce
-the native CRT random sequence. Add relative-motion calculations and GetAccuracy,
-including native wrapper output values. Cloak/uncloak side effects, numeric cloak
+the native CRT random sequence. [Relative-motion calculations and GetAccuracy](destiny-relative-motion.md)
+are implemented, including native wrapper output values. Cloak/uncloak side effects, numeric cloak
 state and queued cloak metadata/pending helpers are implemented. Other setter
 side effects and native ticker routing remain unfinished.
 

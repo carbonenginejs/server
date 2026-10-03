@@ -57,6 +57,7 @@ The 17 callback scenarios in destiny/python/destiny/test/ballpark/test_callbacks
 are translated alongside numeric and callback-lifetime cases in proximity.test.js.
 
 [Cloak/uncloak commands](destiny-visibility.md) now integrate sensor ownership and
-same-bubble contact clearing. General spatial queries, relative-motion calculations
-and network replication remain unfinished. See [port status](port-status.md) for
+same-bubble contact clearing. [Spatial queries](destiny-queries.md) and
+[relative motion](destiny-relative-motion.md) are implemented; network replication
+remains unfinished. See [port status](port-status.md) for
 the full boundary and [warp](destiny-warp.md) for sensor activity transitions.

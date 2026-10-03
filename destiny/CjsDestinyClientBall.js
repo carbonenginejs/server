@@ -10,6 +10,7 @@ const f32 = Math.fround;
 // Source: destiny/src/Ball.h:395-604
 // Source: destiny/src/Ball.cpp:33-59,865-901,951-1116,1208-1457
 // Source: destiny/src/Ball.cpp:1469-1487,1927-1935,2000-2124
+// Source: destiny/src/Ball.cpp:1118-1191
 // Source: destiny/src/Ball_Blue.cpp:538-616
 /** Carbon ClientBall motion curves, legacy orientation and derived impact rotation. */
 @meta.define({ className: "CjsDestinyClientBall", modelledOn: "ClientBall" })
@@ -50,6 +51,77 @@ export class CjsDestinyClientBall extends CjsDestinyBall
     mVelocityGoalAtVelocityPeak = quat.create();
     mSpeedModifier = 10;
     mMinimumAngularVelocity = f32(0.01);
+
+    /**
+     * Calculates relative motion after sampling both client curves at Carbon's shared time.
+     * Adaptation: out replaces reference arguments; pooled float32 sample storage
+     * survives reentry and is returned in finally. Scalar snapshots replace local
+     * vectors. Tick offsets widen to BigInt like GetShiftedTime; final int64
+     * overflow throws rather than reproducing undefined native arithmetic. Float32
+     * subtraction is retained before widening the relative velocity to float64.
+     * Source: destiny/src/Ball.cpp:1118-1191; destiny/src/Ball.h:469-481.
+     * @param {CjsDestinyClientBall|null} target Client ball to sample.
+     * @param {boolean} calcRelative Calculate relative velocity.
+     * @param {boolean} calcRadial Also calculate radial velocity and surface distance.
+     * @param {boolean} calcTransversal Also calculate transversal speed.
+     * @param {boolean} calcAngular Also sample rotation and compensate dynamic spin.
+     * @param {object} out Owned float64 relVel vector and radVel, shortDist, transVel, angVel scalars.
+     * @returns {object} Supplied record, preserving unrequested and singular outputs.
+     */
+    @meta.adapted
+    CalculateRelativeVelocities(target, calcRelative, calcRadial, calcTransversal, calcAngular, out)
+    {
+        if (!target) return out;
+        if (calcAngular) calcTransversal = true;
+        if (calcTransversal) calcRadial = true;
+        if (calcRadial) calcRelative = true;
+        if (!calcRelative) return out;
+        let currentTime = CjsDestinyBall._toInt64(this.mOldTime);
+        const positionTime = CjsDestinyBall._toInt64(this.mPosUpdateTime);
+        const rotationTime = CjsDestinyBall._toInt64(this.mRotUpdateTime);
+        const targetTime = CjsDestinyBall._toInt64(target.mPosUpdateTime);
+        if (positionTime > currentTime) currentTime = positionTime;
+        if (rotationTime > currentTime) currentTime = rotationTime;
+        if (targetTime > currentTime) currentTime = targetTime;
+        currentTime = CjsDestinyBall._toInt64(currentTime + 2n * BigInt(this.mPark.tickInterval) * 10000n);
+        const vec3_0 = vec3.alloc();
+        try
+        {
+            this.GetValueDotAt(currentTime, vec3_0);
+            const sx = vec3_0[0], sy = vec3_0[1], sz = vec3_0[2];
+            target.GetValueDotAt(currentTime, vec3_0);
+            vec3.set(out.relVel, f32(vec3_0[0] - sx), f32(vec3_0[1] - sy), f32(vec3_0[2] - sz));
+        }
+        finally { vec3.unalloc(vec3_0); }
+        if (!calcRadial) return out;
+        let x = target.mLastPos[0] - this.mLastPos[0], y = target.mLastPos[1] - this.mLastPos[1], z = target.mLastPos[2] - this.mLastPos[2];
+        const dist = Math.sqrt(x * x + y * y + z * z);
+        if (dist === 0) return out;
+        const shortDist = (dist - target.mRadius) - this.mRadius;
+        out.shortDist = shortDist < 0 ? 0 : shortDist;
+        const reciprocal = 1 / dist;
+        x *= reciprocal; y *= reciprocal; z *= reciprocal;
+        out.radVel = out.relVel[0] * x + out.relVel[1] * y + out.relVel[2] * z;
+        if (!calcTransversal) return out;
+        let tx = out.relVel[0] - out.radVel * x, ty = out.relVel[1] - out.radVel * y, tz = out.relVel[2] - out.radVel * z;
+        out.transVel = Math.sqrt(tx * tx + ty * ty + tz * tz);
+        if (calcAngular)
+        {
+            if (g_useDynamicalOrientation)
+            {
+                const quat_0 = quat.alloc();
+                try { this.GetValueAt(currentTime, quat_0); }
+                finally { quat.unalloc(quat_0); }
+                const wx = this.mLastAngVel[0], wy = this.mLastAngVel[1], wz = this.mLastAngVel[2];
+                tx -= (wy * z - wz * y) * dist;
+                ty -= (wz * x - wx * z) * dist;
+                tz -= (wx * y - wy * x) * dist;
+                out.angVel = Math.sqrt(tx * tx + ty * ty + tz * tz) / dist;
+            }
+            else out.angVel = out.transVel / dist;
+        }
+        return out;
+    }
 
     /**
      * Evolves native yaw/pitch/roll and snaps the cached quaternion when requested.
@@ -105,6 +177,8 @@ export class CjsDestinyClientBall extends CjsDestinyBall
     /**
      * Applies Carbon's two-tick rendering delay on the same Blue-start clock.
      * Adaptation: safe Number ticks normalize to BigInt; Number never means seconds.
+     * The offset widens to BigInt rather than reproducing native int32 overflow
+     * for tick intervals above 107374 ms.
      * @param {number|bigint} time Elapsed 100ns ticks since the scene's Blue startup.
      * @returns {bigint} Shifted ticks, or unchanged ticks when detached.
      */

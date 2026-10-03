@@ -70,6 +70,7 @@ float32 boundaries, output aliasing and degenerate inputs. No native executable
 oracle is required or claimed.
 
 Class-owned float64 scratch is used only within synchronous geometry methods;
-returned result arrays belong to the caller. Runtime is unchanged. Relative
-motion, accuracy, native network batching and replay remain separate work.
+returned result arrays belong to the caller. Runtime is unchanged.
+[Relative motion and accuracy](destiny-relative-motion.md) are implemented;
+native network batching and replay remain separate work.
 See [visibility](destiny-visibility.md) and [port status](port-status.md).

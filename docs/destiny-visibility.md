@@ -56,5 +56,5 @@ with additional boundary, byte, callback and sensor integration cases.
 [Actions](destiny-actions.md) retain bubble delivery hints; native ticker routing,
 signals, visibility-based recipient batches and cloak/uncloak conflict handling
 remain unported. [General volume queries](destiny-queries.md) are implemented;
-relative-motion calculations remain separate work. See [proximity](destiny-proximity.md)
+[relative-motion calculations](destiny-relative-motion.md) are also implemented. See [proximity](destiny-proximity.md)
 and [port status](port-status.md).
