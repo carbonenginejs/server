@@ -420,3 +420,27 @@ Tests cover the settings-independent creation methods, single legacy snap,
 noncommuting backstep, nonunit rotations, ID probe/reuse asymmetries, detached
 properties, attached store-before-notify behavior, the ClientBall shadow and
 nested creation during spatial callbacks with dirty scratch.
+
+
+## Collision history records
+
+CollisionImpact, CollisionItem and BallLocation follow CollisionStructures.h/cpp.
+CollisionBallProperties ports every declared history method, including default
+construction, initialization, impact insertion/removal, endpoint rebuilding,
+collision ignoring and position/rotation sampling. Native value assignments copy
+factory-owned math storage. JS storage grows lazily and reuses removed records;
+regrown records reset all native fields, while surviving records stay untouched.
+The native vector capacity hint does not impose a history-size cap.
+
+Caller-owned invalidation pairs replace returned C++ vectors; BigInt normalization
+preserves signed-int64 IDs. Pooled integration temporaries are returned through
+finally, and output staging supports aliases without sharing live scratch across
+nested sampling. Undefined initial times represent native indeterminate members.
+Stable JS object references avoid native vector-reference invalidation on growth.
+
+The missing-removal bug, different invalidation orders and sampling inequalities,
+equal-time insertion, nonfinite-time comparisons, dynamic-off angular retention
+and elapsed-seconds-as-angular-fraction behavior are preserved. The
+[record contract](destiny-collision-records.md) describes those cases and tests.
+These records work through both existing park sampling dispatchers; the iterative
+producer, response propagation, scheduler and cleanup remain unfinished.

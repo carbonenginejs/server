@@ -230,6 +230,11 @@ not one universal decimal threshold.
 
 ## Phase 5 Iterative collision response
 
+Current partial implementation: CollisionImpact, CollisionItem, BallLocation and
+CollisionBallProperties now provide native ordered history and sampling. Earliest
+impact discovery, impulse responses, recursive propagation, scheduling and cache
+lifecycle remain unfinished; iterative Evolve still throws.
+
 Add collision location/impact records and their ordered intervals. Port earliest
 impact discovery, static and free-body responses, propagation to neighbors,
 invalidation of later impacts and re-integration. Include initial-overlap handling,

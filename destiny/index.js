@@ -3,3 +3,5 @@ export { CjsDestinyClientBall } from "./CjsDestinyClientBall.js";
 export { GetBoxCenter } from "./partition/partition-blue.js";
 export { CjsBallparkController } from "./CjsBallparkController.js";
 export { CjsDestinySettingsConfiguration, CjsDestinyGlobalSettings, settings } from "./Settings/index.js";
+export { CollisionImpact, CollisionItem, BallLocation } from "./CollisionStructures.js";
+export { CollisionBallProperties } from "./CollisionBallProperties.js";

@@ -47,4 +47,6 @@ Destiny settings preserve the donor's module-global ownership. Apply copies
 configuration values; Get returns detached snapshots. Existing parks read live
 globals at native decision sites. New orbit, dynamic steering, angular tick
 integration and client sampling are implemented for supported movement modes.
-The selected iterative collision solver still throws before movement. See [settings](destiny-settings.md).
+The collision history records provide native interval sampling and invalidation;
+the iterative scheduler and responses remain unported. The selected iterative
+collision solver still throws before movement. See [settings](destiny-settings.md).

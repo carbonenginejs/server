@@ -11,6 +11,7 @@ Summary: Current APIs, source correspondence and remaining port work.
 - [Global settings and orbit selection](destiny-settings.md)
 - [Action queue](destiny-actions.md)
 - [Numeric collision geometry](destiny-geometry.md)
+- [Collision history records](destiny-collision-records.md)
 - [Spatial partition](../destiny/partition/README.md)
 - [Bubble lifecycle and activity](destiny-bubbles.md)
 - [Source correspondence and adaptations](destiny-parity.md)
