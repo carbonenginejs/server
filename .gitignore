@@ -1,0 +1,22 @@
+node_modules/
+dist/
+npm/
+coverage/
+.cache/
+.tmp/
+.scratch/
+.agent/
+.agents/
+.claude/
+.codex/
+.skill/
+.skills/
+review/
+_review/
+*.log
+.env
+.env.*
+!.env.example
+
+# Local documentation and plans are temporarily untracked.
+/docs/
