@@ -342,7 +342,7 @@ and direct collision-record dispatch. Record production is still incomplete.
 `SetMaxAngularSpeed`, `SetBallAngularVelocity`, `SetBallRotation` and
 `SetBallAngularAgility` retain the guards and float casts at
 `Ballpark.cpp:4721-4732,4802-4846,4958-4966`. Their missing-ID lookup uses the
-existing non-inserting JS GetBall convention. Native acceptance of nonfinite
+native non-inserting MapOfBalls contract. Native acceptance of nonfinite
 values is retained where its ordered comparisons allow them.
 
 All fixed-size math storage comes from runtime factories; temporary storage is
@@ -360,7 +360,7 @@ heading plus roll, and cover zero-fraction dispatch, nonunit/zero quaternions,
 setter thresholds, native reverse/downward-heading quirks and aliased scratch.
 The four GotoTorque/GotoRoll variants now feed native dynamic behavior, staged
 tick integration and client interpolation. Iterative collision record production
-and oriented-creation wrappers remain unfinished.
+remains unfinished; native oriented-creation methods are described below.
 
 
 ## Dynamic steering and evolution
@@ -388,3 +388,35 @@ branch choices without changing runtime. Tests cover analytic acceleration and
 braking, banking suppression, scratch aliases, preview versus authoritative state,
 all-ball staging, independent commit rejection and delayed client sampling.
 These are source-derived and analytic checks, not native-executable trajectories.
+
+
+## Oriented creation and angular properties
+
+`AddBall` now follows raw C++ creation and leaves orientation unchanged. This
+removes the earlier implicit legacy snap. Call `AddOldStyleOrientedBall` for
+one legacy snap of a free ball, or `AddDynamicallyOrientedBall` for explicit
+quaternion, angular velocity, angular speed and agility inputs
+(`Ballpark.cpp:3467-3553`). Both methods use native C++ argument order; Python
+wrapper dispatch and its additional dynamic snap remain unported.
+
+Dynamic creation keeps nonunit quaternions. It backsteps the old rotation at
+constant angular speed only when the initial ID probe found no ball. The native
+quirk resolves allocation sentinels twice, consuming two IDs. The captured probe
+result controls old angular state even when the second ID names a different
+object. `MapOfBalls.h:25-40` proves missing lookup does not insert an entry;
+non-inserting JS lookup is parity, not an adaptation.
+
+Angular Blue aliases `wx/wy/wz`, `rx/ry/rz/rw`, `maxAngularVelocity` and
+`RotationalAgility` store float32 values before calling their attached controller
+(`Ball_Blue.cpp:58-63,219-273,317-323`, `Ball.cpp:1506-1584`). Direct JS dispatch
+replaces these branches of pointer-based OnModified; no schema APIs participate.
+Rejected negative limits or zero agility therefore remain stored after property
+assignment. A rejected zero quaternion leaves old rotation and angular velocity
+unchanged. ClientBall's visual `maxAngularVelocity` still shadows the physical
+property and has no notification (`Ball_Blue.cpp:578-584`). Other native property
+notification branches remain unfinished.
+
+Tests cover the settings-independent creation methods, single legacy snap,
+noncommuting backstep, nonunit rotations, ID probe/reuse asymmetries, detached
+properties, attached store-before-notify behavior, the ClientBall shadow and
+nested creation during spatial callbacks with dirty scratch.

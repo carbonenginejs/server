@@ -117,7 +117,7 @@ legacy sphere/static-shape collision response and a separate movement-command qu
 Massive moving balls use native partition candidates and collision forces.
 Optional dynamical orientation supplies steering, angular integration and client sampling.
 The iterative solver, visibility,
-mini-shapes, oriented-creation wrappers, warp, missiles, formations,
+mini-shapes, Python creation dispatch, warp, missiles, formations,
 replication, combat, and drone command policy are not implemented. Unsupported
 mobile movement modes throw before advancing the tick.
 

@@ -760,7 +760,8 @@ export class CjsBallparkController
     }
 
     /**
-     * Adds or updates a ball using Carbon's positional argument order.
+     * Adds or updates a ball without initializing its orientation, as native AddBall does.
+     * Use AddOldStyleOrientedBall or AddDynamicallyOrientedBall for oriented creation.
      * Adaptation: checked BigInt IDs, finite scalar inputs and immediate ball-map
      * registration follows native spatial insertion and subscribed bubble callbacks.
      * Re-adding a resolved ID keeps object identity and
@@ -772,7 +773,7 @@ export class CjsBallparkController
      * @param {number} maxVel Maximum speed in meters per second.
      * @param {boolean} isFree Whether the ball can move.
      * @param {boolean} isGlobal Native global-visibility flag.
-     * @param {boolean} isMassive Native collision participation flag; currently retained as data.
+     * @param {boolean} isMassive Native collision participation flag.
      * @param {boolean} isInteractive Native interactive-population flag.
      * @param {boolean} isSpaceJunk Native space-junk flag.
      * @param {number} x Position component in meters.
@@ -854,7 +855,103 @@ export class CjsBallparkController
         }
         else if (!created) this._removeFreeBall(ball.mId);
         this.InsertBallInBoxes(ball);
-        if (ball.isFree && !g_useDynamicalOrientation) ball.CalculateYawPitchRoll(true);
+        return ball;
+    }
+
+    /**
+     * Adds or updates a ball and snaps free balls to the legacy velocity heading.
+     * Adaptation: uses the checked JS creation inputs; snapping is independent
+     * of the global dynamical-orientation setting, as in the native wrapper.
+     * Source: destiny/src/Ballpark.cpp:3467-3496.
+     * @param {bigint|number} objectId Signed-int64 identity or allocation sentinel; Number inputs must be safe integers.
+     * @param {number} mass Mass in kilograms.
+     * @param {number} radius Radius in meters.
+     * @param {number} maxVel Maximum speed in meters per second.
+     * @param {boolean} isFree Whether the ball can move.
+     * @param {boolean} isGlobal Native global-visibility flag.
+     * @param {boolean} isMassive Native collision participation flag.
+     * @param {boolean} isInteractive Native interactive-population flag.
+     * @param {boolean} isSpaceJunk Native space-junk flag.
+     * @param {number} x Position component in meters.
+     * @param {number} y Position component in meters.
+     * @param {number} z Position component in meters.
+     * @param {number} vx Velocity component in meters per second.
+     * @param {number} vy Velocity component in meters per second.
+     * @param {number} vz Velocity component in meters per second.
+     * @param {number} agility Native positive mass/agility multiplier.
+     * @param {number} speedFraction Initial fraction of maximum speed.
+     * @returns {CjsDestinyBall} Created or updated ball after one legacy snap.
+     */
+    @meta.adapted
+    AddOldStyleOrientedBall(objectId, mass, radius, maxVel, isFree, isGlobal, isMassive,
+        isInteractive, isSpaceJunk, x, y, z, vx, vy, vz, agility, speedFraction)
+    {
+        const ball = this.AddBall(objectId, mass, radius, maxVel, isFree, isGlobal, isMassive,
+            isInteractive, isSpaceJunk, x, y, z, vx, vy, vz, agility, speedFraction);
+        if (ball.isFree) ball.CalculateYawPitchRoll(true);
+        return ball;
+    }
+
+    /**
+     * Creates physical orientation samples without normalizing the supplied quaternion.
+     * Adaptation: native float inputs use factory-owned float32 storage. The
+     * old rotation backstep reverses Carbon quaternion operands for gl-matrix.
+     * Source: destiny/src/Ballpark.cpp:3503-3553; MapOfBalls.h:25-40.
+     * @param {bigint|number} objectId Signed-int64 identity or allocation sentinel; Number inputs must be safe integers.
+     * @param {number} mass Mass in kilograms.
+     * @param {number} radius Radius in meters.
+     * @param {number} maxVel Maximum speed in meters per second.
+     * @param {number} maxAngVel Maximum angular speed in radians per second.
+     * @param {boolean} isFree Whether the ball can move.
+     * @param {boolean} isGlobal Native global-visibility flag.
+     * @param {boolean} isMassive Native collision participation flag.
+     * @param {boolean} isInteractive Native interactive-population flag.
+     * @param {boolean} isSpaceJunk Native space-junk flag.
+     * @param {number} x Position component in meters.
+     * @param {number} y Position component in meters.
+     * @param {number} z Position component in meters.
+     * @param {number} vx Velocity component in meters per second.
+     * @param {number} vy Velocity component in meters per second.
+     * @param {number} vz Velocity component in meters per second.
+     * @param {number} rx Quaternion X.
+     * @param {number} ry Quaternion Y.
+     * @param {number} rz Quaternion Z.
+     * @param {number} rw Quaternion W.
+     * @param {number} wx Angular velocity X in radians per second.
+     * @param {number} wy Angular velocity Y in radians per second.
+     * @param {number} wz Angular velocity Z in radians per second.
+     * @param {number} agility Native positive mass/agility multiplier.
+     * @param {number} rotAgility Rotational agility; nonpositive values become one.
+     * @param {number} speedFraction Initial fraction of maximum speed.
+     * @returns {CjsDestinyBall} Created or updated ball with explicit angular state.
+     */
+    @meta.adapted
+    AddDynamicallyOrientedBall(objectId, mass, radius, maxVel, maxAngVel,
+        isFree, isGlobal, isMassive, isInteractive, isSpaceJunk,
+        x, y, z, vx, vy, vz, rx, ry, rz, rw, wx, wy, wz, agility, rotAgility, speedFraction)
+    {
+        // Native quirk: the probe consumes a sentinel ID, then AddBall resolves
+        // the ORIGINAL ID again. MapOfBalls lookup does not insert a null entry.
+        const theID = this.GetIDForCollisionObject(objectId);
+        const isNewBall = !this.GetBall(theID);
+        const ball = this.AddBall(objectId, mass, radius, maxVel, isFree, isGlobal, isMassive,
+            isInteractive, isSpaceJunk, x, y, z, vx, vy, vz, agility, speedFraction);
+        quat.set(ball.mNewRot, rx, ry, rz, rw);
+        vec3.set(ball.mNewAngVel, wx, wy, wz);
+        if (isNewBall)
+        {
+            // No scratch survives the creation callbacks above.
+            const { quat_0 } = CjsBallparkController.scratch;
+            const angle = f32(-f32(this.dt) * CjsDestinyBall._lengthVector3(ball.mNewAngVel));
+            CjsDestinyBall._rotationQuaternion(quat_0,
+                ball.mNewAngVel[0], ball.mNewAngVel[1], ball.mNewAngVel[2], angle);
+            quat.multiply(ball.mOldRot, quat_0, ball.mNewRot);
+            vec3.copy(ball.mOldAngVel, ball.mNewAngVel);
+        }
+        maxAngVel = f32(maxAngVel);
+        rotAgility = f32(rotAgility);
+        ball.mMaxAngVel = maxAngVel < 0 ? 0 : maxAngVel;
+        ball.mRotAgility = rotAgility <= 0 ? 1 : rotAgility;
         return ball;
     }
 
@@ -897,7 +994,7 @@ export class CjsBallparkController
 
     /**
      * Resolves and caches the native ego ball.
-     * Adaptation: missing lookup does not insert a null map entry, matching GetBall.
+     * Missing lookup does not insert a null map entry, matching native MapOfBalls.
      * Source: destiny/src/Ballpark.cpp:6624-6645.
      * @returns {CjsDestinyClientBall|null} Current reference ball.
      */
@@ -2731,8 +2828,7 @@ export class CjsBallparkController
 
     /**
      * Assigns both angular velocity samples to suppress interpolation discontinuity.
-     * Adaptation: factory-owned outputs narrow doubles to native float32 values;
-     * the existing GetBall lookup does not insert a missing null map entry.
+     * Adaptation: factory-owned outputs narrow doubles to native float32 values.
      * Source: destiny/src/Ballpark.cpp:4802-4817.
      * @param {bigint|number} id Ball identity.
      * @param {number} wx Angular velocity X in radians per second.
@@ -2752,8 +2848,7 @@ export class CjsBallparkController
 
     /**
      * Normalizes a supplied rotation and clears old/new angular motion.
-     * Adaptation: float32 scratch replaces the temporary native quaternion; the
-     * existing GetBall lookup does not insert a missing null map entry.
+     * Adaptation: float32 scratch replaces the temporary native quaternion.
      * Source: destiny/src/Ballpark.cpp:4819-4846.
      * @param {bigint|number} id Ball identity.
      * @param {number} rx Quaternion X.
@@ -2781,8 +2876,7 @@ export class CjsBallparkController
 
     /**
      * Sets the physical angular speed limit independently of visual impact speed.
-     * Adaptation: rounds the native float argument; GetBall does not insert a
-     * missing null entry. Native NaN acceptance is retained.
+     * Adaptation: rounds the native float argument. Native NaN acceptance is retained.
      * Source: destiny/src/Ballpark.cpp:4721-4732.
      * @param {bigint|number} id Ball identity.
      * @param {number} maxAngVel Maximum angular speed in radians per second.
@@ -2800,8 +2894,7 @@ export class CjsBallparkController
 
     /**
      * Sets rotational agility without changing translational drag caches.
-     * Adaptation: rounds the native float argument; GetBall does not insert a
-     * missing null entry. Native NaN acceptance is retained.
+     * Adaptation: rounds the native float argument. Native NaN acceptance is retained.
      * Source: destiny/src/Ballpark.cpp:4958-4966.
      * @param {bigint|number} id Ball identity.
      * @param {number} rotAgility Rotational agility modifier.

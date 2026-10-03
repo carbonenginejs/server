@@ -560,7 +560,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
 
     /**
      * Gets native nonnegative surface distance, with its positive-ego-ID guard.
-     * Adaptation: GetBall avoids native map insertion on a missing ego.
+     * Missing ego lookup leaves the ball map unchanged, as native MapOfBalls does.
      * Source: destiny/src/Ball.cpp:2102-2112.
      * @returns {number} Surface separation or zero for detached/invalid/self ego.
      */
@@ -575,8 +575,8 @@ export class CjsDestinyClientBall extends CjsDestinyBall
 
     /**
      * Gets native cached distance or the current endpoint distance before caching.
-     * Adaptation: runtime vec3 distance replaces Vector3d.Length. Missing lookups
-     * do not insert null; an uncached detached call throws at the native null access.
+     * Adaptation: runtime vec3 distance replaces Vector3d.Length. An uncached
+     * detached call throws at the native null access.
      * Source: destiny/src/Ball.cpp:2115-2124.
      * @returns {number} Nonnegative center separation without populating the cache.
      */

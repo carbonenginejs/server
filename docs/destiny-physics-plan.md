@@ -212,8 +212,9 @@ synthetic obstacles using the source-default solver.
 Current partial implementation: the new-orbit dependency chain and its four native
 scenarios are ported, including the physical-heading fallback. Ball angular state,
 setters, torque/roll steering, staged angular evolution and client sampling now
-work for supported movement modes. Oriented creation wrappers and iterative
-collision record production remain unfinished.
+work for supported movement modes. Native oriented creation and angular Blue
+notifications are implemented; Python wrapper dispatch, broader scenario coverage
+and iterative collision record production remain unfinished.
 
 Add legacy heading/roll outputs, dynamically oriented creation and setters,
 angular agility/speed, torque, roll and quaternion evolution. Then implement

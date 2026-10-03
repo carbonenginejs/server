@@ -7,7 +7,7 @@ Summary: Current implementation and the families still required for completion.
 
 The target is the whole public Destiny donor, not only features used by a racing
 demo. Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
-The current server suite has 345 passing CPU tests against runtime alpha.9.
+The current server suite has 377 passing CPU tests against runtime alpha.9.
 
 | Family | Current status |
 |---|---|
@@ -21,16 +21,16 @@ The current server suite has 345 passing CPU tests against runtime alpha.9.
 | Partition/Partitionable/Box/StaticCollidable | Keys/hash, cells, ordering, filters and static membership implemented; Ball shares state and implements neighborhoods/cleanup; automatic Ballpark insertion implemented |
 | Bubbles and activity | Insertion, initialization, delta bookkeeping, subscriptions and activity implemented; conflict resolution and network batches pending |
 | Legacy and iterative collision response | Fractional integration, Gradient/Potential and static-shape scheduling implemented; 13 donor trajectories pass; warp/Mini integration and iterative solver pending |
-| New orbit | Non-dynamical path implemented; all four native scenarios pass; heading fallback pending |
-| Orientation, warp, missiles, formations and remaining modes | Legacy yaw/pitch/roll, client damping and impact rotation implemented; dynamical orientation and remaining movement modes pending |
+| New orbit | Both orientation paths implemented; all four native scenarios pass; physical-heading fallback implemented |
+| Orientation, warp, missiles, formations and remaining modes | Legacy and dynamic steering/evolution/sampling, impact rotation, native oriented creation and angular setters implemented; remaining movement modes pending |
 | Visibility, range/volume queries, sensors and relative motion | Pending |
-| ClientBall interpolation, snapshots and binary streams | Number/BigInt tick position, velocity, acceleration, legacy/impact rotation, deltas and ego reference implemented; interface registration, relative motion, snapshots and streams pending |
+| ClientBall interpolation, snapshots and binary streams | Number/BigInt tick position, velocity, acceleration, legacy/impact/dynamic rotation, deltas and ego reference implemented; interface registration, relative motion, snapshots and streams pending |
 | Server tickers, bubble updates and recipient batching | Pending |
 | Client history merging, wait rules, restore and replay | Pending |
 | Settings and settings utility functions | Native globals, configuration snapshots, bindings and aliases implemented |
 | Signal, remaining timing and Python wrapper utilities | Pending; native-long counter bounds/wrapping are not yet modeled |
 | Native support containers, comparers, Random and full constants | Three sorted-set comparers implemented; other support families pending |
-| Module lifecycle, interfaces and property notification semantics | Pending |
+| Module lifecycle, interfaces and property notification semantics | Angular Blue store-before-notify implemented; other notification branches, module lifecycle and interface identity pending |
 
 The source inventory contains 32 native implementation files, 33 source headers,
 two public interfaces and 20 production Python files. These counts do not measure

@@ -55,6 +55,267 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     mYawDelta = 0;
 
     /**
+     * Reads the physical angular speed limit from native backing storage.
+     * Adaptation: a JS accessor represents the Blue float field.
+     * Source: destiny/src/Ball_Blue.cpp:58-63.
+     * @returns {number} Current physical angular speed limit.
+     */
+    @meta.type.float32
+    @meta.adapted
+    get maxAngularVelocity()
+    {
+        return this.mMaxAngVel;
+    }
+
+    /**
+     * Writes the physical angular speed limit, then notifies an attached park.
+     * Adaptation: direct dispatch replaces the angular branch of native
+     * OnModified, without schema mutation machinery. Store-before-notify keeps
+     * the new field value even when the controller rejects it.
+     * Source: destiny/src/Ball.cpp:1506-1584; blueexposure/BluePyWrap.cpp:932-945.
+     * @param {number} value New value, narrowed to native float32.
+     * @returns {void} Mutates the field and runs its attached-park side effects.
+     */
+    @meta.adapted
+    set maxAngularVelocity(value)
+    {
+        this.mMaxAngVel = f32(value);
+        if (this.mPark) this.mPark.SetMaxAngularSpeed(this.mId, this.mMaxAngVel);
+    }
+
+    /**
+     * Reads the rotational agility from native backing storage.
+     * Adaptation: a JS accessor represents the Blue float field.
+     * Source: destiny/src/Ball_Blue.cpp:317-323.
+     * @returns {number} Current rotational agility.
+     */
+    @meta.type.float32
+    @meta.adapted
+    get RotationalAgility()
+    {
+        return this.mRotAgility;
+    }
+
+    /**
+     * Writes the rotational agility, then notifies an attached park.
+     * Adaptation: direct dispatch replaces the angular branch of native
+     * OnModified, without schema mutation machinery. Store-before-notify keeps
+     * the new field value even when the controller rejects it.
+     * Source: destiny/src/Ball.cpp:1506-1584; blueexposure/BluePyWrap.cpp:932-945.
+     * @param {number} value New value, narrowed to native float32.
+     * @returns {void} Mutates the field and runs its attached-park side effects.
+     */
+    @meta.adapted
+    set RotationalAgility(value)
+    {
+        this.mRotAgility = f32(value);
+        if (this.mPark) this.mPark.SetBallAngularAgility(this.mId, this.mRotAgility);
+    }
+
+    /**
+     * Reads the angular velocity component in radians per second from native backing storage.
+     * Adaptation: a JS accessor represents the Blue float field.
+     * Source: destiny/src/Ball_Blue.cpp:219-241.
+     * @returns {number} Current angular velocity component in radians per second.
+     */
+    @meta.type.float32
+    @meta.adapted
+    get wx()
+    {
+        return this.mNewAngVel[0];
+    }
+
+    /**
+     * Writes the angular velocity component in radians per second, then notifies an attached park.
+     * Adaptation: direct dispatch replaces the angular branch of native
+     * OnModified, without schema mutation machinery. Store-before-notify keeps
+     * the new field value even when the controller rejects it.
+     * Source: destiny/src/Ball.cpp:1506-1584; blueexposure/BluePyWrap.cpp:932-945.
+     * @param {number} value New value, narrowed to native float32.
+     * @returns {void} Mutates the field and runs its attached-park side effects.
+     */
+    @meta.adapted
+    set wx(value)
+    {
+        this.mNewAngVel[0] = f32(value);
+        if (this.mPark) this.mPark.SetBallAngularVelocity(this.mId, this.mNewAngVel[0], this.mNewAngVel[1], this.mNewAngVel[2]);
+    }
+
+    /**
+     * Reads the angular velocity component in radians per second from native backing storage.
+     * Adaptation: a JS accessor represents the Blue float field.
+     * Source: destiny/src/Ball_Blue.cpp:219-241.
+     * @returns {number} Current angular velocity component in radians per second.
+     */
+    @meta.type.float32
+    @meta.adapted
+    get wy()
+    {
+        return this.mNewAngVel[1];
+    }
+
+    /**
+     * Writes the angular velocity component in radians per second, then notifies an attached park.
+     * Adaptation: direct dispatch replaces the angular branch of native
+     * OnModified, without schema mutation machinery. Store-before-notify keeps
+     * the new field value even when the controller rejects it.
+     * Source: destiny/src/Ball.cpp:1506-1584; blueexposure/BluePyWrap.cpp:932-945.
+     * @param {number} value New value, narrowed to native float32.
+     * @returns {void} Mutates the field and runs its attached-park side effects.
+     */
+    @meta.adapted
+    set wy(value)
+    {
+        this.mNewAngVel[1] = f32(value);
+        if (this.mPark) this.mPark.SetBallAngularVelocity(this.mId, this.mNewAngVel[0], this.mNewAngVel[1], this.mNewAngVel[2]);
+    }
+
+    /**
+     * Reads the angular velocity component in radians per second from native backing storage.
+     * Adaptation: a JS accessor represents the Blue float field.
+     * Source: destiny/src/Ball_Blue.cpp:219-241.
+     * @returns {number} Current angular velocity component in radians per second.
+     */
+    @meta.type.float32
+    @meta.adapted
+    get wz()
+    {
+        return this.mNewAngVel[2];
+    }
+
+    /**
+     * Writes the angular velocity component in radians per second, then notifies an attached park.
+     * Adaptation: direct dispatch replaces the angular branch of native
+     * OnModified, without schema mutation machinery. Store-before-notify keeps
+     * the new field value even when the controller rejects it.
+     * Source: destiny/src/Ball.cpp:1506-1584; blueexposure/BluePyWrap.cpp:932-945.
+     * @param {number} value New value, narrowed to native float32.
+     * @returns {void} Mutates the field and runs its attached-park side effects.
+     */
+    @meta.adapted
+    set wz(value)
+    {
+        this.mNewAngVel[2] = f32(value);
+        if (this.mPark) this.mPark.SetBallAngularVelocity(this.mId, this.mNewAngVel[0], this.mNewAngVel[1], this.mNewAngVel[2]);
+    }
+
+    /**
+     * Reads the rotation quaternion component from native backing storage.
+     * Adaptation: a JS accessor represents the Blue float field.
+     * Source: destiny/src/Ball_Blue.cpp:243-273.
+     * @returns {number} Current rotation quaternion component.
+     */
+    @meta.type.float32
+    @meta.adapted
+    get rx()
+    {
+        return this.mNewRot[0];
+    }
+
+    /**
+     * Writes the rotation quaternion component, then notifies an attached park.
+     * Adaptation: direct dispatch replaces the angular branch of native
+     * OnModified, without schema mutation machinery. Store-before-notify keeps
+     * the new field value even when the controller rejects it.
+     * Source: destiny/src/Ball.cpp:1506-1584; blueexposure/BluePyWrap.cpp:932-945.
+     * @param {number} value New value, narrowed to native float32.
+     * @returns {void} Mutates the field and runs its attached-park side effects.
+     */
+    @meta.adapted
+    set rx(value)
+    {
+        this.mNewRot[0] = f32(value);
+        if (this.mPark) this.mPark.SetBallRotation(this.mId, this.mNewRot[0], this.mNewRot[1], this.mNewRot[2], this.mNewRot[3]);
+    }
+
+    /**
+     * Reads the rotation quaternion component from native backing storage.
+     * Adaptation: a JS accessor represents the Blue float field.
+     * Source: destiny/src/Ball_Blue.cpp:243-273.
+     * @returns {number} Current rotation quaternion component.
+     */
+    @meta.type.float32
+    @meta.adapted
+    get ry()
+    {
+        return this.mNewRot[1];
+    }
+
+    /**
+     * Writes the rotation quaternion component, then notifies an attached park.
+     * Adaptation: direct dispatch replaces the angular branch of native
+     * OnModified, without schema mutation machinery. Store-before-notify keeps
+     * the new field value even when the controller rejects it.
+     * Source: destiny/src/Ball.cpp:1506-1584; blueexposure/BluePyWrap.cpp:932-945.
+     * @param {number} value New value, narrowed to native float32.
+     * @returns {void} Mutates the field and runs its attached-park side effects.
+     */
+    @meta.adapted
+    set ry(value)
+    {
+        this.mNewRot[1] = f32(value);
+        if (this.mPark) this.mPark.SetBallRotation(this.mId, this.mNewRot[0], this.mNewRot[1], this.mNewRot[2], this.mNewRot[3]);
+    }
+
+    /**
+     * Reads the rotation quaternion component from native backing storage.
+     * Adaptation: a JS accessor represents the Blue float field.
+     * Source: destiny/src/Ball_Blue.cpp:243-273.
+     * @returns {number} Current rotation quaternion component.
+     */
+    @meta.type.float32
+    @meta.adapted
+    get rz()
+    {
+        return this.mNewRot[2];
+    }
+
+    /**
+     * Writes the rotation quaternion component, then notifies an attached park.
+     * Adaptation: direct dispatch replaces the angular branch of native
+     * OnModified, without schema mutation machinery. Store-before-notify keeps
+     * the new field value even when the controller rejects it.
+     * Source: destiny/src/Ball.cpp:1506-1584; blueexposure/BluePyWrap.cpp:932-945.
+     * @param {number} value New value, narrowed to native float32.
+     * @returns {void} Mutates the field and runs its attached-park side effects.
+     */
+    @meta.adapted
+    set rz(value)
+    {
+        this.mNewRot[2] = f32(value);
+        if (this.mPark) this.mPark.SetBallRotation(this.mId, this.mNewRot[0], this.mNewRot[1], this.mNewRot[2], this.mNewRot[3]);
+    }
+
+    /**
+     * Reads the rotation quaternion component from native backing storage.
+     * Adaptation: a JS accessor represents the Blue float field.
+     * Source: destiny/src/Ball_Blue.cpp:243-273.
+     * @returns {number} Current rotation quaternion component.
+     */
+    @meta.type.float32
+    @meta.adapted
+    get rw()
+    {
+        return this.mNewRot[3];
+    }
+
+    /**
+     * Writes the rotation quaternion component, then notifies an attached park.
+     * Adaptation: direct dispatch replaces the angular branch of native
+     * OnModified, without schema mutation machinery. Store-before-notify keeps
+     * the new field value even when the controller rejects it.
+     * Source: destiny/src/Ball.cpp:1506-1584; blueexposure/BluePyWrap.cpp:932-945.
+     * @param {number} value New value, narrowed to native float32.
+     * @returns {void} Mutates the field and runs its attached-park side effects.
+     */
+    @meta.adapted
+    set rw(value)
+    {
+        this.mNewRot[3] = f32(value);
+        if (this.mPark) this.mPark.SetBallRotation(this.mId, this.mNewRot[0], this.mNewRot[1], this.mNewRot[2], this.mNewRot[3]);
+    }
+
+    /**
      * Snaps physical orientation to velocity and stops angular motion.
      * Adaptation: factory-owned float32 state and class scratch replace native
      * values; gl quaternion products reverse Carbon operands. Runtime matrix

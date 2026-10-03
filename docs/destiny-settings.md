@@ -37,7 +37,9 @@ the shorter names are the native Blue aliases. There is no `Configure` method.
 | `disableDynamicalOrientationForMissiles` | `false` | Retains the native missile-only exception, not a global orientation disable. Missile movement itself is unported. |
 | `useNewOrbit` | `false` | Selects the native new orbit dependency chain, including the physical-heading fallback. |
 
-The existing AddBall API corresponds to C++ AddBall. The native Python wrapper's
+AddBall corresponds to raw C++ AddBall and leaves orientation unchanged.
+AddOldStyleOrientedBall snaps free balls once regardless of the global setting;
+AddDynamicallyOrientedBall accepts explicit physical angular state. The native Python wrapper's
 different oriented-creation dispatch remains unported. Enabling orientation
 does not silently switch this API to a different argument contract.
 
