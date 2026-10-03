@@ -19,8 +19,9 @@ const ORBITAL_PRECESSION = 0.001;
 @meta.blue.inherit(IBlueEvents)
 export class CjsBallparkController
 {
-    @meta.type.int64
-    time = 0;
+    mTime = 0n;
+    mLocalCnt = -1n;
+    mLocalHiCnt = -1073741824n;
     @meta.type.int32
     currentTime = 0;
     @meta.type.int32
@@ -40,8 +41,8 @@ export class CjsBallparkController
     /**
      * Supplies the native BeOS and PyOS boundaries explicitly instead of globals.
      * Adaptation: no native lock object, CPython interpreter or automatic timer is
-     * created. With no PyOS bridge there are no Python event subscribers. Clock
-     * values remain Numbers in 100ns units; exact full-int64 timestamps are pending.
+     * created. With no PyOS bridge there are no Python event subscribers. Native
+     * timestamps are BigInts; safe integer Number inputs are accepted at boundaries.
      *
      * @param {IBlueOS|null} [blueOS=null] Host with RegisterForTicks/UnregisterForTicks; required by Start.
      * @param {Object|null} [pyOS=null] Optional native-shaped SendEvent/PyError bridge. SendEvent reports handler errors as false.
@@ -51,6 +52,33 @@ export class CjsBallparkController
     {
         this._blueOS = blueOS;
         this._pyOS = pyOS;
+    }
+
+    /**
+     * Reads the exact native mTime value in 100ns units.
+     * Adaptation: BigInt represents signed-int64 timestamps without Number rounding.
+     *
+     * @returns {bigint} Last simulation timestamp, separate from currentTime.
+     */
+    @meta.type.int64
+    @meta.adapted
+    get time()
+    {
+        return this.mTime;
+    }
+
+    /**
+     * Writes native mTime through a checked JavaScript integer boundary.
+     * Adaptation: safe Number inputs normalize to BigInt; invalid or overflowing
+     * values throw instead of acquiring an already-rounded timestamp.
+     *
+     * @param {bigint|number} value Signed-int64 timestamp in 100ns units.
+     * @returns {void} No return value.
+     */
+    @meta.adapted
+    set time(value)
+    {
+        this.mTime = CjsDestinyBall._toInt64(value);
     }
 
     /**
@@ -102,11 +130,12 @@ export class CjsBallparkController
      * Adaptation: the optional PyOS bridge replaces native Python event delivery;
      * a false SendEvent result is reported through PyError and evolution continues.
      * The host must catch handler exceptions and return false, as native PyOS does.
-     * Number timestamps retain exact integer arithmetic only within the safe range.
+     * BigInt timestamps retain exact arithmetic. Invalid interval products, signed
+     * clock overflow and catch-up counts outside native int32 are rejected.
      * Capsule cleanup, bubble activity and native profiling remain unported.
      *
-     * @param {number} realTime Host real clock in 100ns units; unused by the donor.
-     * @param {number} simTime Host simulation clock in 100ns units.
+     * @param {bigint|number} realTime Host real clock in 100ns units; unused by the donor.
+     * @param {bigint|number} simTime Host simulation clock in 100ns units.
      * @param {*} cookie Registration cookie; unused by the donor.
      * @returns {void} No return value.
      */
@@ -114,24 +143,28 @@ export class CjsBallparkController
     @meta.adapted
     OnTick(realTime, simTime, cookie)
     {
-        let lastDelta = simTime - this.time;
+        simTime = CjsDestinyBall._toInt64(simTime);
+        let lastDelta = CjsDestinyBall._toInt64(simTime - this.time);
         this.BringOutTheDeads();
-        if (lastDelta < this.tickInterval * 10000) return;
+        const interval = CjsBallparkController._tickTime(this.tickInterval);
+        if (lastDelta < interval) return;
         this._dt = this.tickInterval * 0.001;
         // Native integer division: 5.9 intervals is still five, not a backlog reset.
-        if (this.isMaster && Math.trunc(lastDelta / (this.tickInterval * 10000)) > 5)
+        if (this.isMaster && lastDelta / interval > 5n)
         {
-            lastDelta = this.tickInterval * 10000;
+            lastDelta = interval;
         }
         if (this.mFirstTime)
         {
             this.Evolve(simTime);
-            lastDelta = 0;
+            lastDelta = 0n;
             this.mFirstTime = false;
         }
         else
         {
-            const intervals = Math.trunc(lastDelta / (this.tickInterval * 10000));
+            const count = lastDelta / interval;
+            if (count > 2147483647n) throw new RangeError("Tick catch-up exceeds native int32");
+            const intervals = Number(count);
             for (let i = 0; i < intervals; i++)
             {
                 if (this._pyOS && !this._pyOS.SendEvent(this, "Destiny::DoPreTick",
@@ -139,7 +172,7 @@ export class CjsBallparkController
                 this.Evolve(simTime - lastDelta);
                 if (this._pyOS && !this._pyOS.SendEvent(this, "Destiny::DoPostTick",
                     "DoPostTick", null, "(i)", this.currentTime)) this._pyOS.PyError();
-                lastDelta -= this.tickInterval * 10000;
+                lastDelta = CjsDestinyBall._toInt64(lastDelta - CjsBallparkController._tickTime(this.tickInterval));
             }
         }
         this.time = simTime - lastDelta;
@@ -147,21 +180,28 @@ export class CjsBallparkController
 
     /**
      * Shifts the simulation clock and nonzero ball timestamps, preserving zero sentinels.
-     * Adaptation: Number clocks replace native Be::Time. ClientBall position/rotation
-     * cache timestamps will be handled with that unported class, not guessed here.
+     * Adaptation: checked BigInt arithmetic replaces native Be::Time; overflow is
+     * rejected before mutating timestamps. ClientBall cache timestamps are unported.
      *
-     * @param {number} timeDelta Signed clock adjustment in 100ns units.
+     * @param {bigint|number} timeDelta Signed clock adjustment in 100ns units.
      * @returns {void} No return value.
      */
     @meta.blue.method
     @meta.adapted
     AdjustTimes(timeDelta)
     {
-        this.time += timeDelta;
+        timeDelta = CjsDestinyBall._toInt64(timeDelta);
+        const time = CjsDestinyBall._toInt64(this.time + timeDelta);
         for (const ball of this._balls.values())
         {
-            if (ball.mNewTime !== 0) ball.mNewTime += timeDelta;
-            if (ball.mOldTime !== 0) ball.mOldTime += timeDelta;
+            if (ball.mNewTime !== 0n) CjsDestinyBall._toInt64(ball.mNewTime + timeDelta);
+            if (ball.mOldTime !== 0n) CjsDestinyBall._toInt64(ball.mOldTime + timeDelta);
+        }
+        this.time = time;
+        for (const ball of this._balls.values())
+        {
+            if (ball.mNewTime !== 0n) ball.mNewTime += timeDelta;
+            if (ball.mOldTime !== 0n) ball.mOldTime += timeDelta;
         }
     }
 
@@ -170,12 +210,38 @@ export class CjsBallparkController
     _dt = 1;
 
     /**
-     * Adds or updates a ball using Carbon's positional argument order.
-     * Adaptation: explicit safe-integer IDs, finite scalar inputs and immediate
-     * single-region membership. Re-adding keeps object identity and follower links.
-     * JS Numbers cannot represent all native int64 IDs without loss.
+     * Resolves native explicit IDs and master/replica local-allocation requests.
+     * Adaptation: checked BigInt conversion replaces the native int64 argument;
+     * exhausted counters throw before decrement rather than overflowing signed C++.
+     * Allocation does not search for collisions with explicitly supplied IDs.
      *
-     * @param {number} objectId Safe-integer ball identity.
+     * @param {bigint|number} objectId Explicit ID or native allocation sentinel.
+     * @returns {bigint} Resolved signed-int64 collision-object identity.
+     */
+    @meta.adapted
+    GetIDForCollisionObject(objectId)
+    {
+        objectId = CjsDestinyBall._toInt64(objectId);
+        if ((this.isMaster && objectId < 0n) || (!this.isMaster && objectId === -1n))
+        {
+            this.mLocalHiCnt = CjsDestinyBall._toInt64(this.mLocalHiCnt - 1n);
+            return this.mLocalHiCnt;
+        }
+        if (this.isMaster && objectId === 0n)
+        {
+            this.mLocalCnt = CjsDestinyBall._toInt64(this.mLocalCnt - 1n);
+            return this.mLocalCnt;
+        }
+        return objectId;
+    }
+
+    /**
+     * Adds or updates a ball using Carbon's positional argument order.
+     * Adaptation: checked BigInt IDs, finite scalar inputs and immediate
+     * single-region membership. Re-adding a resolved ID keeps object identity and
+     * follower links. Nonpositive IDs follow native master/replica allocation.
+     *
+     * @param {bigint|number} objectId Signed-int64 identity or allocation sentinel; Number inputs must be safe integers.
      * @param {number} mass Mass in kilograms.
      * @param {number} radius Radius in meters.
      * @param {number} maxVel Maximum speed in meters per second.
@@ -200,16 +266,14 @@ export class CjsBallparkController
     AddBall(objectId, mass, radius, maxVel, isFree, isGlobal, isMassive,
         isInteractive, isSpaceJunk, x, y, z, vx, vy, vz, agility, speedFraction)
     {
-        if (!Number.isSafeInteger(objectId))
-        {
-            throw new RangeError("Ball IDs must be safe integers");
-        }
+        objectId = CjsDestinyBall._toInt64(objectId);
         if (![mass, radius, maxVel, x, y, z, vx, vy, vz, agility, speedFraction].every(Number.isFinite)
             || ![radius, maxVel, agility, speedFraction].map(Math.fround).every(Number.isFinite))
         {
             throw new RangeError("Ball parameters must be finite and fit their native scalar types");
         }
 
+        objectId = this.GetIDForCollisionObject(objectId);
         let ball = this._balls.get(objectId);
         const created = !ball;
         if (created)
@@ -250,7 +314,7 @@ export class CjsBallparkController
         ball.isMoribund = false;
         this.moribundBalls.delete(ball);
         ball.mEffectStamp = 0;
-        ball.followId = 0;
+        ball.followId = 0n;
         ball.followRange = 10;
         ball.mode = Mode.DSTBALL_STOP;
         this.SetBallTimeFactor(ball);
@@ -259,15 +323,16 @@ export class CjsBallparkController
 
     /**
      * Returns the ball or null, without inserting a missing ID into the map.
+     * Adaptation: checked IDs normalize Number and BigInt inputs to one map key.
      *
-     * @param {number} id Safe-integer ball identity.
+     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @returns {CjsDestinyBall|null} Live ball, or null when absent.
      */
     @meta.blue.method
     @meta.adapted
     GetBall(id)
     {
-        return this._balls.get(id) ?? null;
+        return this._balls.get(CjsDestinyBall._toInt64(id)) ?? null;
     }
 
     /**
@@ -306,7 +371,7 @@ export class CjsBallparkController
      * Adaptation: JS retains object references and uses an optional PyOS bridge for
      * DoFinalCleanup. Mini-shapes, collision caches, boxes and bubbles remain unported.
      *
-     * @param {number} id Safe-integer ball identity.
+     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} [delay=0] Tick delay before buffered cleanup.
      * @returns {void} No return value.
      */
@@ -329,7 +394,7 @@ export class CjsBallparkController
         if (this._pyOS && !this._pyOS.SendEvent(ball, "Destiny::Ball::DoFinalCleanup",
             "DoFinalCleanup", null, "()")) this._pyOS.PyError();
         this.moribundBalls.delete(ball);
-        this._balls.delete(id);
+        this._balls.delete(ball.id);
     }
 
     /**
@@ -352,6 +417,8 @@ export class CjsBallparkController
         }
         this._balls.clear();
         this.moribundBalls.clear();
+        this.mLocalCnt = -1n;
+        this.mLocalHiCnt = -1073741824n;
     }
 
 
@@ -408,19 +475,25 @@ export class CjsBallparkController
      * bubbles or notifications. Invalid mobile mass and unsupported modes fail
      * before changing the tick, rather than silently simulating another behavior.
      * JS exceptions release inEvolve with finally so callbacks cannot strand cleanup.
+     * Timestamp conversion and signed-int64 initialization overflow are checked before movement.
      *
-     * @param {number} [timestamp=0] New ball timestamp in 100ns units; zero preserves ball timestamps.
+     * @param {bigint|number} [timestamp=0n] New ball timestamp in 100ns units; zero preserves ball timestamps.
      * @throws {RangeError} If a mobile mass/agility is invalid.
      * @throws {Error} If an active ball uses an unported mode.
      * @returns {void} No return value.
      */
     @meta.blue.method
     @meta.adapted
-    Evolve(timestamp = 0)
+    Evolve(timestamp = 0n)
     {
+        timestamp = CjsDestinyBall._toInt64(timestamp);
         for (const ball of this._balls.values())
         {
             if (!ball.isFree || ball.isMoribund) continue;
+            if (timestamp !== 0n && ball.mNewTime === 0n)
+            {
+                CjsDestinyBall._toInt64(timestamp - CjsBallparkController._tickTime(this.tickInterval));
+            }
             if (!(ball.mass > 0) || !(ball.agility > 0)
                 || !Number.isFinite(ball.mass * ball.agility))
             {
@@ -444,13 +517,13 @@ export class CjsBallparkController
                 if (ball.isFree && !ball.isMoribund) this.Integrate(ball);
             }
             // Carbon completes integration for every ball before updating timestamps.
-            if (timestamp !== 0)
+            if (timestamp !== 0n)
             {
                 for (const ball of this._balls.values())
                 {
                     if (!ball.isFree || ball.isMoribund) continue;
-                    ball.mOldTime = ball.mNewTime === 0
-                        ? timestamp - this.tickInterval * 10000 : ball.mNewTime;
+                    ball.mOldTime = ball.mNewTime === 0n
+                        ? timestamp - CjsBallparkController._tickTime(this.tickInterval) : ball.mNewTime;
                     ball.mNewTime = timestamp;
                 }
             }
@@ -572,7 +645,7 @@ export class CjsBallparkController
             tz *= inverse;
         }
         const phi1 = currentTime * ORBITAL_PRECESSION;
-        const phi2 = (ball.id & 0xffff) + currentTime * ORBITAL_PRECESSION;
+        const phi2 = Number(ball.id & 0xffffn) + currentTime * ORBITAL_PRECESSION;
         const nx = Math.trunc(Math.cos(phi1) * Math.cos(phi2) * 1e7) / 1e7;
         const ny = Math.trunc(Math.sin(phi2) * 1e7) / 1e7;
         const nz = Math.trunc(Math.sin(phi1) * Math.cos(phi2) * 1e7) / 1e7;
@@ -708,7 +781,7 @@ export class CjsBallparkController
     /**
      * Adaptation: ID overload only; same finite-target guard and restart at zero throttle.
      *
-     * @param {number} id Safe-integer ball identity.
+     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} x Position component in meters.
      * @param {number} y Position component in meters.
      * @param {number} z Position component in meters.
@@ -731,7 +804,7 @@ export class CjsBallparkController
     /**
      * Adaptation: ID overload; keeps Carbon's distant target (1e17 units).
      *
-     * @param {number} id Safe-integer ball identity.
+     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} x Direction component.
      * @param {number} y Direction component.
      * @param {number} z Direction component.
@@ -751,8 +824,8 @@ export class CjsBallparkController
     /**
      * Adaptation: all balls share one region; native target validity checks retained.
      *
-     * @param {number} id Safe-integer ball identity.
-     * @param {number} targetId Target ball identity.
+     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
+     * @param {bigint|number} targetId Signed-int64 target identity; Number inputs must be safe integers.
      * @param {number} [range] Surface separation in meters.
      * @returns {void} No return value.
      */
@@ -763,21 +836,21 @@ export class CjsBallparkController
         const ball = this.GetBall(id);
         const target = this.GetBall(targetId);
         range = Math.fround(range);
-        if (!ball || !target || id === targetId || target.isMoribund
+        if (!ball || !target || ball === target || target.isMoribund
             || target.isCloaked || !Number.isFinite(range)) return;
         this.Stop(id);
-        ball.followId = targetId;
+        ball.followId = target.id;
         ball._followPtr = target;
         ball.followRange = range;
         ball.mode = Mode.DSTBALL_FOLLOW;
-        target._followers.add(id);
+        target._followers.add(ball.id);
     }
 
     /**
      * Adaptation: single region, native float range and target validity checks.
      *
-     * @param {number} id Safe-integer ball identity.
-     * @param {number} targetId Target ball identity.
+     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
+     * @param {bigint|number} targetId Signed-int64 target identity; Number inputs must be safe integers.
      * @param {number} [range] Surface separation in meters.
      * @returns {void} No return value.
      */
@@ -788,20 +861,20 @@ export class CjsBallparkController
         const ball = this.GetBall(id);
         const target = this.GetBall(targetId);
         range = Math.fround(range);
-        if (!ball || !target || id === targetId || target.isMoribund
+        if (!ball || !target || ball === target || target.isMoribund
             || target.isCloaked || !Number.isFinite(range)) return;
         this.Stop(id);
-        ball.followId = targetId;
+        ball.followId = target.id;
         ball._followPtr = target;
         ball.followRange = range;
         ball.mode = Mode.DSTBALL_ORBIT;
-        target._followers.add(id);
+        target._followers.add(ball.id);
     }
 
     /**
      * Adaptation: ID overload; no formation slots/network state. Velocity is retained.
      *
-     * @param {number} id Safe-integer ball identity.
+     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @returns {void} No return value.
      */
     @meta.blue.method
@@ -812,9 +885,9 @@ export class CjsBallparkController
         if (!ball) return;
         if (ball._followPtr)
         {
-            ball._followPtr._followers.delete(id);
+            ball._followPtr._followers.delete(ball.id);
             ball._followPtr = null;
-            ball.followId = 0;
+            ball.followId = 0n;
             ball.followRange = 0;
         }
         ball.mode = Mode.DSTBALL_STOP;
@@ -823,7 +896,7 @@ export class CjsBallparkController
     /**
      * Adaptation: scalar old/new positions, finite input guard, no partition update.
      *
-     * @param {number} id Safe-integer ball identity.
+     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} x Position component in meters.
      * @param {number} y Position component in meters.
      * @param {number} z Position component in meters.
@@ -843,7 +916,7 @@ export class CjsBallparkController
     /**
      * Adaptation: scalar old/new velocities, finite input guard, no orientation update.
      *
-     * @param {number} id Safe-integer ball identity.
+     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} x Velocity component in meters per second.
      * @param {number} y Velocity component in meters per second.
      * @param {number} z Velocity component in meters per second.
@@ -863,7 +936,7 @@ export class CjsBallparkController
     /**
      * Adaptation: finite mass guard before recomputing cached drag.
      *
-     * @param {number} id Safe-integer ball identity.
+     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} mass Mass in kilograms.
      * @returns {void} No return value.
      */
@@ -880,7 +953,7 @@ export class CjsBallparkController
     /**
      * Adaptation: finite native f32 input guard; no spatial partition update.
      *
-     * @param {number} id Safe-integer ball identity.
+     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} radius Radius in meters.
      * @returns {void} No return value.
      */
@@ -897,7 +970,7 @@ export class CjsBallparkController
     /**
      * Adaptation: finite native f32 input guard; no spatial partition update.
      *
-     * @param {number} id Safe-integer ball identity.
+     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} speed Maximum speed in meters per second.
      * @returns {void} No return value.
      */
@@ -914,7 +987,7 @@ export class CjsBallparkController
     /**
      * Adaptation: finite native f32 input guard before recomputing cached drag.
      *
-     * @param {number} id Safe-integer ball identity.
+     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} agility Native positive mass/agility multiplier.
      * @returns {void} No return value.
      */
@@ -945,13 +1018,14 @@ export class CjsBallparkController
 
     /**
      * Native throttle clamp; f32 conversion models the native argument type.
+     * Adaptation: GetBall checks and normalizes JavaScript ID inputs.
      *
-     * @param {number} id Safe-integer ball identity.
+     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} fraction Requested fraction of maximum speed.
      * @returns {void} No return value.
      */
     @meta.blue.method
-    @meta.implemented
+    @meta.adapted
     SetSpeedFraction(id, fraction)
     {
         const ball = this.GetBall(id);
@@ -961,9 +1035,10 @@ export class CjsBallparkController
     }
 
     /**
-     * Adaptation: updates movement participation without collision mini-shapes or boxes.
+     * Adaptation: updates movement participation without collision mini-shapes or boxes;
+     * checked BigInt timestamp subtraction rejects signed overflow before changing the flag.
      *
-     * @param {number} id Safe-integer ball identity.
+     * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {boolean} isFree Whether the ball can move.
      * @returns {void} No return value.
      */
@@ -973,10 +1048,11 @@ export class CjsBallparkController
     {
         const ball = this.GetBall(id);
         if (!ball || ball.isFree === Boolean(isFree)) return;
+        const newTime = isFree ? CjsDestinyBall._toInt64(this.time - CjsBallparkController._tickTime(this.tickInterval)) : ball.mNewTime;
         ball.isFree = Boolean(isFree);
         if (ball.isFree)
         {
-            ball.mNewTime = this.time - this.tickInterval * 10000;
+            ball.mNewTime = newTime;
         }
         else
         {
@@ -984,5 +1060,24 @@ export class CjsBallparkController
             this.SetBallVelocity(id, 0, 0, 0);
             ball._lastGx = ball._lastGy = ball._lastGz = 0;
         }
+    }
+
+    /**
+     * Converts native int milliseconds to exact 100ns ticks for the private clock path.
+     * JS adaptation: rejects nonpositive intervals and products outside signed int32;
+     * the donor divides by this int product and supplies no portable overflow behavior.
+     *
+     * @param {number} interval Positive millisecond interval whose product fits native int32.
+     * @returns {bigint} Exact interval in 100ns units.
+     * @throws {RangeError} If interval arithmetic is outside the supported native domain.
+     */
+    @meta.ours
+    static _tickTime(interval)
+    {
+        if (!Number.isInteger(interval) || interval <= 0 || interval > 214748)
+        {
+            throw new RangeError("Tick interval must be positive integer milliseconds with an int32 100ns product");
+        }
+        return BigInt(interval) * 10000n;
     }
 }

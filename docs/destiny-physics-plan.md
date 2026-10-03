@@ -136,12 +136,12 @@ deterministic manual-tick host first; no socket server, render loop or backgroun
 timer is needed. Preserve the native default step and separate `Evolve` from
 `OnTick`, pause/start and timestamp adjustment semantics.
 
-Before stream parity, replace the safe-integer ID limitation with one canonical
-signed-int64 representation. Recommended: BigInt identities and native timestamps,
-with checked convenience conversion of safe numeric IDs and bounded timestamp
-differences converted to Number for integration. Keep simulation counters in their
-source-defined domains. Do not allow `1` and `1n` to name different physical objects.
-This is a proposed compatibility change and needs fixture/API review before coding.
+Implemented after fixture/API review: canonical signed-int64 BigInt identities
+and native timestamps, with checked safe Number inputs and native local-ID
+allocation. The same object is addressed by `1` and `1n`; simulation counters
+and Actions stamps remain Numbers. Later interpolation must convert only bounded
+timestamp differences to Number for integration, never absolute timestamps.
+Native stream representation and remaining state/settings obligations are pending.
 
 Exit checks: current trajectories still pass; property changes update caches;
 creation/replacement/removal preserves links; missing objects and callback-driven

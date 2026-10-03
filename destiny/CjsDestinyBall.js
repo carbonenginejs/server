@@ -1,5 +1,6 @@
 import { meta } from "@carbonenginejs/runtime/schema";
 
+// Source: blueexposure/include/BlueTypes.h
 // Source: destiny/src/Ball.h
 // Source: destiny/src/Ball.cpp
 // Source: destiny/src/Ball_Blue.cpp
@@ -13,6 +14,28 @@ import { meta } from "@carbonenginejs/runtime/schema";
 @meta.define({ className: "CjsDestinyBall", modelledOn: "Ball" })
 export class CjsDestinyBall
 {
+    /**
+     * Converts a native signed-int64 primitive without losing identity or time precision.
+     * JS adaptation: Number cannot represent the whole ID/Be::Time domain. This
+     * internal binding helper accepts BigInt or safe integer Numbers, rejects
+     * coercible strings/booleans and overflow, and never wraps signed arithmetic.
+     * It replaces native typed/Python integer conversion, not simulation schema APIs.
+     *
+     * @param {bigint|number} value Native ID or 100ns timestamp value.
+     * @returns {bigint} Exact signed-int64 value.
+     * @throws {RangeError} If the value is not an exact signed-int64 input.
+     */
+    @meta.ours
+    static _toInt64(value)
+    {
+        if (typeof value === "number" && Number.isSafeInteger(value)) value = BigInt(value);
+        if (typeof value !== "bigint" || value < -9223372036854775808n || value > 9223372036854775807n)
+        {
+            throw new RangeError("Native int64 values must be signed-int64 BigInts or safe integers");
+        }
+        return value;
+    }
+
     static DSTBALLMODE = Object.freeze({
         DSTBALL_GOTO: 0,
         DSTBALL_FOLLOW: 1,
@@ -30,7 +53,7 @@ export class CjsDestinyBall
     });
 
     @meta.type.int64
-    id = 0;
+    id = 0n;
     @meta.type.float64
     x = 0;
     @meta.type.float64
@@ -56,7 +79,7 @@ export class CjsDestinyBall
     @meta.type.enum("DSTBALLMODE")
     mode = CjsDestinyBall.DSTBALLMODE.DSTBALL_STOP;
     @meta.type.int64
-    followId = 0;
+    followId = 0n;
     @meta.type.float32
     followRange = 10;
     @meta.type.float64
@@ -81,8 +104,8 @@ export class CjsDestinyBall
     isMoribund = false;
 
     // Native state timestamps and the mode/deletion stamp.
-    mNewTime = 0;
-    mOldTime = 0;
+    mNewTime = 0n;
+    mOldTime = 0n;
     mEffectStamp = 0;
 
     // Native mOldPos/mOldVel and mLastG, expanded into f64 scalars.

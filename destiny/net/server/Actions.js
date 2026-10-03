@@ -1,4 +1,5 @@
 import { meta } from "@carbonenginejs/runtime/schema";
+import { CjsDestinyBall } from "../../CjsDestinyBall.js";
 
 // Source: destiny/python/destiny/net/server/_actions.py
 /**
@@ -41,9 +42,11 @@ export class Actions
      * Preserves adjacent tuple deduplication and the optional third event item.
      * Adaptation: JS arrays represent Python tuples, and keyword arguments become
      * an options object. Signal delivery is explicitly unported. Payloads are
-     * retained unchanged; the ballpark applies its own scalar conversions later.
+     * retained unchanged except IDs, which normalize to BigInt. Checked ID rejection
+     * occurs at queue admission rather than native execution; Number cannot retain
+     * every int64 identity. The ballpark applies physical scalar conversions later.
      *
-     * @param {number} ball_id Ball identity associated with the event.
+     * @param {bigint|number} ball_id Ball identity associated with the event.
      * @param {string} eventName Native ballpark method name.
      * @param {unknown[]} [args] Bounded movement-command arguments before optional ball ID insertion.
      * @param {Object} [options] Native keyword options expressed as a JavaScript object.
@@ -55,6 +58,7 @@ export class Actions
     _add_to_system_history(ball_id, eventName, args = [],
         { insert_ball_id_into_args = true, local_args = null } = {})
     {
+        ball_id = CjsDestinyBall._toInt64(ball_id);
         const parameters = insert_ball_id_into_args ? [ball_id, ...args] : args;
         const event = local_args === null
             ? [eventName, parameters]
@@ -94,14 +98,15 @@ export class Actions
 
     /**
      * Queues native GotoPoint with its unmodified coordinates.
+     * Adaptation: checked BigInt IDs replace Python integers at queue admission/query.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @param {number} x Position component in meters.
      * @param {number} y Position component in meters.
      * @param {number} z Position component in meters.
      * @returns {void} No return value.
      */
-    @meta.implemented
+    @meta.adapted
     go_to_point(src_id, x, y, z)
     {
         this._add_to_system_history(src_id, "GotoPoint", [x, y, z]);
@@ -109,14 +114,15 @@ export class Actions
 
     /**
      * Queues native GotoDirection with its unmodified direction.
+     * Adaptation: checked BigInt IDs replace Python integers at queue admission/query.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @param {number} x Direction component.
      * @param {number} y Direction component.
      * @param {number} z Direction component.
      * @returns {void} No return value.
      */
-    @meta.implemented
+    @meta.adapted
     go_to_direction(src_id, x, y, z)
     {
         this._add_to_system_history(src_id, "GotoDirection", [x, y, z]);
@@ -124,28 +130,30 @@ export class Actions
 
     /**
      * Queues native Orbit with the target and surface range in meters.
+     * Adaptation: checked BigInt IDs replace Python integers at queue admission/query.
      *
-     * @param {number} src_id Safe-integer source ball identity.
-     * @param {number} dst_id Target ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
+     * @param {bigint|number} dst_id Signed-int64 target ID; Number inputs must be safe integers.
      * @param {number} orbit_range_meters Orbit surface separation in meters.
      * @returns {void} No return value.
      */
-    @meta.implemented
+    @meta.adapted
     orbit(src_id, dst_id, orbit_range_meters)
     {
-        this._add_to_system_history(src_id, "Orbit", [dst_id, orbit_range_meters]);
+        this._add_to_system_history(src_id, "Orbit", [CjsDestinyBall._toInt64(dst_id), orbit_range_meters]);
     }
 
     /**
      * Queues native SetBallVelocity in meters per second.
+     * Adaptation: checked BigInt IDs replace Python integers at queue admission/query.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @param {number} vx Velocity component in meters per second.
      * @param {number} vy Velocity component in meters per second.
      * @param {number} vz Velocity component in meters per second.
      * @returns {void} No return value.
      */
-    @meta.implemented
+    @meta.adapted
     set_ball_velocity(src_id, vx, vy, vz)
     {
         this._add_to_system_history(src_id, "SetBallVelocity", [vx, vy, vz]);
@@ -153,11 +161,12 @@ export class Actions
 
     /**
      * Queues native Stop; it does not immediately zero velocity.
+     * Adaptation: checked BigInt IDs replace Python integers at queue admission/query.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @returns {void} No return value.
      */
-    @meta.implemented
+    @meta.adapted
     stop(src_id)
     {
         this._add_to_system_history(src_id, "Stop");
@@ -165,12 +174,13 @@ export class Actions
 
     /**
      * Queues native SetBallMass in kilograms.
+     * Adaptation: checked BigInt IDs replace Python integers at queue admission/query.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @param {number} mass_kg Mass in kilograms.
      * @returns {void} No return value.
      */
-    @meta.implemented
+    @meta.adapted
     set_ball_mass(src_id, mass_kg)
     {
         this._add_to_system_history(src_id, "SetBallMass", [mass_kg]);
@@ -178,12 +188,13 @@ export class Actions
 
     /**
      * Queues the native linear agility multiplier.
+     * Adaptation: checked BigInt IDs replace Python integers at queue admission/query.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @param {number} agility Native positive mass/agility multiplier.
      * @returns {void} No return value.
      */
-    @meta.implemented
+    @meta.adapted
     set_ball_agility(src_id, agility)
     {
         this._add_to_system_history(src_id, "SetBallAgility", [agility]);
@@ -191,12 +202,13 @@ export class Actions
 
     /**
      * Queues throttle without clamping or rounding ahead of the ballpark.
+     * Adaptation: checked BigInt IDs replace Python integers at queue admission/query.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @param {number} speed_fraction Unmodified requested fraction of maximum speed.
      * @returns {void} No return value.
      */
-    @meta.implemented
+    @meta.adapted
     set_speed_fraction(src_id, speed_fraction)
     {
         this._add_to_system_history(src_id, "SetSpeedFraction", [speed_fraction]);
@@ -204,15 +216,16 @@ export class Actions
 
     /**
      * Queues a position with separate server-local notification metadata.
+     * Adaptation: checked BigInt IDs replace Python integers at queue admission/query.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @param {number} x Position component in meters.
      * @param {number} y Position component in meters.
      * @param {number} z Position component in meters.
      * @param {boolean} [is_local_ball] Server-local notification metadata, separate from position arguments.
      * @returns {void} No return value.
      */
-    @meta.implemented
+    @meta.adapted
     set_ball_position(src_id, x, y, z, is_local_ball = false)
     {
         this._add_to_system_history(src_id, "SetBallPosition", [x, y, z],
@@ -221,12 +234,13 @@ export class Actions
 
     /**
      * Queues native SetBallRadius in meters.
+     * Adaptation: checked BigInt IDs replace Python integers at queue admission/query.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @param {number} radius_meters Radius in meters.
      * @returns {void} No return value.
      */
-    @meta.implemented
+    @meta.adapted
     set_ball_radius(src_id, radius_meters)
     {
         this._add_to_system_history(src_id, "SetBallRadius", [radius_meters]);
@@ -234,12 +248,13 @@ export class Actions
 
     /**
      * Queues movement participation, defaulting to free as in Carbon.
+     * Adaptation: checked BigInt IDs replace Python integers at queue admission/query.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @param {boolean} [is_free] Whether the ball can move.
      * @returns {void} No return value.
      */
-    @meta.implemented
+    @meta.adapted
     set_ball_free(src_id, is_free = true)
     {
         this._add_to_system_history(src_id, "SetBallFree", [is_free]);
@@ -247,26 +262,28 @@ export class Actions
 
     /**
      * Queues native FollowBall with a surface range in meters.
+     * Adaptation: checked BigInt IDs replace Python integers at queue admission/query.
      *
-     * @param {number} src_id Safe-integer source ball identity.
-     * @param {number} dst_id Target ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
+     * @param {bigint|number} dst_id Signed-int64 target ID; Number inputs must be safe integers.
      * @param {number} range_meters Surface separation in meters.
      * @returns {void} No return value.
      */
-    @meta.implemented
+    @meta.adapted
     follow_ball(src_id, dst_id, range_meters)
     {
-        this._add_to_system_history(src_id, "FollowBall", [dst_id, range_meters]);
+        this._add_to_system_history(src_id, "FollowBall", [CjsDestinyBall._toInt64(dst_id), range_meters]);
     }
 
     /**
      * Queues native SetMaxSpeed in meters per second.
+     * Adaptation: checked BigInt IDs replace Python integers at queue admission/query.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @param {number} max_meters_per_second Maximum speed in meters per second.
      * @returns {void} No return value.
      */
-    @meta.implemented
+    @meta.adapted
     set_max_speed(src_id, max_meters_per_second)
     {
         this._add_to_system_history(src_id, "SetMaxSpeed", [max_meters_per_second]);
@@ -274,14 +291,16 @@ export class Actions
 
     /**
      * Returns matching pending event tuples in their existing order.
+     * Adaptation: checked BigInt IDs replace Python integers at queue admission/query.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @param {string} event_name Native event name to match.
      * @returns {Array} Matching event tuples in their original order.
      */
-    @meta.implemented
+    @meta.adapted
     _get_pending_actions(src_id, event_name)
     {
+        src_id = CjsDestinyBall._toInt64(src_id);
         const events = [];
         for (const [ball_id, , event] of this._system_history)
         {
@@ -292,14 +311,16 @@ export class Actions
 
     /**
      * Reports whether any matching event remains in the unflushed batch.
+     * Adaptation: checked BigInt IDs replace Python integers at queue admission/query.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @param {string} event_name Native event name to match.
      * @returns {boolean} Whether a matching event is queued.
      */
-    @meta.implemented
+    @meta.adapted
     _has_pending_action(src_id, event_name)
     {
+        src_id = CjsDestinyBall._toInt64(src_id);
         for (const [ball_id, , event] of this._system_history)
         {
             if (ball_id === src_id && event[0] === event_name) return true;
@@ -309,8 +330,10 @@ export class Actions
 
     /**
      * Preserves Python's zero-on-empty result and last-pending-value rule.
+     * Adaptation: JS tuple comparison retains Python numeric equality; query IDs
+     * normalize to checked BigInt because Number cannot retain every int64 ID.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @returns {boolean|0} Last queued freedom state, or numeric zero when absent.
      */
     @meta.adapted
@@ -322,8 +345,10 @@ export class Actions
 
     /**
      * Preserves Python's zero-on-empty result and last-pending-value rule.
+     * Adaptation: JS tuple comparison retains Python numeric equality; query IDs
+     * normalize to checked BigInt because Number cannot retain every int64 ID.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @returns {boolean|0} Last queued non-freedom state, or numeric zero when absent.
      */
     @meta.adapted
@@ -334,9 +359,10 @@ export class Actions
     }
 
     /**
-     * Adaptation: GetBall replaces the native balls dictionary for fallback.
+     * Adaptation: GetBall replaces the native balls dictionary for fallback;
+     * checked BigInt query IDs retain identities beyond Number precision.
      *
-     * @param {number} src_id Safe-integer source ball identity.
+     * @param {bigint|number} src_id Signed-int64 source ID; Number inputs must be safe integers.
      * @returns {number|null} Last queued value, live value, or null for a missing ball.
      */
     @meta.adapted
@@ -390,7 +416,9 @@ function sameTuple(a, b)
         return true;
     }
     // Python bool is an integer subtype. Avoid JS coercion of strings or null.
-    if (typeof a === "boolean" && typeof b === "number") return Number(a) === b;
-    if (typeof b === "boolean" && typeof a === "number") return a === Number(b);
+    if (typeof a === "boolean") a = Number(a);
+    if (typeof b === "boolean") b = Number(b);
+    if (typeof a === "number" && typeof b === "bigint") return Number.isInteger(a) && BigInt(a) === b;
+    if (typeof b === "number" && typeof a === "bigint") return Number.isInteger(b) && a === BigInt(b);
     return a === b;
 }

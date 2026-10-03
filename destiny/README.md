@@ -10,7 +10,7 @@ Import `CjsBallparkController` and `CjsDestinyBall` from
 | `AddBall(id, mass, radius, maxVel, isFree, isGlobal, isMassive, isInteractive, isSpaceJunk, x, y, z, vx, vy, vz, agility, speedFraction)` | Creates a ball, or updates the same object for an existing ID; resets it to stop. |
 | `GetBall(id)` | Returns the live ball or `null`. |
 | `RemoveBall(id, delay = 0)` | Detaches followers; queues deletion when delayed or inside evolution. Interactive orbiters keep flying. |
-| `ClearAll()` | Removes all balls; simulation time is retained. |
+| `ClearAll()` | Removes all balls and resets local-ID counters; simulation time is retained. |
 | `Evolve(timestamp = 0)` | Advances the cached step and increments `currentTime`; zero leaves ball timestamps unchanged. |
 | `Start()` / `Pause()` | Registers/unregisters the injected Blue host without resetting clocks. |
 | `OnTick(realTime, simTime, cookie)` | Cleans dead balls and evolves whole intervals from the 100ns simulation clock. |
@@ -29,7 +29,7 @@ Import `CjsBallparkController` and `CjsDestinyBall` from
 | `SetSpeedFraction(id, fraction)` | Clamps throttle to `[0, 1]`. |
 | `SetBallFree(id, isFree)` | Enables movement or makes the object static, stopping and zeroing its velocity. |
 
-Missing-ID commands are ignored. Follow/orbit requests for self, missing,
+Missing valid-ID commands are ignored; invalid integer representations throw. Follow/orbit requests for self, missing,
 cloaked, or moribund targets leave the existing order unchanged. Changing a target's
 flags directly does not emit gameplay events or cancel existing commands.
 
@@ -60,8 +60,26 @@ integer simulation counter. Actions use the latter. `tickInterval` is in
 milliseconds (default 1000). Evolve uses cached dt; changing tickInterval refreshes
 dt only at an eligible OnTick, and does not refresh existing balls' cached drag.
 Mass/agility setters or AddBall refresh drag at their native sites. This donor
-quirk is intentional. Use safe integer Number timestamps for exact arithmetic;
-full signed-int64 representation remains pending.
+quirk is intentional. Timestamps use signed-int64 BigInt storage; method inputs
+and the time setter also accept safe integer Numbers. Zero timestamps remain
+unset sentinels. Unsafe Numbers, coercible strings/booleans and signed overflow
+are rejected. Direct writes to internal timestamp fields must already be BigInts.
+Tick intervals must be positive integer milliseconds no greater than 214748,
+so the donor's int multiplication by 10000 fits signed int32. Ordinary catch-up
+counts above signed-int32 capacity are rejected after the native first/master
+branches. These guards make unsupported native arithmetic explicit. Counter
+wrapping/bounds for currentTime and mEffectStamp are separate, unfinished native-long
+obligations; the checked-int64 contract does not cover them.
+
+IDs use the same checked signed-int64 representation. Stored id/followId, map
+keys and Actions ID slots are always BigInts; 1 and 1n identify the same ball.
+Use AddBall's returned id after allocation: masters allocate -2n, -3n, ... for
+zero requests, and -1073741825n, -1073741826n, ... for any negative request.
+Replicas allocate from the latter sequence only for -1; other negatives and
+zero are explicit IDs. Allocation does not skip collisions with explicit IDs.
+ClearAll resets both counters. GetBall and commands use resolved IDs and do not
+allocate. Controller methods own identity and follower bookkeeping; do not
+mutate stored IDs or follower sets directly.
 
 The optional PyOS bridge supplies synchronous SendEvent(target, context, name,
 null, format, ...args) and PyError(). The only formats used here are `(i)`

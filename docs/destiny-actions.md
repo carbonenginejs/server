@@ -40,13 +40,21 @@ future stamps, discard old entries or provide a timer.
 Only an identical immediately preceding complete entry is suppressed. The
 comparison includes its stamp and local metadata, and preserves Python's
 boolean/integer equality. Commands separated by another command remain. This
-is not network or provider-message idempotency.
+is not network or provider-message idempotency. Equality includes Number/BigInt
+and boolean equivalents without coercing strings or null.
 
-Numbers remain unchanged until the ballpark executes each command. In
+IDs normalize to checked signed-int64 BigInts when enqueued or queried, including
+Follow/Orbit targets. Safe integer Number IDs are accepted; unsafe or out-of-range
+IDs throw at admission. This is earlier than native Python argument rejection.
+Other payloads remain unchanged until the ballpark executes each command. In
 particular, queueing does not clamp throttle or round parameters to float32.
 Pending speed queries return the last queued value, then the live ball value,
 or null for a missing ball. Pending freedom queries use the last queued flag
 and preserve the donor's numeric zero when no matching action exists.
+
+BigInt history entries are in-process values; ordinary JSON.stringify cannot
+serialize them. This subset defines no JSON wire encoding. Native binary stream
+and packaged-action support remain future work.
 
 ## Host tick example
 

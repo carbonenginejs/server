@@ -7,7 +7,7 @@ import { Actions } from "@carbonenginejs/server/destiny/net/server";
 // Source: destiny/python/destiny/test/ballpark/test_time.py
 // Source: destiny/src/Ballpark.cpp:219-330,550-559,3013-3032,4415-4441,5471-5572,5699-5766
 // Donor: 114e89fa584f0e1a81eb0a679aabf41af8870072. No native binary is required.
-const STEP = 10000000;
+const STEP = 10000000n;
 
 function ball(park, id = 1, free = true)
 {
@@ -30,16 +30,16 @@ function eventHost()
 
 test("donor time: ballpark time initializes to zero", () =>
 {
-    assert.equal(new CjsBallparkController().time, 0);
+    assert.equal(new CjsBallparkController().time, 0n);
 });
 
 test("donor time: AdjustTimes adds to ballpark time", () =>
 {
     const park = new CjsBallparkController();
     park.AdjustTimes(2);
-    assert.equal(park.time, 2);
+    assert.equal(park.time, 2n);
     park.AdjustTimes(3);
-    assert.equal(park.time, 5);
+    assert.equal(park.time, 5n);
 });
 
 test("donor lifecycle: initial state is paused", () =>
@@ -67,7 +67,7 @@ test("Start/Pause are idempotent and runtime manual pumping needs no simulation 
 {
     const host = new CjsBlueOS();
     let now = STEP;
-    host.GetRealTime = () => now;
+    host.GetRealTime = () => Number(now);
     const park = new CjsBallparkController(host);
     park.Start();
     park.Start();
@@ -77,7 +77,7 @@ test("Start/Pause are idempotent and runtime manual pumping needs no simulation 
     assert.equal(park.time, STEP);
     park.Pause();
     park.Pause();
-    now = 2 * STEP;
+    now = 2n * STEP;
     host.PumpOS();
     assert.equal(park.currentTime, 1);
     park.Start();
@@ -85,10 +85,10 @@ test("Start/Pause are idempotent and runtime manual pumping needs no simulation 
     assert.equal(park.currentTime, 2);
     assert.equal(park.mFirstTime, false);
     park.Pause();
-    park.OnTick(0, 3 * STEP, null);
+    park.OnTick(0, 3n * STEP, null);
     park.Evolve();
     assert.equal(park.currentTime, 4);
-    assert.equal(park.time, 3 * STEP);
+    assert.equal(park.time, 3n * STEP);
     assert.throws(() => new CjsBallparkController().Start(), /Blue tick host/);
 });
 
@@ -96,14 +96,14 @@ test("Evolve timestamps only participating balls and keeps counter separate from
 {
     const park = new CjsBallparkController();
     const moving = ball(park), fixed = ball(park, 2, false);
-    park.Evolve(5 * STEP);
-    assert.deepEqual([moving.mOldTime, moving.mNewTime], [4 * STEP, 5 * STEP]);
-    assert.deepEqual([fixed.mOldTime, fixed.mNewTime], [0, 0]);
-    assert.deepEqual([park.time, park.currentTime], [0, 1]);
+    park.Evolve(5n * STEP);
+    assert.deepEqual([moving.mOldTime, moving.mNewTime], [4n * STEP, 5n * STEP]);
+    assert.deepEqual([fixed.mOldTime, fixed.mNewTime], [0n, 0n]);
+    assert.deepEqual([park.time, park.currentTime], [0n, 1]);
     park.Evolve();
-    assert.deepEqual([moving.mOldTime, moving.mNewTime], [4 * STEP, 5 * STEP]);
-    park.Evolve(7 * STEP);
-    assert.deepEqual([moving.mOldTime, moving.mNewTime], [5 * STEP, 7 * STEP]);
+    assert.deepEqual([moving.mOldTime, moving.mNewTime], [4n * STEP, 5n * STEP]);
+    park.Evolve(7n * STEP);
+    assert.deepEqual([moving.mOldTime, moving.mNewTime], [5n * STEP, 7n * STEP]);
     const actions = new Actions(park);
     actions.stop(1);
     assert.equal(actions.flush_history()[0][1], 4);
@@ -113,21 +113,21 @@ test("first eligible tick ignores backlog and notifications; later ticks preserv
 {
     const events = eventHost(), park = new CjsBallparkController(null, events);
     const moving = ball(park);
-    park.OnTick(0, STEP - 1, "unused");
-    assert.deepEqual([park.time, park.currentTime, park.mFirstTime], [0, 0, true]);
+    park.OnTick(0, STEP - 1n, "unused");
+    assert.deepEqual([park.time, park.currentTime, park.mFirstTime], [0n, 0, true]);
     park.OnTick(0, STEP, null);
     assert.deepEqual(events.events, []);
-    assert.deepEqual([moving.mOldTime, moving.mNewTime], [0, STEP]);
-    park.OnTick(999, 3.5 * STEP, null);
-    assert.deepEqual([park.time, park.currentTime], [3 * STEP, 3]);
-    assert.deepEqual([moving.mOldTime, moving.mNewTime], [STEP, 2 * STEP]);
+    assert.deepEqual([moving.mOldTime, moving.mNewTime], [0n, STEP]);
+    park.OnTick(999, 35n * STEP / 10n, null);
+    assert.deepEqual([park.time, park.currentTime], [3n * STEP, 3]);
+    assert.deepEqual([moving.mOldTime, moving.mNewTime], [STEP, 2n * STEP]);
     assert.deepEqual(events.events.map(e => [e.name, e.stamp]),
         [["DoPreTick", 1], ["DoPostTick", 2], ["DoPreTick", 2], ["DoPostTick", 3]]);
     assert.ok(events.events.every(e => e.target === park && e.context === `Destiny::${e.name}`
         && e.flags === null && e.format === "(i)"));
     const late = new CjsBallparkController();
-    late.OnTick(0, 100 * STEP, null);
-    assert.deepEqual([late.currentTime, late.time], [1, 100 * STEP]);
+    late.OnTick(0, 100n * STEP, null);
+    assert.deepEqual([late.currentTime, late.time], [1, 100n * STEP]);
 });
 
 test("master drops backlog only at six whole intervals; replica catches up", () =>
@@ -139,8 +139,8 @@ test("master drops backlog only at six whole intervals; replica catches up", () 
         const park = new CjsBallparkController();
         park.isMaster = master;
         park.OnTick(0, STEP, null);
-        park.OnTick(0, STEP + elapsed * STEP, null);
-        assert.deepEqual([park.currentTime, park.time], [1 + steps, time * STEP]);
+        park.OnTick(0, STEP + BigInt(elapsed * 10000000), null);
+        assert.deepEqual([park.currentTime, park.time], [1 + steps, BigInt(time) * STEP]);
     }
 });
 
@@ -150,10 +150,10 @@ test("native false dispatch is reported without aborting evolution or post notif
     const send = events.SendEvent;
     events.SendEvent = function (...args) { send.apply(this, args); return false; };
     park.OnTick(0, STEP, null);
-    park.OnTick(0, 2 * STEP, null);
+    park.OnTick(0, 2n * STEP, null);
     assert.equal(events.errors, 2);
     assert.deepEqual(events.events.map(e => e.name), ["DoPreTick", "DoPostTick"]);
-    assert.deepEqual([park.currentTime, park.time], [2, 2 * STEP]);
+    assert.deepEqual([park.currentTime, park.time], [2, 2n * STEP]);
 });
 
 test("pre-tick commands affect the current step and post-tick sees the incremented counter", () =>
@@ -167,7 +167,7 @@ test("pre-tick commands affect the current step and post-tick sees the increment
         if (name === "DoPostTick") { assert.equal(stamp, 2); assert.ok(moving.x > 0); }
         return true;
     };
-    park.OnTick(0, 2 * STEP, null);
+    park.OnTick(0, 2n * STEP, null);
 });
 
 test("AdjustTimes preserves zero sentinels, includes static balls and leaves currentTime untouched", () =>
@@ -175,10 +175,10 @@ test("AdjustTimes preserves zero sentinels, includes static balls and leaves cur
     const park = new CjsBallparkController();
     const moving = ball(park), fixed = ball(park, 2, false);
     park.Evolve(STEP);
-    fixed.mNewTime = 7;
+    fixed.mNewTime = 7n;
     park.AdjustTimes(-3);
-    assert.deepEqual([park.time, park.currentTime], [-3, 1]);
-    assert.deepEqual([moving.mOldTime, moving.mNewTime, fixed.mOldTime, fixed.mNewTime], [0, STEP - 3, 0, 4]);
+    assert.deepEqual([park.time, park.currentTime], [-3n, 1]);
+    assert.deepEqual([moving.mOldTime, moving.mNewTime, fixed.mOldTime, fixed.mNewTime], [0n, STEP - 3n, 0n, 4n]);
 });
 
 test("tickInterval changes retain native cached dt and drag until their own refresh sites", () =>
@@ -200,13 +200,13 @@ test("tickInterval changes retain native cached dt and drag until their own refr
 test("SetBallFree sets the new timestamp one interval behind park time only on transition", () =>
 {
     const park = new CjsBallparkController(), fixed = ball(park, 1, false);
-    park.time = 9 * STEP;
-    fixed.mOldTime = 17;
+    park.time = 9n * STEP;
+    fixed.mOldTime = 17n;
     park.SetBallFree(1, true);
-    assert.deepEqual([fixed.mOldTime, fixed.mNewTime], [17, 8 * STEP]);
+    assert.deepEqual([fixed.mOldTime, fixed.mNewTime], [17n, 8n * STEP]);
     park.time += STEP;
     park.SetBallFree(1, true);
-    assert.equal(fixed.mNewTime, 8 * STEP);
+    assert.equal(fixed.mNewTime, 8n * STEP);
 });
 
 test("donor delayed removal retains a moribund ball until eligible cleanup", () =>
@@ -257,7 +257,7 @@ test("removal during Evolve is deferred and skips integration", () =>
     park.EvolveBehaviorForBall = () => park.RemoveBall(1);
     park.Evolve(STEP);
     assert.equal(park.GetBall(1), moving);
-    assert.equal(moving.mNewTime, 0);
+    assert.equal(moving.mNewTime, 0n);
     assert.equal(park.inEvolve, false);
     park.OnTick(0, 0, null);
     assert.equal(park.GetBall(1), null);
@@ -297,7 +297,7 @@ test("target removal preserves interactive orbit flight and stops ordinary follo
     assert.equal(target._followers.size, 0);
     for (const follower of [orbiting, following, passive])
     {
-        assert.equal(follower.followId, 0);
+        assert.equal(follower.followId, 0n);
         assert.equal(follower._followPtr, null);
     }
 });
@@ -337,12 +337,12 @@ test("all integrations precede timestamp updates, including when a later integra
     const integrate = park.Integrate;
     park.Integrate = function (value)
     {
-        assert.deepEqual([first.mNewTime, second.mNewTime], [0, 0]);
+        assert.deepEqual([first.mNewTime, second.mNewTime], [0n, 0n]);
         if (value === second) throw new Error("synthetic integration failure");
         integrate.call(this, value);
     };
     assert.throws(() => park.Evolve(STEP), /synthetic integration failure/);
-    assert.deepEqual([first.mNewTime, second.mNewTime, park.currentTime], [0, 0, 0]);
+    assert.deepEqual([first.mNewTime, second.mNewTime, park.currentTime], [0n, 0n, 0]);
     assert.equal(park.inEvolve, false);
     park.Integrate = integrate;
     park.Evolve(STEP);

@@ -115,8 +115,8 @@ test("command transitions and removal detach all target links", () =>
     park.FollowBall(1, 3, 10);
     park.Orbit(2, 3, 20);
     park.GotoPoint(1, 100, 0, 0);
-    assert.equal(first.followId, 0);
-    assert.deepEqual([...target._followers], [2]);
+    assert.equal(first.followId, 0n);
+    assert.deepEqual([...target._followers], [2n]);
     park.FollowBall(1, 3, 10);
     park.RemoveBall(3);
     assert.equal(park.GetBall(3), null);
@@ -124,7 +124,7 @@ test("command transitions and removal detach all target links", () =>
     for (const follower of [first, second])
     {
         assert.equal(follower.mode, Mode.DSTBALL_STOP);
-        assert.equal(follower.followId, 0);
+        assert.equal(follower.followId, 0n);
         assert.equal(follower._followPtr, null);
     }
     park.Evolve();

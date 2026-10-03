@@ -4,8 +4,8 @@ import { CjsSchema } from "@carbonenginejs/runtime/schema";
 import { CjsBallparkController } from "@carbonenginejs/server/destiny";
 import { Actions } from "@carbonenginejs/server/destiny/net/server";
 
-const ID = 1000000000001;
-const TARGET = 1000000000002;
+const ID = 1000000000001n;
+const TARGET = 1000000000002n;
 
 // Expected event tuples copied from CCP's test_actions.py, not derived by the port.
 // Source: destiny/python/destiny/test/net/server/test_actions.py:86-386.
@@ -29,7 +29,7 @@ const cases = [
 
 for (const [method, args, expected] of cases)
 {
-    test(`Carbon Actions tuple: ${method} ${JSON.stringify(args)}`, () =>
+    test(`Carbon Actions tuple: ${method} ${JSON.stringify(args, (_, value) => typeof value === "bigint" ? `${value}n` : value)}`, () =>
     {
         const actions = new Actions(new CjsBallparkController());
         actions[method](...args); // Donor fixture arity is bounded to five.
@@ -130,7 +130,7 @@ test("queued movement applied before Evolve matches direct commands and delays r
     actions.go_to_direction(ID, 1, 2, 3);
     assert.equal(queued.GetBall(ID).x, 0, "enqueue must not execute");
 
-    actions.set_stamp_for_system(queued.time + 1);
+    actions.set_stamp_for_system(queued.currentTime + 1);
     const batch = actions.flush_history();
     actions.stop(ID); // Input arriving while the prior batch is being processed.
     for (const [, stamp, [method, args]] of batch)

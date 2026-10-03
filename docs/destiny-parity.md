@@ -40,9 +40,9 @@ has been introduced. Nothing was promoted from generated source or regenerated.
 - Native float parameters are rounded with `Math.fround` at controller boundaries.
   Setters maintain the cached drag factor. Direct field writes bypass native-like
   validation and hooks, so physical changes must use the controller.
-- IDs must be safe JS integers. Full signed 64-bit IDs and automatic native local-ID
-  allocation are outside this temporary model. Explicit negative safe IDs are ordinary
-  map keys here; Blue-specific negative-target rejection is not implemented.
+- IDs and native timestamps use signed-int64 BigInts, with checked safe Number
+  inputs. Maps, follower links and Actions share canonical IDs. Native local-ID
+  allocation is implemented; Blue-specific negative-target rejection remains unported.
 - There is a single implicit region. Removal supports native delay/buffering and
   an optional injected PyOS bridge for tick/final-cleanup callbacks. Collision
   forces, networking, orientation, interpolation and spatial notifications are absent.
@@ -75,7 +75,7 @@ The new tests translate donor `test_actions.py` fixtures and cover stamp/order
 semantics, adjacent tuple deduplication, local position metadata, pending state,
 and queued-versus-direct movement application. The action checkpoint had 38
 passing tests, including the original 17 movement
-metadata/trajectory tests; the current suite has 112 passing tests.
+metadata/trajectory tests; the current suite has 124 passing tests.
 
 ## Validation and remaining work
 
@@ -99,7 +99,7 @@ The geometry subpath implements `AABB`, `Planed`, `Triangle`, and all six
 The 44 tests from `TestAABB.cpp`, `TestPlane.cpp`, `TestTriangle.cpp` and
 `TestCollision.cpp` are transcribed with their native names and expectations.
 Seven additional cases cover aliasing, partial output writes, large coordinates,
-swept spheres and source quirks. There are 112 passing tests in the current suite.
+swept spheres and source quirks. There are 124 passing tests in the current suite.
 See [geometry](destiny-geometry.md) for the exact value/reference adaptations.
 
 ## Donor update reviewed 2026-10-04
@@ -153,5 +153,35 @@ runtime manual-host integration, catch-up thresholds, timestamp sentinels, callb
 phase ordering/failure handling, drag-cache behavior, deferred cleanup and re-add.
 Native host globals become explicit injected interfaces; there is no new scheduler
 or event-bus implementation. See the [source-family guide](../destiny/README.md)
-for the host contract and the current Number timestamp limitation. Phase 1 remains
-incomplete until its state/settings, full-int64 and remaining lifecycle obligations land.
+for the host contract. Phase 1 remains incomplete until its remaining
+state/settings and lifecycle obligations land.
+
+## Signed-int64 identities and timestamps
+
+The ID definition is src/Ball.h:74; follow and timestamp fields are at
+src/Ball.h:99,181-182. Ballpark owns its native clock and local counters
+(src/Ballpark.h:85-93). Be::Time is int64_t in Carbon's
+blueexposure/include/BlueTypes.h. BigInt replaces these integer primitives;
+physical f64 values, tick counters and action stamps remain Numbers.
+
+Ballpark.cpp:3265-3296 supplies GetIDForCollisionObject; initial local counters
+are Ballpark.cpp:111-112, DSTLOCALBALLS is IDstConstants.h:76, and ClearAll
+resets them at Ballpark.cpp:5948-5949. Master zero/negative requests and replica
+-1 requests now follow those branches. Resolved-ID collisions reuse the existing
+ball as the donor does. Legacy orbit retains the exact ID low bits
+(Ballpark.cpp:1275) without converting a full wide ID to Number.
+
+The internal primitive conversion helper is owned by CjsDestinyBall and shared
+by the park/Actions. No runtime math helper provides this strict conversion;
+schema conversion is intentionally not used. The JS boundary rejects unsafe
+Numbers, fractional or coercible values and signed overflow. Native arithmetic
+has no portable signed-overflow behavior to emulate. Timestamp adjustments and
+initial old timestamps are checked before their ordinary mutations; tick
+callbacks still make a whole OnTick nontransactional. Positive interval products
+and ordinary catch-up counts must fit native int32. The source-family guide
+documents these domains and the API migration from Number outputs.
+
+Twelve additional JS boundary tests cover canonical keys, full signed endpoints,
+adjacent IDs beyond Number precision, local allocation, exact 100ns clocks,
+overflow and Actions equality. Existing donor trajectory values are unchanged.
+This is source/fixture validation, not a native binary or stream-parity claim.

@@ -56,6 +56,9 @@ park.Stop(ship.id); // Decelerates on subsequent ticks.
 Each `Evolve()` advances the cached step, **one second** by default. The caller supplies
 the clock; calling once per rendered frame would run the simulation too fast.
 Distances are meters, velocity is meters/second, and mass is kilograms.
+Ball IDs and 100ns timestamps are BigInts; safe integer Number inputs normalize
+to the same values. Tick counters remain Numbers. See [Destiny basics](destiny/README.md)
+for local-ID allocation and clock boundaries.
 
 ## Implemented
 
