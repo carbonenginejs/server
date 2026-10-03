@@ -135,7 +135,7 @@ test("command transitions and removal detach all target links", () =>
     assert.equal(park.GetBall(2), null);
 });
 
-test("re-adding a target preserves handles and followers; re-adding a follower detaches it", () =>
+test("native re-add retains handles, old follow pointer and target membership", () =>
 {
     const park = new CjsBallparkController();
     const follower = spaceBall(park, 1);
@@ -147,8 +147,63 @@ test("re-adding a target preserves handles and followers; re-adding a follower d
     assert.equal(follower.gotoX, 186);
     assert.equal(spaceBall(park, 1), follower);
     assert.equal(follower.mode, Mode.DSTBALL_STOP);
-    assert.equal(follower._followPtr, null);
-    assert.equal(target._followers.size, 0);
+    assert.equal(follower._followPtr, target);
+    assert.equal(follower.followId, 0n);
+    assert.equal(target._followers.has(follower.id), true);
+});
+
+test("native re-add prunes only missing and pointer-inconsistent followers", () =>
+{
+    // Source: destiny/src/Ballpark.cpp:3417-3448.
+    const park = new CjsBallparkController(), target = spaceBall(park, 1), retained = spaceBall(park, 2), wrong = spaceBall(park, 3);
+    retained.mFollowPtr = target; retained.mFollowId = 0n; retained.mMode = Mode.DSTBALL_STOP;
+    target.mFollowers.add(99n); target.mFollowers.add(wrong.id); target.mFollowers.add(retained.id);
+    spaceBall(park, 1);
+    assert.deepEqual([...target.mFollowers], [retained.id]);
+    assert.equal(retained.mFollowPtr, target);
+});
+
+test("native re-add retains formation reservation, old samples and unrelated state", () =>
+{
+    // Source: destiny/src/Ballpark.cpp:3303-3462.
+    const park = new CjsBallparkController(); park.isMaster = true;
+    park.LoadFormations([["line", [[1, 0, 0]]]]);
+    const target = spaceBall(park, 1), follower = spaceBall(park, 2);
+    park.SetBallFormation(1, 0); park.FormationFollow(2, 1, target.ReserveFormationSlot());
+    follower.mGoto.set([4, 5, 6]); follower.mLastCollision = 123; follower.isCloaked = 7;
+    const old = Array.from(follower.mOldPos);
+    spaceBall(park, 2, 300);
+    assert.equal(target.mFormationSlots, 1); assert.equal(follower.mFollowPtr, target);
+    assert.equal(follower.mFormationID, -1); assert.equal(follower.mFollowId, 0n);
+    assert.deepEqual(Array.from(follower.mOldPos), old); assert.deepEqual(Array.from(follower.mGoto), [4, 5, 6]);
+    assert.equal(follower.mLastCollision, 123); assert.equal(follower.isCloaked, 7);
+});
+
+test("re-add restores park after a mode callback clears it, with physical fields assigned first", () =>
+{
+    // Source: destiny/src/Ballpark.cpp:3414-3455.
+    const park = new CjsBallparkController(), ball = spaceBall(park, 1);
+    ball.mMode = Mode.DSTBALL_GOTO; let calls = 0;
+    park._pyOS = { SendEvent(value, event)
+    {
+        if (event === "Destiny::Ball::DoModeChange")
+        {
+            ++calls; assert.equal(value.x, 123); assert.equal(value.mFollowId, 0n);
+            park.ClearAll(); assert.equal(value.mPark, null);
+        }
+        return true;
+    } };
+    assert.equal(spaceBall(park, 1, 123), ball);
+    assert.equal(calls, 1); assert.equal(ball.mPark, park); assert.equal(park.GetBall(1), ball);
+});
+
+test("AddBall narrows float inputs before native clamps and preserves negative zero", () =>
+{
+    // Source: destiny/src/Ballpark.cpp:3392-3404.
+    const park = new CjsBallparkController();
+    const ball = park.AddBall(1, -0, -0, -0, false, false, false, false, false, 0, 0, 0, 0, 0, 0, 1e-50, -0);
+    for (const value of [ball.mass, ball.radius, ball.maxVelocity, ball.speedFraction]) assert.ok(Object.is(value, -0));
+    assert.equal(ball.agility, 1);
 });
 
 test("invalid target commands preserve the existing order", () =>

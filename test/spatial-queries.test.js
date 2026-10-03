@@ -171,13 +171,15 @@ test("negative inflated ranges, zero segments and float32 cone radius square are
     assert.deepEqual(park.GetBallIdsInCone(source.id, 0, 0, 10000, Math.PI / 4), [other.id]);
 });
 
-test("ScanCone uses centers across bubbles and the strict two-pi sphere shortcut", () =>
+test("ScanCone uses centers across bubbles and the strict donor PI sphere shortcut", () =>
 {
     const { park, source, balls: [front, back, side] } = scene([[10, 0, 0], [-10, 0, 0], [0, 10, 0]], false);
     front.isMoribund = true; front.mNewBubble = 999;
     const cloak = add(park, 8, 1); cloak.isCloaked = 1;
     add(park, -9, 1); add(park, 10, 11, 0, 0, 1000);
     assert.deepEqual(park.ScanCone(source.id, Math.PI * 2, 10, 1, 0, 0), [front.id]);
+    assert.deepEqual(park.ScanCone(source.id, Math.PI * 2 + 1e-10, 10, 1, 0, 0), [front.id]);
+    assert.deepEqual(park.ScanCone(source.id, 2 * 3.141592654, 10, 1, 0, 0), [front.id]);
     assert.deepEqual(park.ScanCone(source.id, Math.PI * 2 + 0.001, 10, 1, 0, 0), [front.id, back.id, side.id]);
     assert.equal(park.ScanCone(source.id, 1, 0, 1, 0, 0), null);
     assert.equal(park.ScanCone(source.id, 1, 10, 0, 0, 0), null);

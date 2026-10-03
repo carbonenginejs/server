@@ -674,3 +674,27 @@ verify wire layout rather than relying on self-round-trip. Reader restoration
 remains open, including the native AddBall replacement behavior documented in
 the stream guide. Scalar snapshots preserve native stack values across nested
 stream calls. No native executable oracle, transport or restart parity is claimed.
+
+## Native state restoration checkpoint
+
+ReadBallFromStream and the public ReadFullStateFromStream/PyReadFullStateFromStream
+wrappers now follow Thunkers.cpp:2083-2142,2463-2509,2897-3177. The C++ body
+method becomes _ReadFullStateBody solely to distinguish it from the Blue alias.
+Source baseline remains 114e89f. Thirty additional tests bring the suite to 769.
+
+Independent rigid/dynamic packet literals verify defaults, widths, signed fields
+and orientation layout. Further fixtures cover all supported mode tails,
+duplicate/forward/missing follow references, partial==0/1/2, all mini families,
+reverse removal order, retained descriptor/collider ownership, old samples,
+pooled-vector reentry and error cleanup. Bounded-read and finite-creation
+adaptations are documented in the [stream guide](destiny-streams.md).
+
+Two earlier port errors were corrected without a donor update. AddBall had
+called Stop on replacement, prematurely unlinking the old target and freeing
+formation slots; native Ballpark.cpp:3303-3462 retains them and prunes only
+inconsistent incoming followers after its SetMode call. Clamps now also narrow
+float inputs first and preserve negative zero. ScanCone now uses the native
+PI literal 3.141592654 (Thunkers.cpp:10,2379-2461), including its slightly wider
+spherical-shortcut threshold. Regression tests distinguish both behaviors.
+Runtime remains untouched; transport, client snapshots/replay and interfaces
+remain separate outstanding obligations.

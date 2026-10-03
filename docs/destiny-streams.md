@@ -1,9 +1,9 @@
 # Destiny state streams
 
 Status: Evolving
-Scope: Native state-packet writing and planned restoration
+Scope: Native state-packet writing and restoration
 Audience: Simulation hosts and port maintainers
-Summary: Binary layout, filters, stream ownership and the remaining reader obligations.
+Summary: Binary layout, filters, stream ownership and partial restoration behavior.
 
 ## Current writer API
 
@@ -80,27 +80,47 @@ BOID and MINIBALL have no native serialization case. Their common prefix is
 written, then the writer logs and returns before mini sections. This behavior
 is preserved; such output is not claimed to be a restorable state packet.
 
-## Restoration still to implement
+## Current restoration API
 
-The bounded scalar reader exists in the adapter, but Ballpark restoration is
-not yet implemented. The native full-state wrapper clears only free/proximity
-registries and bubbleInteractives when partial is zero; absent aggregate balls
-remain. The client ticker supplies ClearAll separately when replacing a scene.
-Packet type does not determine partial behavior.
+ReadFullStateFromStream(stream, partial=0) and PyReadFullStateFromStream expose
+the native Blue/Python wrapper. They rewind the supplied CjsDestinyStream and
+leave its cursor at the consumed position. ReadBallFromStream(stream, partial)
+reads one record without a packet header. The native C++ body reader has the
+same name as the Blue alias; its JS implementation is privately named
+_ReadFullStateBody to distinguish the two signatures.
+
+The full-state wrapper clears only free/proximity registries and
+bubbleInteractives when partial is zero; absent aggregate balls remain. The
+client ticker supplies ClearAll separately when replacing a scene; that ticker
+is not yet ported. Packet type does not determine partial behavior. The signed
+int32 partial argument accepts Number, BigInt and Boolean values. Adapter
+validation happens before registry mutation in place of native QueryInterface.
 
 The body reader assigns currentTime, creates balls through the oriented add
 methods, applies streamed state directly, then resolves follow pointers in a
-second pass. Missing targets change mode directly to GOTO. Existing AddBall's
-Stop-on-replacement behavior differs from the donor and must be corrected or
-explicitly resolved before claiming reader parity; it prematurely unlinks old
-targets and can fail on duplicate follow records before fixup.
+second pass. Missing targets change mode directly to GOTO. AddBall replacement
+retains object identity, old interpolation samples, old follow pointer and
+target membership, including reserved formation slots. It resets the native
+replacement fields and prunes only missing or pointer-inconsistent incoming
+followers. Direct stream assignment does not emit movement-command, cloak or
+affiliation setter side effects. Creation can still emit its normal mode event.
 
-For partial==1, mini bytes are consumed without changing existing descriptors
-or actual shapes. Otherwise fixed incoming balls remove old shapes in reverse
-descriptor order and replace lists, while free incoming balls append descriptors.
-Partial==2 preserves registries but still replaces fixed minis. Restoration
-must not add SetBallFree, cloak, harmonic or movement-command side effects.
-Native unchecked short reads require an explicit bounded-error adaptation.
+For partial==1, mini bytes are consumed without changing existing descriptors,
+list identities or actual shapes. Otherwise fixed incoming balls remove old
+shapes in reverse descriptor order within each kind (balls, capsules, boxes)
+and refill the lists. Free incoming balls append descriptors, retaining existing
+colliders even when replacing a fixed parent. Partial==2 preserves registries
+but still replaces fixed minis. No SetBallFree transition is introduced.
+Box decoding borrows float64 vectors with finally-balanced returns, including
+truncated reads and nested callbacks.
+
+Unknown modes preserve creation and field mutations, log, and return null as
+the native reader does. Bounded scalar reads throw on truncation; completed
+records and earlier component writes remain applied. This is an explicit
+adaptation of native unchecked reads, not a transactional restore. The existing
+AddBall finite-input admission also remains: the writer can emit NaN or infinity,
+but the reader rejects them in physical creation fields. Arbitrary byte-packet
+round-trip parity and full client restart/replay are not claimed.
 
 ## Evidence
 
@@ -114,6 +134,10 @@ MemStream implementation. Nineteen writer/adapter tests cover native empty
 headers, an independent literal rigid packet, every defined mode payload,
 mini layouts/count wrapping, filtering, float values, owned buffers and nested
 stream writes that must retain native stack snapshots.
-The donor's five read/write round-trip fixtures remain reader work:
+Thirty further tests cover restoration and AddBall replacement: independent
+rigid/dynamic packets, every supported mode tail, signed fields, duplicate and
+forward references, partial modes, all mini families, removal order, retained
+samples, nested reads and bounded failures. The donor round-trip cases are
+covered by these reader/writer tests, with explicit mini-radius assertions:
 destiny/python/destiny/test/ballpark/test_stream_read_write.py:8-75.
 See [port status](port-status.md) for the full remaining scope.

@@ -776,8 +776,10 @@ export class CjsBallparkController
      * Use AddOldStyleOrientedBall or AddDynamicallyOrientedBall for oriented creation.
      * Adaptation: checked BigInt IDs, finite scalar inputs and immediate ball-map
      * registration follows native spatial insertion and subscribed bubble callbacks.
-     * Re-adding a resolved ID keeps object identity and
-     * follower links. Nonpositive IDs follow native master/replica allocation.
+     * Re-adding a resolved ID keeps object identity, old follow pointers and target
+     * membership; only inconsistent incoming followers are pruned. Nonpositive
+     * IDs follow native master/replica allocation.
+     * Source: destiny/src/Ballpark.cpp:3303-3462.
      *
      * @param {bigint|number} objectId Signed-int64 identity or allocation sentinel; Number inputs must be safe integers.
      * @param {number} mass Mass in kilograms.
@@ -822,9 +824,7 @@ export class CjsBallparkController
         else
         {
             ball.DeleteFromBoxes();
-            this.Stop(objectId);
         }
-        ball.mPark = this;
         ball.x = x;
         ball.y = y;
         ball.z = z;
@@ -840,11 +840,12 @@ export class CjsBallparkController
             ball._oldVy = vy;
             ball._oldVz = vz;
         }
-        ball.mass = Math.max(0, mass);
-        ball.radius = Math.fround(Math.max(0, radius));
-        ball.maxVelocity = Math.fround(Math.max(0, maxVel));
-        ball.agility = Math.fround(agility <= 0 ? 1 : agility);
-        ball.speedFraction = Math.fround(Math.max(0, speedFraction));
+        radius = f32(radius); maxVel = f32(maxVel); agility = f32(agility); speedFraction = f32(speedFraction);
+        ball.mass = mass < 0 ? 0 : mass;
+        ball.radius = radius < 0 ? 0 : radius;
+        ball.maxVelocity = maxVel < 0 ? 0 : maxVel;
+        ball.agility = agility <= 0 ? 1 : agility;
+        ball.speedFraction = speedFraction < 0 ? 0 : speedFraction;
         ball.isFree = Boolean(isFree);
         ball.isGlobal = Boolean(isGlobal);
         ball.isMassive = Boolean(isMassive);
@@ -867,6 +868,16 @@ export class CjsBallparkController
         }
         else if (!created) this._removeFreeBall(ball.mId);
         ball.SetMode(Mode.DSTBALL_STOP);
+        if (!created && ball.mFollowers.size)
+        {
+            const followersCopy = new Set(ball.mFollowers);
+            for (const id of followersCopy)
+            {
+                const follower = this.GetBall(id);
+                if (!follower || follower.mFollowPtr !== ball) ball.mFollowers.delete(id);
+            }
+        }
+        ball.mPark = this;
         this.InsertBallInBoxes(ball);
         return ball;
     }
@@ -4610,6 +4621,233 @@ export class CjsBallparkController
     }
 
     /**
+     * Restores one native ball record at the current stream position.
+     * Adaptation: bounded typed reads reject native unchecked truncation. Scalar
+     * locals and pooled box vectors survive creation callbacks; checked AddBall
+     * admission still rejects nonfinite physical fields. Unknown modes retain
+     * creation/field mutations and return null, as the donor does.
+     * Source: destiny/src/Thunkers.cpp:2897-3177; destiny/src/Ballpark.h:1138.
+     * @param {CjsDestinyStream} stream Native-layout byte cursor, without packet header.
+     * @param {number} partial Only one consumes minis without changing descriptors.
+     * @returns {CjsDestinyBall|null} Restored ball, or null at EOF/unsupported mode.
+     */
+    @meta.adapted
+    ReadBallFromStream(stream, partial)
+    {
+        if (stream.remaining === 0) return null;
+        const id = stream.ReadInt64(), mode = stream.ReadUint8(), radius = stream.ReadFloat32();
+        const x = stream.ReadFloat64(), y = stream.ReadFloat64(), z = stream.ReadFloat64();
+        const flags = stream.ReadUint8();
+        let mass = 1e34, cloak = 0, harmonic = -1n, corporation = -1, alliance = -1;
+        let maxVel = 0, vx = 0, vy = 0, vz = 0, agility = 1, speedFraction = 0;
+        let rx = 0, ry = 0, rz = 0, rw = 1, maxAngVel = 0, wx = 0, wy = 0, wz = 0, rotAgility = 1;
+        if (mode !== Mode.DSTBALL_RIGID)
+        {
+            mass = stream.ReadFloat64(); cloak = stream.ReadUint8(); harmonic = stream.ReadInt64();
+            corporation = stream.ReadInt32(); alliance = stream.ReadInt32();
+        }
+        if (flags & BALLFLAGS.DSTBALL_ISFREE)
+        {
+            maxVel = stream.ReadFloat32(); vx = stream.ReadFloat64(); vy = stream.ReadFloat64(); vz = stream.ReadFloat64();
+            agility = stream.ReadFloat32(); speedFraction = stream.ReadFloat32();
+            if (g_useDynamicalOrientation)
+            {
+                rx = stream.ReadFloat32(); ry = stream.ReadFloat32(); rz = stream.ReadFloat32(); rw = stream.ReadFloat32();
+                maxAngVel = stream.ReadFloat32(); wx = stream.ReadFloat32(); wy = stream.ReadFloat32(); wz = stream.ReadFloat32();
+                rotAgility = stream.ReadFloat32();
+            }
+        }
+        const free = Boolean(flags & BALLFLAGS.DSTBALL_ISFREE), global = Boolean(flags & BALLFLAGS.DSTBALL_ISGLOBAL);
+        const massive = Boolean(flags & BALLFLAGS.DSTBALL_ISMASSIVE), interactive = Boolean(flags & BALLFLAGS.DSTBALL_ISINTERACTIVE);
+        const junk = Boolean(flags & BALLFLAGS.DSTBALL_ISSPACEJUNK);
+        const ball = g_useDynamicalOrientation
+            ? this.AddDynamicallyOrientedBall(id, mass, radius, maxVel, maxAngVel, free, global, massive, interactive, junk,
+                x, y, z, vx, vy, vz, rx, ry, rz, rw, wx, wy, wz, agility, rotAgility, speedFraction)
+            : this.AddOldStyleOrientedBall(id, mass, radius, maxVel, free, global, massive, interactive, junk,
+                x, y, z, vx, vy, vz, agility, speedFraction);
+        ball.mFormationID = (stream.ReadUint8() << 24) >> 24;
+        if (partial !== 1 && !free)
+        {
+            for (let i = ball.mMiniBalls.GetSize() - 1; i >= 0; --i) this.RemoveBall(ball.mMiniBalls.GetAt(i).mId);
+            ball.mMiniBalls.Remove(-1);
+            for (let i = ball.mMiniCapsules.GetSize() - 1; i >= 0; --i) this.RemoveCapsule(ball.mMiniCapsules.GetAt(i).mId);
+            ball.mMiniCapsules.Remove(-1);
+            for (let i = ball.mMiniBoxes.GetSize() - 1; i >= 0; --i) this.RemoveOrientedBox(ball.mMiniBoxes.GetAt(i).mId);
+            ball.mMiniBoxes.Remove(-1);
+        }
+        ball.mHarmonic = harmonic; ball.mCorporationID = corporation; ball.mAllianceID = alliance;
+        ball.mMode = mode; ball.isCloaked = cloak;
+        switch (mode)
+        {
+            case Mode.DSTBALL_FOLLOW:
+            case Mode.DSTBALL_ORBIT:
+                ball.mFollowId = stream.ReadInt64(); ball.mFollowRange = stream.ReadFloat32();
+                break;
+
+            case Mode.DSTBALL_FORMATION:
+                ball.mFollowId = stream.ReadInt64(); ball.mFollowRange = stream.ReadFloat32(); ball.mEffectStamp = stream.ReadInt32();
+                break;
+
+            case Mode.DSTBALL_MISSILE:
+                ball.mFollowId = stream.ReadInt64(); ball.mFollowRange = stream.ReadFloat32();
+                ball.mOwnerId = stream.ReadInt64(); ball.mEffectStamp = stream.ReadInt32(); stream.ReadVector3d(ball.mGoto);
+                break;
+
+            case Mode.DSTBALL_GOTO:
+                stream.ReadVector3d(ball.mGoto);
+                break;
+
+            case Mode.DSTBALL_WARP:
+                stream.ReadVector3d(ball.mGoto); ball.mEffectStamp = stream.ReadInt32();
+                ball.mLastCollision = stream.ReadFloat64(); ball.mFollowId = stream.ReadInt64(); ball.mOwnerId = stream.ReadInt64();
+                break;
+
+            case Mode.DSTBALL_MUSHROOM:
+            {
+                ball.mFollowRange = stream.ReadFloat32(); const span = stream.ReadFloat64();
+                ball.mEffectStamp = stream.ReadInt32(); ball.mOwnerId = stream.ReadInt64(); ball.mGoto[0] = span;
+                break;
+            }
+
+            case Mode.DSTBALL_TROLL:
+                ball.mEffectStamp = stream.ReadInt32();
+                break;
+
+            case Mode.DSTBALL_STOP:
+            case Mode.DSTBALL_FIELD:
+            case Mode.DSTBALL_RIGID:
+                break;
+
+            default:
+                console.error("ReadBallFromStream: Unknown ball mode", mode);
+                return null;
+        }
+        if (flags & BALLFLAGS.DSTBALL_HASMINIBALLS)
+        {
+            const count = stream.ReadUint16();
+            for (let i = 0; i < count; ++i)
+            {
+                const mx = stream.ReadFloat64(), my = stream.ReadFloat64(), mz = stream.ReadFloat64(), r = stream.ReadFloat32();
+                if (partial !== 1) ball.AddMiniBall(mx, my, mz, r);
+            }
+        }
+        if (flags & BALLFLAGS.DSTBALL_HASMINICAPSULES)
+        {
+            const count = stream.ReadUint16();
+            for (let i = 0; i < count; ++i)
+            {
+                const ax = stream.ReadFloat64(), ay = stream.ReadFloat64(), az = stream.ReadFloat64();
+                const bx = stream.ReadFloat64(), by = stream.ReadFloat64(), bz = stream.ReadFloat64(), r = stream.ReadFloat32();
+                if (partial !== 1) ball.AddMiniCapsule(ax, ay, az, bx, by, bz, r);
+            }
+        }
+        if (flags & BALLFLAGS.DSTBALL_HASMINIBOXES)
+        {
+            const count = stream.ReadUint16();
+            let vec3d_0 = null, vec3d_1 = null, vec3d_2 = null, vec3d_3 = null;
+            try
+            {
+                vec3d_0 = vec3d.alloc(); vec3d_1 = vec3d.alloc(); vec3d_2 = vec3d.alloc(); vec3d_3 = vec3d.alloc();
+                for (let i = 0; i < count; ++i)
+                {
+                    stream.ReadVector3d(vec3d_0); stream.ReadVector3d(vec3d_1);
+                    stream.ReadVector3d(vec3d_2); stream.ReadVector3d(vec3d_3);
+                    if (partial !== 1) ball.AddMiniBox(vec3d_0, vec3d_1, vec3d_2, vec3d_3);
+                }
+            }
+            finally
+            {
+                if (vec3d_3) vec3d.unalloc(vec3d_3);
+                if (vec3d_2) vec3d.unalloc(vec3d_2);
+                if (vec3d_1) vec3d.unalloc(vec3d_1);
+                if (vec3d_0) vec3d.unalloc(vec3d_0);
+            }
+        }
+        return ball;
+    }
+
+    /**
+     * Restores the packet body then repairs references after all records are loaded.
+     * Adaptation: the private name disambiguates native ReadFullStateFromStream
+     * from its same-named Blue alias. An owned array replaces VectorOfBalls;
+     * errors retain prior mutations instead of claiming native short-read behavior.
+     * Source: destiny/src/Thunkers.cpp:2463-2509; destiny/src/Ballpark.h:1137.
+     * @param {CjsDestinyStream} stream Positioned immediately after packet type.
+     * @param {number} partial Native partial argument, passed unchanged to records.
+     * @returns {boolean} False on completion, matching the native error-condition result.
+     */
+    @meta.adapted
+    _ReadFullStateBody(stream, partial)
+    {
+        this.currentTime = stream.ReadInt32();
+        const loaded = [];
+        for (let ball = this.ReadBallFromStream(stream, partial); ball; ball = this.ReadBallFromStream(stream, partial))
+            loaded.push(ball);
+        for (const ball of loaded)
+        {
+            if (ball.mMode !== Mode.DSTBALL_FOLLOW && ball.mMode !== Mode.DSTBALL_MISSILE &&
+                ball.mMode !== Mode.DSTBALL_ORBIT && ball.mMode !== Mode.DSTBALL_FORMATION) continue;
+            const target = this.GetBall(ball.mFollowId);
+            if (!target) ball.mMode = Mode.DSTBALL_GOTO;
+            else { ball.mFollowPtr = target; target.mFollowers.add(ball.mId); }
+        }
+        return false;
+    }
+
+    /**
+     * Reads native full/selected packets without removing absent aggregate balls.
+     * Adaptation: the byte adapter replaces IBlueStream; signed-int32 partial values
+     * replace Python parsing, with bounded stream errors rather than unchecked reads.
+     * The adapter interface is checked before registry mutation in place of QueryInterface.
+     * The JS ordered free-ID index clears with its corresponding native free map.
+     * Source: destiny/src/Thunkers.cpp:2083-2142.
+     * @param {CjsDestinyStream} stream Source rewound before parsing.
+     * @param {number|bigint|boolean} [partial=0] Zero clears selected registries; only one skips mini changes.
+     * @returns {void} Leaves the stream at its consumed position and retains partial mutations on error.
+     */
+    @meta.adapted
+    PyReadFullStateFromStream(stream, partial = 0)
+    {
+        if (arguments.length < 1 || arguments.length > 2) throw new TypeError("PyReadFullStateFromStream requires 1 or 2 arguments");
+        if (typeof partial === "boolean" || typeof partial === "bigint") partial = Number(partial);
+        if (!Number.isInteger(partial) || partial < -2147483648 || partial > 2147483647)
+            throw new RangeError("partial must fit signed int32");
+        if (!stream || !Number.isSafeInteger(stream.remaining) || stream.remaining < 0 ||
+            ["Seek", "ReadUint8", "ReadUint16", "ReadInt32", "ReadInt64", "ReadFloat32", "ReadFloat64", "ReadVector3d"]
+                .some(name => typeof stream[name] !== "function"))
+            throw new TypeError("Argument 1 is not a Destiny stream");
+        if (partial === 0)
+        {
+            this.mFreeBalls.clear(); this._freeBallIds.length = 0; this.mProximityBalls.clear();
+            if (this.bubbleInteractives) this.bubbleInteractives.clear();
+        }
+        stream.Seek(0);
+        while (stream.remaining > 0)
+        {
+            const packet = stream.ReadUint8();
+            if (packet !== DESTINYPACKETS.DESTINY_FULLSTATE && packet !== DESTINYPACKETS.DESTINY_BALLS)
+                throw new RangeError("Unknown Destiny packet type");
+            if (this._ReadFullStateBody(stream, partial)) throw new Error("Some error reading Destiny packet");
+        }
+    }
+
+    /**
+     * Exposes the native Blue packet-reader alias.
+     * Adaptation: bounded argument delegation selects the Python-shaped wrapper;
+     * the colliding C++ body name is retained in _ReadFullStateBody's source mapping.
+     * Source: destiny/src/Ballpark_Blue.cpp:507-514.
+     * @param {...unknown} args Source stream and optional partial argument.
+     * @returns {void} Restores stream records through the native wrapper flow.
+     */
+    @meta.blue.method
+    @meta.adapted
+    ReadFullStateFromStream(...args)
+    {
+        if (args.length < 1 || args.length > 2) throw new TypeError("ReadFullStateFromStream requires 1 or 2 arguments");
+        this.PyReadFullStateFromStream(...args);
+    }
+
+    /**
      * Writes one native state record at the supplied stream position.
      * Adaptation: typed stream methods replace pointer writes with explicit Windows
      * little-endian widths. Diagnostic byteCount is omitted. Counts narrow before
@@ -5235,8 +5473,8 @@ export class CjsBallparkController
      * Scans aggregate ball centers, independently of bubble-sphere cone queries.
      * Adaptation: scalar doubles replace stack vectors and Map order replaces PyDict.
      * Native filters exclude only own ID, negative IDs and cloak. The input angle is
-     * halved; sphere mode requires an input strictly greater than two pi.
-     * Source: destiny/src/Thunkers.cpp:2379-2461.
+     * halved; sphere mode requires more than twice the donor PI literal 3.141592654.
+     * Source: destiny/src/Thunkers.cpp:10,2379-2461.
      * @param {bigint|number} id Source identity.
      * @param {number} angle Full angle in radians.
      * @param {number} range Inclusive center range; nonpositive returns null.
@@ -5257,7 +5495,7 @@ export class CjsBallparkController
         if (x * x + y * y + z * z < 0.5) return null;
         const result = [], range2 = range * range;
         angle *= 0.5;
-        const cos2 = Math.cos(angle) * Math.cos(angle), sphere = angle > Math.PI;
+        const cos2 = Math.cos(angle) * Math.cos(angle), sphere = angle > 3.141592654;
         for (const ball of this._balls.values())
         {
             if (ball.mId === id || ball.mId < 0n || ball.isCloaked) continue;

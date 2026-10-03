@@ -44,8 +44,9 @@ Its angle is the full angle, halved internally. It ignores candidate radii and
 bubble membership, skipping the source, negative IDs and cloaked balls. Moribund
 balls remain eligible. Missing source, nonpositive range and zero direction
 return null. Range and angular boundaries are inclusive. The spherical shortcut
-requires an angle strictly greater than 2 pi; exactly 2 pi still uses the cone
-test and its forward-half-space restriction.
+requires an angle strictly greater than 6.283185308 (twice the donor's PI literal
+3.141592654, destiny/src/Thunkers.cpp:10). At that threshold it still uses the
+cone test and its forward-half-space restriction.
 
 GetCenterDist returns center distance; GetSurfaceDist subtracts both radii and
 may return a negative value for overlap. Missing balls return null. IDs in query

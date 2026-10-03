@@ -86,6 +86,19 @@ export class CjsDestinyStream extends CjsByteReader
     ReadFloat64() { const offset = this.offset; this.Skip(8); return this.view.getFloat64(offset, true); }
 
     /**
+     * Fills a caller-owned double vector in native component order.
+     * Adaptation: bounded scalar reads replace a native Vector3d pointer read.
+     * @param {Float64Array} out Retained vector or caller-owned pool slot.
+     * @returns {Float64Array} Supplied storage, with any successful prefix retained on error.
+     */
+    @meta.ours
+    ReadVector3d(out)
+    {
+        out[0] = this.ReadFloat64(); out[1] = this.ReadFloat64(); out[2] = this.ReadFloat64();
+        return out;
+    }
+
+    /**
      * Writes a byte through DataView, retaining native low-bit narrowing.
      * Adaptation: replaces the native pointer write for one field.
      * @param {number} value Field value.
