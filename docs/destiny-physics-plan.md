@@ -22,7 +22,7 @@ and its recorded adaptations are described in [destiny-parity.md](destiny-parity
 ## Current implementation
 
 `CjsBallparkController` and `CjsDestinyBall` currently provide object lifecycle,
-fixed one-second ticks, drag integration, goto point/direction, follow, legacy
+fixed one-second ticks, drag integration, goto point/direction, follow, legacy/new
 orbit, and stopping. Seventeen tests passed when this plan was prepared,
 including six numeric donor trajectories. Collision forces, bubbles, full
 orientation, queries, warp and replication are not implemented.
@@ -30,7 +30,10 @@ orientation, queries, warp and replication are not implemented.
 Preserve those fixtures while extending the implementation. The current scalar
 position/velocity representation retains double precision; native float fields
 are rounded at controller boundaries. Direct field mutation does not currently
-implement native property hooks. IDs currently stop at safe JavaScript integers.
+implement native property hooks. IDs and native timestamps now use checked BigInt storage; safe integer Number
+inputs remain convenience forms. The settings and non-dynamical new-orbit
+checkpoints are also implemented; phase completion still needs the remaining
+state, settings consumers and orientation work.
 
 ## What can run without the client
 
@@ -190,6 +193,11 @@ This phase is the first usable collision milestone: objects can bump into
 synthetic obstacles using the source-default solver.
 
 ## Phase 4 Orientation and newer orbit
+
+Current partial implementation: the non-dynamical new-orbit dependency chain
+and its four native scenarios are ported. No new persistent Ball state was
+needed for that path. Dynamical orientation and the heading-based orbital-plane
+fallback remain unported; enabling them fails explicitly at execution sites.
 
 Add legacy heading/roll outputs, dynamically oriented creation and setters,
 angular agility/speed, torque, roll and quaternion evolution. Then implement

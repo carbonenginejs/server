@@ -33,3 +33,9 @@ The movement park now consumes an injected Blue tick host and optional native-sh
 PyOS event bridge. It owns counter/timestamp separation and native tick/cleanup
 ordering; the host owns clock sampling and event-handler failures. Full replication,
 ClientBall clocks and spatial lifecycle remain outside the implemented boundary.
+
+Destiny settings preserve the donor's module-global ownership. Apply copies
+configuration values; Get returns detached snapshots. Existing parks read live
+globals at native decision sites. New orbit is implemented without dynamical
+orientation; unsupported selected collision/orientation execution throws instead
+of silently using a different algorithm. See [settings](destiny-settings.md).

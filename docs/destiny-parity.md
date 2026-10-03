@@ -75,7 +75,7 @@ The new tests translate donor `test_actions.py` fixtures and cover stamp/order
 semantics, adjacent tuple deduplication, local position metadata, pending state,
 and queued-versus-direct movement application. The action checkpoint had 38
 passing tests, including the original 17 movement
-metadata/trajectory tests; the current suite has 124 passing tests.
+metadata/trajectory tests; the current suite has 151 passing tests.
 
 ## Validation and remaining work
 
@@ -88,7 +88,7 @@ objects, parameter changes, precision at large coordinates, failure boundaries a
 schema registration. These are fixture comparisons; the native binary was not run.
 
 The next source areas are spatial queries/partitions, collision shapes and forces,
-new orbit/orientation, additional movement modes, then state replication. None of
+orientation, additional movement modes, then state replication. None of
 those capabilities is implied by this movement subset. Higher-level combat and
 drone policy remain separate consumers of the ballpark.
 
@@ -99,7 +99,7 @@ The geometry subpath implements `AABB`, `Planed`, `Triangle`, and all six
 The 44 tests from `TestAABB.cpp`, `TestPlane.cpp`, `TestTriangle.cpp` and
 `TestCollision.cpp` are transcribed with their native names and expectations.
 Seven additional cases cover aliasing, partial output writes, large coordinates,
-swept spheres and source quirks. There are 124 passing tests in the current suite.
+swept spheres and source quirks. There are 151 passing tests in the current suite.
 See [geometry](destiny-geometry.md) for the exact value/reference adaptations.
 
 ## Donor update reviewed 2026-10-04
@@ -185,3 +185,28 @@ Twelve additional JS boundary tests cover canonical keys, full signed endpoints,
 adjacent IDs beyond Number precision, local allocation, exact 100ns clocks,
 overflow and Actions equality. Existing donor trajectory values are unchanged.
 This is source/fixture validation, not a native binary or stream-parity claim.
+
+## Global settings and non-dynamical new orbit
+
+Settings.h:9-42 and Settings.cpp:13-65 define all five defaults, module-global
+ownership and detached configuration copies. Settings_Blue.cpp:13-16,27-66
+defines the four method aliases and read/write fields. SettingsConfiguration and
+GlobalSettings stay together under the Settings header family, one class per file.
+The native Python settings helpers are translated at their existing _util path.
+The Windows64 size_t binding is uint64; flags follow integer conversion with a
+checked signed-int32 JS boundary. The weak configuration brand replaces native
+interface casting without calling schema APIs. Full IRoot/module lifecycle is
+still a separate unfinished obligation, not implied by settings behavior.
+
+Ballpark.cpp:664-749,1116-1235,1428-1505 supplies orbital normals, new orbit,
+OrbitThrust and GotoThrustFollow. JS scalar outputs/caller-owned f64 arrays replace
+Vector3d return/reference arguments. Native thresholds and arithmetic are retained;
+only the dynamical-heading fallback remains unported in this dependency chain.
+The configured dynamic/iterative branches fail before ordinary Evolve mutation;
+SetBallVelocity and SetBallFree also expose their missing SnapOrientation dependency.
+Native AddBall and the Python wrapper's oriented-creation dispatch remain distinct.
+
+All six test_configure.py cases and four new-orbit test_orbit.py scenarios pass.
+Seventeen additional cases cover boundary conversions, copied/global state, casts,
+aliases, unsupported execution and orbit branch/quirk behavior. The suite now has
+151 tests. Native collision, orientation and binary execution are not claimed.

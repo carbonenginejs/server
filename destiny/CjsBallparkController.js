@@ -2,6 +2,9 @@ import { meta } from "@carbonenginejs/runtime/schema";
 import { IBlueEvents } from "@carbonenginejs/runtime/blue";
 import { CjsDestinyBall } from "./CjsDestinyBall.js";
 
+import { g_useIterativeCollision, g_useDynamicalOrientation, g_useNewOrbit,
+    g_disableDynamicalOrientationForMissiles } from "./Settings/CjsDestinyGlobalSettings.js";
+
 const Mode = CjsDestinyBall.DSTBALLMODE;
 const AU = 0.1495978707e12;
 const ORBITAL_PRECESSION = 0.001;
@@ -12,13 +15,17 @@ const ORBITAL_PRECESSION = 0.001;
 // Source: destiny/src/Thunkers.cpp
 /**
  * Temporary, single-region Ballpark movement subset with native clock phases.
- * The cached evolution step defaults to one second. Legacy orbit and non-dynamical orientation settings
- * are fixed for this first pass. No collision, bubble, wire or gameplay processing.
+ * The cached evolution step defaults to one second. Native global settings select
+ * legacy/new orbit. Dynamical orientation, collision, bubbles and wire are unported.
  */
 @meta.define({ className: "CjsBallparkController", modelledOn: "Ballpark" })
 @meta.blue.inherit(IBlueEvents)
 export class CjsBallparkController
 {
+    static scratch = {
+        orbitalNormal: { orbitalVector: [0, 0, 0], toVector: [0, 0, 0], dist: 0 }
+    };
+
     mTime = 0n;
     mLocalCnt = -1n;
     mLocalHiCnt = -1073741824n;
@@ -476,6 +483,8 @@ export class CjsBallparkController
      * before changing the tick, rather than silently simulating another behavior.
      * JS exceptions release inEvolve with finally so callbacks cannot strand cleanup.
      * Timestamp conversion and signed-int64 initialization overflow are checked before movement.
+     * Selected iterative collisions or dynamical orientation throw before movement
+     * until those native algorithms are ported; configuration itself still accepts them.
      *
      * @param {bigint|number} [timestamp=0n] New ball timestamp in 100ns units; zero preserves ball timestamps.
      * @throws {RangeError} If a mobile mass/agility is invalid.
@@ -487,9 +496,14 @@ export class CjsBallparkController
     Evolve(timestamp = 0n)
     {
         timestamp = CjsDestinyBall._toInt64(timestamp);
+        if (g_useIterativeCollision) throw new Error("Iterative collision response is not implemented");
         for (const ball of this._balls.values())
         {
             if (!ball.isFree || ball.isMoribund) continue;
+            if (g_useDynamicalOrientation && !DynamicalOrientationDisabledForBall(ball))
+            {
+                throw new Error("Dynamical orientation evolution is not implemented");
+            }
             if (timestamp !== 0n && ball.mNewTime === 0n)
             {
                 CjsDestinyBall._toInt64(timestamp - CjsBallparkController._tickTime(this.tickInterval));
@@ -538,6 +552,7 @@ export class CjsBallparkController
 
     /**
      * Adaptation: four supported modes, writing scalar mLastG components in place.
+     * The native dynamical thrust/torque branch throws until orientation is ported.
      *
      * @param {CjsDestinyBall} ball Ball whose existing state is read or updated.
      * @returns {void} No return value.
@@ -546,6 +561,10 @@ export class CjsBallparkController
     @meta.adapted
     EvolveBehaviorForBall(ball)
     {
+        if (g_useDynamicalOrientation && !DynamicalOrientationDisabledForBall(ball))
+        {
+            throw new Error("Dynamical orientation thrust and torque are not implemented");
+        }
         ball._lastGx = 0;
         ball._lastGy = 0;
         ball._lastGz = 0;
@@ -604,7 +623,8 @@ export class CjsBallparkController
     }
 
     /**
-     * Adaptation: the source-default legacy orbit is the only enabled orbit.
+     * Selects the native legacy or new orbit from the live global setting.
+     * Adaptation: each branch writes scalar mLastG output instead of returning Vector3d.
      *
      * @param {CjsDestinyBall} ball Ball whose existing state is read or updated.
      * @param {number} currentTime Native integer tick counter.
@@ -614,7 +634,261 @@ export class CjsBallparkController
     @meta.adapted
     EvolveOrbit(ball, currentTime)
     {
-        this.EvolveOldStyleOrbit(ball, currentTime);
+        if (g_useNewOrbit) this.EvolveNewStyleOrbit(ball, currentTime);
+        else this.EvolveOldStyleOrbit(ball, currentTime);
+    }
+
+    /**
+     * Calculates the native precessing fallback plane from the park counter and ID.
+     * Adaptation: caller-owned f64 Number output replaces the Vector3d return.
+     *
+     * @param {CjsDestinyBall} ball Ball whose low sixteen ID bits seed the plane.
+     * @param {number[]} out Three-component destination for the orbital normal.
+     * @returns {number[]} The supplied destination, truncated to seven decimals.
+     */
+    @meta.adapted
+    DefaultOrbitalNormal(ball, out)
+    {
+        const phi1 = this.currentTime * ORBITAL_PRECESSION;
+        const phi2 = Number(ball.id & 0xffffn) + this.currentTime * ORBITAL_PRECESSION;
+        const x = Math.trunc(Math.cos(phi1) * Math.cos(phi2) * 1e7) / 1e7;
+        const y = Math.trunc(Math.sin(phi2) * 1e7) / 1e7;
+        const z = Math.trunc(Math.sin(phi1) * Math.cos(phi2) * 1e7) / 1e7;
+        out[0] = x;
+        out[1] = y;
+        out[2] = z;
+        return out;
+    }
+
+    /**
+     * Finds the native orbital plane and predicted target direction and distance.
+     * Adaptation: out combines the Vector3d return with native toVector/dist refs;
+     * Number arrays preserve f64. Null/non-orbit leaves toVector/dist untouched.
+     * The dynamical-heading fallback throws until native orientation is ported.
+     *
+     * @param {CjsDestinyBall|null} ball Orbiting ball, or null.
+     * @param {{orbitalVector:number[],toVector:number[],dist:number}} out Caller-owned result storage.
+     * @returns {Object} The supplied result record.
+     */
+    @meta.adapted
+    GetOrbitalNormal(ball, out)
+    {
+        if (!ball || ball.mode !== Mode.DSTBALL_ORBIT)
+        {
+            out.orbitalVector[0] = out.orbitalVector[1] = out.orbitalVector[2] = 0;
+            return out;
+        }
+        const other = ball._followPtr;
+        let tx = other.x - ball.x, ty = other.y - ball.y, tz = other.z - ball.z;
+        if (g_useNewOrbit)
+        {
+            tx += other.vx * this._dt;
+            ty += other.vy * this._dt;
+            tz += other.vz * this._dt;
+        }
+        const dist = Math.sqrt(tx * tx + ty * ty + tz * tz);
+        if (dist > 0)
+        {
+            const inverse = 1 / dist;
+            tx *= inverse; ty *= inverse; tz *= inverse;
+        }
+        else
+        {
+            tx = ty = 0; tz = 1;
+        }
+        let nx = ty * ball.vz - tz * ball.vy;
+        let ny = tz * ball.vx - tx * ball.vz;
+        let nz = tx * ball.vy - ty * ball.vx;
+        const length2 = nx * nx + ny * ny + nz * nz;
+        if (g_useNewOrbit && !(length2 > 1e-12) && g_useDynamicalOrientation)
+        {
+            throw new Error("GetOrbitalNormal dynamical heading fallback is not implemented");
+        }
+        out.toVector[0] = tx; out.toVector[1] = ty; out.toVector[2] = tz;
+        out.dist = dist;
+        if (!g_useNewOrbit || !(length2 > 1e-12))
+        {
+            this.DefaultOrbitalNormal(ball, out.orbitalVector);
+        }
+        else
+        {
+            const inverse = 1 / Math.sqrt(length2);
+            nx *= inverse; ny *= inverse; nz *= inverse;
+            out.orbitalVector[0] = nx;
+            out.orbitalVector[1] = ny;
+            out.orbitalVector[2] = nz;
+        }
+        return out;
+    }
+
+    /**
+     * Follows the native exponential-spiral orbit trajectory and velocity target.
+     * Adaptation: scalar f64 temporaries and mLastG output replace native vectors;
+     * shared scratch is consumed before the thrust call and never returned.
+     * The donor ignores currentTime here; its fallback plane reads park.currentTime.
+     * The zero-speed 0/0 goto quirk at Ballpark.cpp:1174-1223 is retained.
+     *
+     * @param {CjsDestinyBall} ball Orbiting ball with a valid target link.
+     * @param {number} currentTime Native argument, unused by this algorithm.
+     * @returns {void} No return value; updates goto and mLastG scalar fields.
+     */
+    @meta.adapted
+    EvolveNewStyleOrbit(ball, currentTime)
+    {
+        const cruiseVelocity = ball.speedFraction * ball.maxVelocity;
+        const tau = (ball.mass * ball.agility) / this._friction;
+        const maxThrust = cruiseVelocity / tau;
+        const other = ball._followPtr;
+        const r = ball.followRange + ball.radius + other.radius;
+        const { orbitalNormal } = CjsBallparkController.scratch;
+        this.GetOrbitalNormal(ball, orbitalNormal);
+        const tx = orbitalNormal.toVector[0], ty = orbitalNormal.toVector[1], tz = orbitalNormal.toVector[2];
+        const nx = orbitalNormal.orbitalVector[0], ny = orbitalNormal.orbitalVector[1], nz = orbitalNormal.orbitalVector[2];
+        let dist = orbitalNormal.dist;
+        let rx = ny * tz - nz * ty, ry = nz * tx - nx * tz, rz = nx * ty - ny * tx;
+        const radialLength = Math.sqrt(rx * rx + ry * ry + rz * rz);
+        if (radialLength !== 0)
+        {
+            const inverse = 1 / radialLength;
+            rx *= inverse; ry *= inverse; rz *= inverse;
+        }
+        const currentSpeed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy + ball.vz * ball.vz);
+        // std::max/min retain the first operand when comparison with NaN is false.
+        const maxSpeed = cruiseVelocity < currentSpeed ? currentSpeed : cruiseVelocity;
+        let angle = 0.1 * (r - dist) / maxSpeed;
+        if (angle < -1) angle = -1;
+        if (angle > 1) angle = 1;
+        if (dist < 0.1) dist = 0.1;
+        const maxVelocity = Math.sqrt(dist * maxThrust);
+        const estimatedVelocity = maxVelocity < maxSpeed ? maxVelocity : maxSpeed;
+        const estimatedDistance = estimatedVelocity * this._dt;
+        let px, py, pz, vx, vy, vz;
+        if (Math.abs(angle) < 1e-10)
+        {
+            const t = estimatedDistance / dist;
+            const pTo = dist * (1 - Math.cos(t)), pRadial = dist * Math.sin(t);
+            px = tx * pTo + rx * pRadial;
+            py = ty * pTo + ry * pRadial;
+            pz = tz * pTo + rz * pRadial;
+            const vRadial = Math.cos(t) * estimatedVelocity, vTo = Math.sin(t) * estimatedVelocity;
+            vx = rx * vRadial + tx * vTo;
+            vy = ry * vRadial + ty * vTo;
+            vz = rz * vRadial + tz * vTo;
+        }
+        else
+        {
+            const factor = estimatedDistance * angle / dist / Math.sqrt(angle * angle + 1);
+            const t = factor < -0.999 ? Math.log(0.001) / angle
+                : (Math.abs(factor) > 1e-10 ? Math.log(1 + factor) / angle : factor / angle);
+            const dexp = dist * Math.exp(angle * t);
+            const pTo = dist - dexp * Math.cos(t), pRadial = dexp * Math.sin(t);
+            px = tx * pTo + rx * pRadial;
+            py = ty * pTo + ry * pRadial;
+            pz = tz * pTo + rz * pRadial;
+            const vTo = -angle * Math.cos(t) + Math.sin(t), vRadial = angle * Math.sin(t) + Math.cos(t);
+            vx = tx * vTo + rx * vRadial;
+            vy = ty * vTo + ry * vRadial;
+            vz = tz * vTo + rz * vRadial;
+            const length = Math.sqrt(vx * vx + vy * vy + vz * vz);
+            if (length !== 0)
+            {
+                const inverse = 1 / length;
+                vx *= inverse; vy *= inverse; vz *= inverse;
+            }
+            vx *= estimatedVelocity; vy *= estimatedVelocity; vz *= estimatedVelocity;
+        }
+        ball.gotoX = ball.x + px;
+        ball.gotoY = ball.y + py;
+        ball.gotoZ = ball.z + pz;
+        this.GotoThrustFollow(ball, ball.gotoX, ball.gotoY, ball.gotoZ,
+            vx + other.vx, vy + other.vy, vz + other.vz, 1);
+    }
+
+    /**
+     * Computes native damped arrival thrust for slow new-orbit targets.
+     * Adaptation: scalar target and mLastG fields replace Vector3d arguments/return.
+     * The donor's exact 0.1 deadband and one-second cap thresholds are retained.
+     *
+     * @param {CjsDestinyBall} ball Ball whose current state is read.
+     * @param {number} x Target X position in meters.
+     * @param {number} y Target Y position in meters.
+     * @param {number} z Target Z position in meters.
+     * @returns {void} No return value; writes the thrust components.
+     */
+    @meta.adapted
+    OrbitThrust(ball, x, y, z)
+    {
+        const f = this._friction / (ball.mass * ball.agility);
+        const maxAccel = f * ball.speedFraction * ball.maxVelocity;
+        if (maxAccel <= 0)
+        {
+            ball._lastGx = ball._lastGy = ball._lastGz = 0;
+            return;
+        }
+        let ax = (x - ball.x) * f - ball.vx;
+        let ay = (y - ball.y) * f - ball.vy;
+        let az = (z - ball.z) * f - ball.vz;
+        const tacc = Math.sqrt(ax * ax + ay * ay + az * az) / maxAccel;
+        if (tacc > 1)
+        {
+            const inverse = 1 / tacc;
+            ax *= inverse; ay *= inverse; az *= inverse;
+        }
+        if (tacc < 0.1) ax = ay = az = 0;
+        ball._lastGx = ax; ball._lastGy = ay; ball._lastGz = az;
+    }
+
+    /**
+     * Blends native position-derived and velocity-derived acceleration under a cap.
+     * Adaptation: scalar targets/velocity and mLastG output replace native Vector3d.
+     * Denominators retain native arithmetic, without epsilon or expm1 substitutions.
+     *
+     * @param {CjsDestinyBall} ball Ball whose existing state is read.
+     * @param {number} x Target X position in meters.
+     * @param {number} y Target Y position in meters.
+     * @param {number} z Target Z position in meters.
+     * @param {number} vx Desired X velocity in meters per second.
+     * @param {number} vy Desired Y velocity in meters per second.
+     * @param {number} vz Desired Z velocity in meters per second.
+     * @param {number} weight Native relative weight of velocity-derived acceleration.
+     * @returns {void} No return value; writes the thrust components.
+     */
+    @meta.adapted
+    GotoThrustFollow(ball, x, y, z, vx, vy, vz, weight)
+    {
+        const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
+        if (speed < 5e-2 * ball.maxVelocity * ball.speedFraction)
+        {
+            if (g_useNewOrbit && ball.mode === Mode.DSTBALL_ORBIT) this.OrbitThrust(ball, x, y, z);
+            else this.GotoThrust(ball, x, y, z);
+            return;
+        }
+        const f = this._friction / (ball.mass * ball.agility);
+        const maxAccel = f * ball.speedFraction * ball.maxVelocity;
+        if (maxAccel <= 0)
+        {
+            ball._lastGx = ball._lastGy = ball._lastGz = 0;
+            return;
+        }
+        const tf = ball._timeFactor, inversePosition = 1 / (this._dt * f - (1 - tf));
+        let ax = ((x - ball.x) * f - ball.vx * (1 - tf)) * f * inversePosition;
+        let ay = ((y - ball.y) * f - ball.vy * (1 - tf)) * f * inversePosition;
+        let az = ((z - ball.z) * f - ball.vz * (1 - tf)) * f * inversePosition;
+        const inverseVelocity = 1 / (1 - tf);
+        const avx = (vx - ball.vx * tf) * f * inverseVelocity;
+        const avy = (vy - ball.vy * tf) * f * inverseVelocity;
+        const avz = (vz - ball.vz * tf) * f * inverseVelocity;
+        const inverseWeight = 1 / (1 + weight);
+        ax = (ax + weight * avx) * inverseWeight;
+        ay = (ay + weight * avy) * inverseWeight;
+        az = (az + weight * avz) * inverseWeight;
+        const accel = ax * ax + ay * ay + az * az;
+        if (accel > maxAccel * maxAccel)
+        {
+            const factor = maxAccel / Math.sqrt(accel);
+            ax *= factor; ay *= factor; az *= factor;
+        }
+        ball._lastGx = ax; ball._lastGy = ay; ball._lastGz = az;
     }
 
     /**
@@ -703,7 +977,10 @@ export class CjsBallparkController
     @meta.implemented
     EvolveStop(ball)
     {
-        ball.vy = (ball.vy - 0.07 * ball.vy) * 0.9345794392523364485981308411215;
+        if (!g_useDynamicalOrientation)
+        {
+            ball.vy = (ball.vy - 0.07 * ball.vy) * 0.9345794392523364485981308411215;
+        }
     }
 
     /**
@@ -914,7 +1191,9 @@ export class CjsBallparkController
     }
 
     /**
-     * Adaptation: scalar old/new velocities, finite input guard, no orientation update.
+     * Adaptation: scalar old/new velocities and finite input guard; selecting native
+     * dynamical SnapOrientation throws before velocity mutation until it is ported.
+     * Legacy heading output remains unported.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {number} x Velocity component in meters per second.
@@ -928,6 +1207,7 @@ export class CjsBallparkController
     {
         const ball = this.GetBall(id);
         if (!ball || ![x, y, z].every(Number.isFinite)) return;
+        if (g_useDynamicalOrientation) throw new Error("Dynamical SnapOrientation is not implemented");
         ball.vx = ball._oldVx = x;
         ball.vy = ball._oldVy = y;
         ball.vz = ball._oldVz = z;
@@ -1037,6 +1317,8 @@ export class CjsBallparkController
     /**
      * Adaptation: updates movement participation without collision mini-shapes or boxes;
      * checked BigInt timestamp subtraction rejects signed overflow before changing the flag.
+     * Disabling a ball with dynamical orientation throws before mutation because the
+     * required SetBallVelocity/SnapOrientation path is unported.
      *
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @param {boolean} isFree Whether the ball can move.
@@ -1048,6 +1330,7 @@ export class CjsBallparkController
     {
         const ball = this.GetBall(id);
         if (!ball || ball.isFree === Boolean(isFree)) return;
+        if (!isFree && g_useDynamicalOrientation) throw new Error("Dynamical SnapOrientation is not implemented");
         const newTime = isFree ? CjsDestinyBall._toInt64(this.time - CjsBallparkController._tickTime(this.tickInterval)) : ball.mNewTime;
         ball.isFree = Boolean(isFree);
         if (ball.isFree)
@@ -1080,4 +1363,15 @@ export class CjsBallparkController
         }
         return BigInt(interval) * 10000n;
     }
+}
+
+/**
+ * Applies the native missile-only exception to dynamical orientation.
+ *
+ * @param {CjsDestinyBall} ball Ball whose native movement mode is inspected.
+ * @returns {boolean} Whether this ball bypasses dynamical orientation.
+ */
+function DynamicalOrientationDisabledForBall(ball)
+{
+    return g_disableDynamicalOrientationForMissiles && ball.mode === Mode.DSTBALL_MISSILE;
 }

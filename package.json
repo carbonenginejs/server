@@ -8,7 +8,8 @@
     ".": "./dist/destiny/index.js",
     "./destiny": "./dist/destiny/index.js",
     "./destiny/net/server": "./dist/destiny/net/server/index.js",
-    "./destiny/geometry": "./dist/destiny/geometry/index.js"
+    "./destiny/geometry": "./dist/destiny/geometry/index.js",
+    "./destiny/_util/settings": "./dist/destiny/_util/settings.js"
   },
   "files": [
     "dist/",

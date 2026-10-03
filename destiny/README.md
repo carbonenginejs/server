@@ -18,7 +18,7 @@ Import `CjsBallparkController` and `CjsDestinyBall` from
 | `GotoPoint(id, x, y, z)` | Accelerates toward a fixed point. Does not clamp arrival or eliminate overshoot. Restarts zero throttle at one. |
 | `GotoDirection(id, x, y, z)` | Normalizes direction and chooses a point `1e17` meters away. |
 | `FollowBall(id, targetId, range = 1)` | Keeps the specified surface separation, including both radii. |
-| `Orbit(id, targetId, range = 1)` | Uses the source-default legacy orbit with an ID-dependent orbital plane. |
+| `Orbit(id, targetId, range = 1)` | Selects native legacy/new orbit through the global setting; legacy is the default. |
 | `Stop(id)` | Detaches its target and removes thrust; velocity decays through drag. |
 | `SetBallPosition(id, x, y, z)` | Sets current and previous position. |
 | `SetBallVelocity(id, vx, vy, vz)` | Sets current and previous velocity. |
@@ -40,7 +40,8 @@ Private `_` fields contain previous tick state, forces, cached drag and target l
 Use controller methods for mutation; this subset does not install native property hooks.
 
 `CjsDestinyBall.DSTBALLMODE` retains all thirteen source enum members and values.
-Only GOTO, FOLLOW, STOP, and ORBIT are supported movement modes. Enum presence does
+Only GOTO, FOLLOW, STOP, and ORBIT are supported movement modes. Both orbit
+algorithms work with dynamical orientation disabled; see [global settings](../docs/destiny-settings.md). Enum presence does
 not mean a behavior is implemented.
 
 Internal native-named evolution methods are exposed for source correspondence,

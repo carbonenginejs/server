@@ -63,7 +63,7 @@ for local-ID allocation and clock boundaries.
 ## Implemented
 
 - Ball creation, lookup, replacement, removal, and clearing.
-- Fixed-tick drag integration and goto point/direction, follow, legacy orbit,
+- Fixed-tick drag integration and goto point/direction, follow, legacy and new orbit,
   and stop behaviors.
 - Position, velocity, mass, radius, agility, maximum speed, throttle, and free/static
   controls. Use controller setters to keep cached drag and previous state consistent.
@@ -85,6 +85,10 @@ queries. The caller applies each flushed batch before `Evolve()`. See
 This is an in-process movement subset, not a transport or automatic tick driver.
 Native signals and the rest of the replication stack remain unported.
 
+Native global settings select the orbit model and preserve detached configuration
+snapshots. See [global settings](docs/destiny-settings.md) for the API and explicit
+unsupported collision/orientation branches.
+
 ## Collision geometry
 
 The `@carbonenginejs/server/destiny/geometry` subpath provides the native
@@ -98,11 +102,11 @@ queries; they are not yet wired into ballpark collision response.
 This is one region with movement, native clock phases, deferred ball cleanup and
 a separate movement-command queue. Balls pass through one another, including
 when `isMassive` is true. Collision response, spatial partitions, visibility,
-mini-shapes, newer orbit, orientation, warp, missiles, formations, interpolation,
+mini-shapes, dynamical orientation, warp, missiles, formations, interpolation,
 replication, combat, and drone command policy are not implemented. Unsupported
 mobile movement modes throw before advancing the tick.
 
-IDs are safe JavaScript integers. Mobile balls require positive finite mass and
+IDs use signed-int64 BigInts, with safe Number inputs accepted. Mobile balls require positive finite mass and
 agility. Changes to physical fields should go through controller setters; the
 data class is not a complete replacement for native Blue property hooks.
 
