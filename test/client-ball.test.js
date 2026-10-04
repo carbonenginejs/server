@@ -32,16 +32,16 @@ test("renderer Number ticks sample delayed drag, subtract the reference in f64 a
     }
     const position = vec3.create(), velocity = vec3.create(), reference = vec3d.create();
     assert.equal(ball.GetShiftedTime(25000000), 5000000n);
-    assert.equal(ball.Update(25000000, position), position);
+    assert.equal(ball.UpdateTicks(25000000, position), position);
     const egoPosition = 1e10 + 2 * (1 - Math.exp(-0.5));
     const ballPosition = 1e10 + 0.25 + 10 * (1 - Math.exp(-0.5));
     // Algebraically equivalent drag formulae differ by one f64 ulp at 1e10.
     close(position[0], Math.fround(ballPosition - egoPosition), 2e-6);
-    assert.equal(ball.GetValueDotAt(25000000, velocity), velocity);
+    assert.equal(ball.GetValueDotAtTicks(25000000, velocity), velocity);
     assert.equal(velocity[0], Math.fround(10 * Math.exp(-0.5)));
     assert.equal(park.GetReferencePoint(25000000, reference), reference);
     close(reference[0], egoPosition, 2e-6);
-    ego.Update(25000000, position);
+    ego.UpdateTicks(25000000, position);
     assert.deepEqual(Array.from(position), [0, 0, 0]);
     assert.equal(ego.mCenterDist, 0);
 });
@@ -59,7 +59,7 @@ test("curve caches preserve zero-span velocity, backward samples and native same
     park.GetReferencePoint(31000000, reference);
     assert.equal(reference[0], 200);
     next.mLastVel[0] = 7;
-    next.GetValueDotAt(32000000, out);
+    next.GetValueDotAtTicks(32000000, out);
     assert.equal(out[0], 7, "zero time span does not refresh last velocity");
     next.mNewPos[0] = 300;
     next.InterpolatedPosition(31000000, reference);
@@ -82,10 +82,10 @@ test("fixed and global position paths retain float32 rounding and shifted timest
     ball.isGlobal = true;
     park.mSomeWeirdHackToFixSomething = 3;
     const out = vec3.create();
-    ball.GetValueAt(30000000, out);
+    ball.GetValueAtTicks(30000000, out);
     assert.equal(out[0], Math.fround(Math.fround(ball.x - 1e10) / 3));
     assert.equal(ball.mPosUpdateTime, 10000000n);
-    ball.GetValueAt(30000000, quat.create());
+    ball.GetValueAtTicks(30000000, quat.create());
     assert.deepEqual(Array.from(ball.mLastRot), [0, 0, 0, -1]);
 });
 
@@ -100,18 +100,18 @@ test("one ball supplies legacy position and quaternion overloads with untouched 
     ball.mNewPitch = 2;
     ball.mNewRoll = 3;
     const out = quat.create(), expected = quat.create();
-    assert.equal(ball.Update(35000000, out), out);
+    assert.equal(ball.UpdateTicks(35000000, out), out);
     assert.ok(Number.isNaN(ball.mYawSpeed), "native first sample has zero delta time");
-    ball.Update(36000000, out);
+    ball.UpdateTicks(36000000, out);
     const yaw = 0.9 * 0.1 * 0.6 / 1.09;
     const pitch = 1.3 * 0.9 * 0.1 * 1.2 / (1 + 1.3 * 0.9 * 0.1);
     const roll = 0.9 * 0.1 * 1.8 / 1.09;
     quat.fromYawPitchRoll(expected, Math.fround(yaw), Math.fround(pitch), Math.fround(roll));
     for (let i = 0; i < 4; ++i) close(out[i], expected[i], 1e-7);
     quat.set(out, 1, 2, 3, 4);
-    assert.equal(ball.GetValueDotAt(37000000, out), out);
+    assert.equal(ball.GetValueDotAtTicks(37000000, out), out);
     assert.deepEqual(Array.from(out), [1, 2, 3, 4]);
-    ball.Update(35000000n, out);
+    ball.UpdateTicks(35000000n, out);
     assert.deepEqual(out, expected, "backward quaternion samples return the cache");
 });
 
@@ -140,9 +140,9 @@ test("client sampling reuses storage and rejects invalid Number ticks", () =>
     {
         for (let time = 30000000; time < 32000000; time += 100000)
         {
-            ball.Update(time, position);
-            ball.Update(time, rotation);
-            ball.GetValueDotAt(time, position);
+            ball.UpdateTicks(time, position);
+            ball.UpdateTicks(time, rotation);
+            ball.GetValueDotAtTicks(time, position);
         }
     }
     finally
@@ -150,7 +150,7 @@ test("client sampling reuses storage and rejects invalid Number ticks", () =>
         vec3d.create = create; vec3d.alloc = allocate;
     }
     for (const time of [0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])
-        assert.throws(() => ball.Update(time, position), RangeError);
+        assert.throws(() => ball.UpdateTicks(time, position), RangeError);
 });
 
 test("AdjustTimes shifts client caches including zero, preserving reference time and overflow atomicity", () =>
@@ -170,4 +170,36 @@ test("AdjustTimes shifts client caches including zero, preserving reference time
     assert.equal(ball.mPosUpdateTime, 5n);
     assert.equal(ball.mNewTime, 15n);
     assert.equal(park.time, 5n);
+});
+
+test("the plain names are Carbon's double overloads: Update reports and zeroes, GetValueAt samples the last update time", t =>
+{
+    const park = new Park();
+    const ego = add(park, 1, 0, true, 0);
+    const ball = add(park, 2, 5, true, 0);
+    park.ego = ego.id;
+    for (const value of [ego, ball])
+    {
+        vec3.copy(value.mOldPos, value.mNewPos);
+        vec3.copy(value.mOldVel, value.mNewVel);
+        value.mOldTime = 0n;
+        value.mNewTime = 10000000n;
+    }
+    const errors = t.mock.method(console, "error", () => {});
+    const position = vec3.fromValues(7, 7, 7), rotation = quat.fromValues(7, 7, 7, 7);
+    assert.ok(ball.Update(2.5, position) === position);
+    assert.deepEqual(Array.from(position), [0, 0, 0]);
+    ball.Update(2.5, rotation);
+    assert.deepEqual(Array.from(rotation), [0, 0, 0, -1]);
+    assert.equal(errors.mock.callCount(), 2, "Ball.cpp:960, 1339 report the wrong overload");
+    // GetValueAt(double) ignores its argument and samples mPosUpdateTime (Ball.cpp:1427-1430).
+    const viaTicks = vec3.create(), viaSeconds = vec3.create();
+    ball.GetValueAtTicks(25000000, viaTicks);
+    ball.GetValueAt(999, viaSeconds);
+    assert.deepEqual(Array.from(viaSeconds), Array.from(viaTicks));
+    rotation.set([1, 2, 3, 4]);
+    assert.deepEqual(Array.from(ball.GetValueAt(1, rotation)), [1, 2, 3, 4]);
+    const derivative = vec3.fromValues(3, 3, 3);
+    assert.deepEqual(Array.from(ball.GetValueDotAt(1, derivative)), [3, 3, 3]);
+    assert.deepEqual(Array.from(ball.GetValueDoubleDotAt(1, derivative)), [3, 3, 3]);
 });

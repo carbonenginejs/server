@@ -143,7 +143,7 @@ test("renderer applies impact without per-sample vector or quaternion allocation
     vec3.create = vec3.alloc = quat.create = quat.alloc = vec3d.create = vec3d.alloc = reject;
     try
     {
-        for (let time = 30000000; time < 35000000; time += 100000) ball.Update(time, out);
+        for (let time = 30000000; time < 35000000; time += 100000) ball.UpdateTicks(time, out);
         assert.ok(Math.abs(out[2]) > 0, "renderer rotation includes the impact");
     }
     finally

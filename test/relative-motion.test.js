@@ -73,8 +73,8 @@ test("ClientBall samples the four native clock inputs in order with float32 subt
     source.mPark = { tickInterval: 1000 }; source.mOldTime = 10n;
     source.mPosUpdateTime = 20n; source.mRotUpdateTime = 30n; target.mPosUpdateTime = 40n;
     target.mOldTime = 99999999n; target.mRotUpdateTime = 99999999n;
-    source.GetValueDotAt = (time, value) => { calls.push(["source", time]); vec3.set(value, 16777216, 0, 0); };
-    target.GetValueDotAt = (time, value) => { calls.push(["target", time]); vec3.set(value, -1, 0, 0); };
+    source.GetValueDotAtTicks = (time, value) => { calls.push(["source", time]); vec3.set(value, 16777216, 0, 0); };
+    target.GetValueDotAtTicks = (time, value) => { calls.push(["target", time]); vec3.set(value, -1, 0, 0); };
     source.CalculateRelativeVelocities(target, true, false, false, false, out);
     assert.deepEqual(calls, [["source", 20000040n], ["target", 20000040n]]);
     assert.equal(out.relVel[0], -16777216); assert.equal(out.radVel, 94);
@@ -102,9 +102,9 @@ test("coincident client caches update only relative velocity and never sample ro
     dynamic();
     const { source, target } = pair(ClientBall), out = output();
     source.mPark = { tickInterval: 1000 };
-    source.GetValueDotAt = (time, value) => vec3.set(value, 0, 0, 0);
-    target.GetValueDotAt = (time, value) => vec3.set(value, 3, 4, 0);
-    source.GetValueAt = () => { throw new Error("unexpected rotation sample"); };
+    source.GetValueDotAtTicks = (time, value) => vec3.set(value, 0, 0, 0);
+    target.GetValueDotAtTicks = (time, value) => vec3.set(value, 3, 4, 0);
+    source.GetValueAtTicks = () => { throw new Error("unexpected rotation sample"); };
     source.CalculateRelativeVelocities(target, false, false, false, true, out);
     assert.deepEqual(out, { ...output(), relVel: vec3d.fromValues(3, 4, 0) });
 });
@@ -134,16 +134,16 @@ test("ClientBall pooled samples survive nested calls and release storage on samp
     }
     try
     {
-        nested.source.GetValueDotAt = (time, value) => vec3.set(value, 80, 90, 100);
-        nested.target.GetValueDotAt = (time, value) => vec3.set(value, 81, 92, 103);
-        source.GetValueDotAt = (time, value) =>
+        nested.source.GetValueDotAtTicks = (time, value) => vec3.set(value, 80, 90, 100);
+        nested.target.GetValueDotAtTicks = (time, value) => vec3.set(value, 81, 92, 103);
+        source.GetValueDotAtTicks = (time, value) =>
         {
             vec3.set(value, 0, 0, 0);
             nested.source.CalculateRelativeVelocities(nested.target, true, false, false, false, inner);
             vec3.set(source.mLastPos, 0, 0, 0);
         };
-        target.GetValueDotAt = (time, value) => { vec3.set(value, 3, 4, 0); vec3.set(target.mLastPos, 10, 0, 0); };
-        source.GetValueAt = (time, value) =>
+        target.GetValueDotAtTicks = (time, value) => { vec3.set(value, 3, 4, 0); vec3.set(target.mLastPos, 10, 0, 0); };
+        source.GetValueAtTicks = (time, value) =>
         {
             assert.equal(value.length, 4); assert.equal(out.transVel, 4);
             vec3.set(source.mLastAngVel, 0, 0, 0.5);
@@ -152,10 +152,10 @@ test("ClientBall pooled samples survive nested calls and release storage on samp
         };
         source.CalculateRelativeVelocities(target, false, false, false, true, out);
         assert.equal(out.angVel, 0.1); assert.ok(peak >= 2); assert.equal(live.size, 0);
-        source.GetValueAt = () => { throw new Error("rotation failed"); };
+        source.GetValueAtTicks = () => { throw new Error("rotation failed"); };
         assert.throws(() => source.CalculateRelativeVelocities(target, false, false, false, true, out), /rotation failed/);
         assert.equal(live.size, 0);
-        target.GetValueDotAt = () => { throw new Error("velocity failed"); };
+        target.GetValueDotAtTicks = () => { throw new Error("velocity failed"); };
         assert.throws(() => source.CalculateRelativeVelocities(target, true, false, false, false, out), /velocity failed/);
         assert.equal(live.size, 0);
     }

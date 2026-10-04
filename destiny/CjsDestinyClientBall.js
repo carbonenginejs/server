@@ -87,9 +87,9 @@ export class CjsDestinyClientBall extends CjsDestinyBall
         const vec3_0 = vec3.alloc();
         try
         {
-            this.GetValueDotAt(currentTime, vec3_0);
+            this.GetValueDotAtTicks(currentTime, vec3_0);
             const sx = vec3_0[0], sy = vec3_0[1], sz = vec3_0[2];
-            target.GetValueDotAt(currentTime, vec3_0);
+            target.GetValueDotAtTicks(currentTime, vec3_0);
             vec3.set(out.relVel, f32(vec3_0[0] - sx), f32(vec3_0[1] - sy), f32(vec3_0[2] - sz));
         }
         finally { vec3.unalloc(vec3_0); }
@@ -110,7 +110,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
             if (g_useDynamicalOrientation)
             {
                 const quat_0 = quat.alloc();
-                try { this.GetValueAt(currentTime, quat_0); }
+                try { this.GetValueAtTicks(currentTime, quat_0); }
                 finally { quat.unalloc(quat_0); }
                 const wx = this.mLastAngVel[0], wy = this.mLastAngVel[1], wz = this.mLastAngVel[2];
                 tx -= (wy * z - wz * y) * dist;
@@ -246,28 +246,83 @@ export class CjsDestinyClientBall extends CjsDestinyBall
 
     /**
      * Updates either native renderer curve into caller-owned storage.
-     * Adaptation: JavaScript selects the native overload by output length, 3 or 4.
+     * Adaptation: JavaScript selects the native overload by output length, 3 or 4. JavaScript cannot overload on argument type, so the Be::Time overload has its own name.
      * @param {number|bigint} time Scene clock in elapsed 100ns ticks, never seconds.
      * @param {Float32Array} out Position vector or rotation quaternion.
      * @returns {Float32Array} The supplied output without allocating a result.
      */
+    @meta.blue.renamed("Update")
     @meta.adapted
-    Update(time, out)
+    UpdateTicks(time, out)
     {
-        return this.GetValueAt(time, out);
+        return this.GetValueAtTicks(time, out);
+    }
+
+    /**
+     * Carbon's Update(double): reports that the Be::Time version must be used and writes the zero vector, or
+     * (0, 0, 0, -1) for a rotation (Ball.cpp:958-965, 1337-1343). The native error state is logged here.
+     * @param {number} _time Unused seconds.
+     * @param {Float32Array} out Position vector or rotation quaternion.
+     * @returns {Float32Array} The supplied output.
+     */
+    @meta.adapted
+    Update(_time, out)
+    {
+        console.error("Ball::Update() -> Use the Be::Time version instead.");
+        if (out.length === 4) return quat.set(out, 0, 0, 0, -1);
+        return vec3.set(out, 0, 0, 0);
+    }
+
+    /**
+     * Carbon's GetValueAt(double): a position samples the Be::Time overload at the last position-update time and
+     * ignores its argument; a rotation is left untouched (Ball.cpp:1092-1095, 1427-1430).
+     * @param {number} _time Unused seconds.
+     * @param {Float32Array} out Position vector or rotation quaternion.
+     * @returns {Float32Array} The supplied output.
+     */
+    @meta.adapted
+    GetValueAt(_time, out)
+    {
+        if (out.length === 4) return out;
+        return this.GetValueAtTicks(this.mPosUpdateTime, out);
+    }
+
+    /**
+     * Carbon's GetValueDotAt(double): leaves the output untouched (Ball.cpp:1108-1111, 1458-1461).
+     * @param {number} _time Unused seconds.
+     * @param {Float32Array} out Caller-owned output.
+     * @returns {Float32Array} The supplied output.
+     */
+    @meta.adapted
+    GetValueDotAt(_time, out)
+    {
+        return out;
+    }
+
+    /**
+     * Carbon's GetValueDoubleDotAt(double): leaves the output untouched (Ball.cpp:1490-1495).
+     * @param {number} _time Unused seconds.
+     * @param {Float32Array} out Caller-owned output.
+     * @returns {Float32Array} The supplied output.
+     */
+    @meta.adapted
+    GetValueDoubleDotAt(_time, out)
+    {
+        return out;
     }
 
     /**
      * Samples float32 position relative to the park reference, or native rotation.
      * Adaptation: time-first and output-length dispatch replace C++ overloads;
-     * safe Number/BigInt ticks share the scene epoch. Seconds overloads are not exposed.
+     * safe Number/BigInt ticks share the scene epoch. GetValueAt is the double overload. JavaScript cannot overload on argument type, so the Be::Time overload has its own name.
      * Missing-park reporting invokes the shared native callback as a JS function.
      * @param {number|bigint} time Scene clock in elapsed 100ns ticks.
      * @param {Float32Array} out Length-three position or length-four quaternion.
      * @returns {Float32Array} The supplied output.
      */
+    @meta.blue.renamed("GetValueAt")
     @meta.adapted
-    GetValueAt(time, out)
+    GetValueAtTicks(time, out)
     {
         time = CjsDestinyBall._toInt64(time);
         if (out.length === 4) return this._GetRotationAt(time, out);
@@ -322,8 +377,9 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Length-three velocity or length-four unchanged output.
      * @returns {Float32Array} The supplied output.
      */
+    @meta.blue.renamed("GetValueDotAt")
     @meta.adapted
-    GetValueDotAt(time, out)
+    GetValueDotAtTicks(time, out)
     {
         time = CjsDestinyBall._toInt64(time);
         if (out.length === 4) return out;
@@ -430,7 +486,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
     @meta.adapted
     GetDelta(time, out)
     {
-        this.GetValueAt(time, out);
+        this.GetValueAtTicks(time, out);
         return vec3.set(out, f32(this.mDeltaPos[0]), f32(this.mDeltaPos[1]), f32(this.mDeltaPos[2]));
     }
 
@@ -459,8 +515,9 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Three-component acceleration or unchanged quaternion.
      * @returns {Float32Array} The supplied output.
      */
+    @meta.blue.renamed("GetValueDoubleDotAt")
     @meta.adapted
-    GetValueDoubleDotAt(time, out)
+    GetValueDoubleDotAtTicks(time, out)
     {
         CjsDestinyBall._toInt64(time);
         if (out.length === 4) return out;
