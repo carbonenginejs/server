@@ -76,14 +76,14 @@ Destiny identities. No general `CjsServer*` naming convention is established.
 
 ## Queued movement commands
 
-`Actions`, exported from `@carbonenginejs/server/destiny/net/server`, queues the
-existing movement commands using Carbon's tick-stamped history tuples. It
-preserves command order, adjacent duplicate suppression and pending-value
-queries. The caller applies each flushed batch before `Evolve()`. See
+`Actions`, exported from `@carbonenginejs/server/destiny/net/server`, admits
+Carbon's tick-stamped commands and performs its immediate global/removal operations.
+It preserves command order, adjacent duplicate suppression, pending-value queries
+and weak signal notifications. Server ticker distribution remains pending. See
 [Destiny action queue](docs/destiny-actions.md) for the API, example and limits.
 
-This is an in-process movement subset, not a transport or automatic tick driver.
-Native signals and the rest of the replication stack remain unported.
+The action guide includes a movement-only tick example and the explicit
+Signal/profiling host adapters. Transport and server batch orchestration remain open.
 
 Native global settings select the orbit model and preserve detached configuration
 snapshots. See [global settings](docs/destiny-settings.md) for the API and supported

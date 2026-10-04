@@ -1,12 +1,16 @@
 import { meta } from "@carbonenginejs/runtime/schema";
 import { CjsDestinyBall } from "../../CjsDestinyBall.js";
+import { CjsBallparkController } from "../../CjsBallparkController.js";
+import { CjsDestinyStream } from "../../CjsDestinyStream.js";
+import { Signal } from "../../_util/signal.js";
+import { TimedFunction } from "../../_util/timing.js";
+import { is_dynamical_orientation_enabled } from "../../_util/settings.js";
 
 // Source: destiny/python/destiny/net/server/_actions.py
 /**
- * Movement-command subset of Carbon's Actions queue. Native Python method names
- * and history tuples are preserved. This class neither executes nor transports
- * commands. Signals, serialization and commands absent from the movement park
- * remain outside this subset; it does not claim the complete native identity.
+ * Carbon's command history, immediate global/removal operations and weak signals.
+ * Native method names and tuples are preserved; the server ticker owns queued
+ * execution and transport. Native tasklet profiling remains a host dependency.
  */
 @meta.define({ className: "Actions", modelledOn: "destiny.net.server.Actions" })
 export class Actions
@@ -14,17 +18,28 @@ export class Actions
     _park = null;
     _system_history = [];
     _stamp_for_system = 0;
+    on_ball_made_global = new Signal();
+    on_add_to_system_history = new Signal();
 
     /**
      * Binds the existing movement park without changing its state or clock.
+     * Adaptation: optional host timing decorates the two native timed methods per
+     * instance, because JS has no Blue module global. Absent host omits profiling.
      *
      * @param {CjsBallparkController} park Existing movement park; no ownership transfer.
+     * @param {Object} [dependencies={}] External services unavailable in this package.
+     * @param {Object|null} [dependencies.taskletTimer=null] Synchronous Blue timer host.
      * @returns {Actions} New instance with its own native value fields.
      */
-    constructor(park)
+    constructor(park, { taskletTimer = null } = {})
     {
         this._park = park;
         this._stamp_for_system = this._get_initial_stamp_for_system();
+        if (taskletTimer)
+        {
+            this.clean_up_followers = TimedFunction("destiny.net::actions::clean_up_followers", taskletTimer)(this.clean_up_followers);
+            this.undo_pending_cloak = TimedFunction("destiny.net::actions::undo_pending_cloak", taskletTimer)(this.undo_pending_cloak);
+        }
     }
 
     /**
@@ -41,7 +56,7 @@ export class Actions
     /**
      * Preserves adjacent tuple deduplication and the optional third event item.
      * Adaptation: JS arrays represent Python tuples, and keyword arguments become
-     * an options object. Signal delivery is explicitly unported. Payloads are
+     * an options object. Signal uses explicit __call__ invocation. Payloads are
      * retained unchanged except IDs, which normalize to BigInt. Checked ID rejection
      * occurs at queue admission rather than native execution; Number cannot retain
      * every int64 identity. The ballpark applies physical scalar conversions later.
@@ -69,6 +84,7 @@ export class Actions
         {
             history.push(action);
         }
+        this.on_add_to_system_history.__call__([eventName]);
     }
 
     /**
@@ -456,7 +472,8 @@ export class Actions
 
     /**
      * Removes queued cloak commands without changing live cloak state.
-     * Adaptation: diagnostic logging/timing is omitted; pruning retains native order.
+     * Adaptation: diagnostic logging is omitted; optional host timing is installed
+     * by the constructor. Pruning retains native order.
      * Source: destiny/python/destiny/net/server/_actions.py:686-693.
      * @param {bigint|number} src_id Ball identity.
      * @returns {void} The native wrapper discards the removed count.
@@ -572,30 +589,209 @@ export class Actions
     }
 
     /**
-     * Native weak-reference Signal delivery is not part of this queue subset.
-     *
-     * @returns {never} Throws until native Signal delivery is ported.
+     * Queues angular velocity only when dynamical orientation is enabled.
+     * Adaptation: JS errors and checked IDs replace Python exceptions/integers.
+     * Source: destiny/python/destiny/net/server/_actions.py:169-188.
+     * @param {bigint|number} src_id Ball identity.
+     * @param {number} wx Angular X velocity.
+     * @param {number} wy Angular Y velocity.
+     * @param {number} wz Angular Z velocity.
+     * @returns {void} Enqueues without executing the command.
      */
-    @meta.notImplemented
-    get on_add_to_system_history()
+    @meta.adapted
+    set_ball_angular_velocity(src_id, wx, wy, wz)
     {
-        throw new Error("Actions.on_add_to_system_history Signal is not implemented");
+        if (!is_dynamical_orientation_enabled()) throw new Error("Attempted to set ball angular velocity, but Dynamical Orientation is disabled.");
+        this._add_to_system_history(src_id, "SetBallAngularVelocity", [wx, wy, wz]);
     }
 
     /**
-     * Global-ball actions and their native Signal are not implemented.
-     *
-     * @returns {never} Throws until global actions and Signal delivery are ported.
+     * Queues the donor's three-component maximum-angular-velocity action.
+     * Adaptation: JS errors/arrays replace Python values. Native quirk: the public
+     * donor exposes no corresponding SetMaxAngularVelocity ballpark method.
+     * Source: destiny/python/destiny/net/server/_actions.py:190-209.
+     * @param {bigint|number} src_id Ball identity.
+     * @param {number} wx Maximum X angular velocity.
+     * @param {number} wy Maximum Y angular velocity.
+     * @param {number} wz Maximum Z angular velocity.
+     * @returns {void} Retains the unresolved native action name, without inventing a setter.
      */
-    @meta.notImplemented
-    get on_ball_made_global()
+    @meta.adapted
+    set_max_angular_velocity(src_id, wx, wy, wz)
     {
-        throw new Error("Actions.on_ball_made_global Signal is not implemented");
+        if (!is_dynamical_orientation_enabled()) throw new Error("Attempted to set max angular velocity, but Dynamical Orientation is disabled.");
+        this._add_to_system_history(src_id, "SetMaxAngularVelocity", [wx, wy, wz]);
+    }
+
+    /**
+     * Queues rotation only when dynamical orientation is enabled.
+     * Adaptation: JS errors and arrays replace Python exceptions/tuples.
+     * Source: destiny/python/destiny/net/server/_actions.py:211-232.
+     * @param {bigint|number} src_id Ball identity.
+     * @param {number} rx Quaternion X.
+     * @param {number} ry Quaternion Y.
+     * @param {number} rz Quaternion Z.
+     * @param {number} rw Quaternion W.
+     * @returns {void} Retains the supplied quaternion components until execution.
+     */
+    @meta.adapted
+    set_ball_rotation(src_id, rx, ry, rz, rw)
+    {
+        if (!is_dynamical_orientation_enabled()) throw new Error("Attempted to set ball rotation, but Dynamical Orientation is disabled.");
+        this._add_to_system_history(src_id, "SetBallRotation", [rx, ry, rz, rw]);
+    }
+
+    /**
+     * Queues angular agility after the native feature gate.
+     * Adaptation: JS errors and arrays replace Python exceptions/tuples.
+     * Source: destiny/python/destiny/net/server/_actions.py:293-309.
+     * @param {bigint|number} src_id Ball identity.
+     * @param {number} angular_agility Requested agility multiplier.
+     * @returns {void} Does not mutate the current ball.
+     */
+    @meta.adapted
+    set_ball_angular_agility(src_id, angular_agility)
+    {
+        if (!is_dynamical_orientation_enabled()) throw new Error("Attempting to set angular agility, but Dynamical Orientation is disabled.");
+        this._add_to_system_history(src_id, "SetBallAngularAgility", [angular_agility]);
+    }
+
+    /**
+     * Queues the scalar angular speed limit after the native feature gate.
+     * Adaptation: JS errors and arrays replace Python exceptions/tuples.
+     * Source: destiny/python/destiny/net/server/_actions.py:584-598.
+     * @param {bigint|number} src_id Ball identity.
+     * @param {number} max_radians_per_second Maximum angular speed.
+     * @returns {void} Does not mutate the current ball.
+     */
+    @meta.adapted
+    set_max_angular_speed(src_id, max_radians_per_second)
+    {
+        if (!is_dynamical_orientation_enabled()) throw new Error("Attempting to set angular speed, but Dynamical Orientation is disabled.");
+        this._add_to_system_history(src_id, "SetMaxAngularSpeed", [max_radians_per_second]);
+    }
+
+    /**
+     * Serializes selected native ball records into a queued client addition.
+     * Adaptation: CjsDestinyStream replaces Blue MemStream; its Read owns bytes.
+     * Source: destiny/python/destiny/net/server/_actions.py:311-326.
+     * @param {bigint|number} src_id Ball identity, even if absent from the park.
+     * @returns {void} The payload omits an ID argument but the history keeps its source.
+     */
+    @meta.adapted
+    add_ball_to_client_parks(src_id)
+    {
+        const dump = new CjsDestinyStream();
+        this._park.WriteBallsToStream([src_id], dump);
+        this._add_to_system_history(src_id, "AddBallsToPark", [dump.Read()], { insert_ball_id_into_args: false });
+    }
+
+    /**
+     * Immediately clears global state, then queues removal from other bubbles.
+     * Adaptation: Map/checked IDs replace Python dictionary/integer keys; console
+     * supplies missing-ball diagnostics. Native call-before-membership-check is retained.
+     * Source: destiny/python/destiny/net/server/_actions.py:328-348.
+     * @param {bigint|number} src_id Ball identity.
+     * @returns {void} A missing ball logs and queues nothing.
+     */
+    @meta.adapted
+    make_ball_local(src_id)
+    {
+        src_id = CjsDestinyBall._toInt64(src_id);
+        this._park.SetBallGlobal(src_id, false);
+        if (!this._park.balls.has(src_id)) { console.error("Attempted to make ball local, but it's not in the park", src_id); return; }
+        this._add_to_system_history(src_id, "BallNotGlobal", [this._park.balls.get(src_id).newBubbleId],
+            { insert_ball_id_into_args: false });
+    }
+
+    /**
+     * Makes a ball global immediately, serializes it, then emits the global signal.
+     * Adaptation: checked BigInt IDs and explicit Signal invocation replace Python values.
+     * Source: destiny/python/destiny/net/server/_actions.py:350-362.
+     * @param {bigint|number} src_id Ball identity; missing sources still queue a header.
+     * @returns {void} Does not wait for a tick to update global state.
+     */
+    @meta.adapted
+    make_ball_global(src_id)
+    {
+        src_id = CjsDestinyBall._toInt64(src_id);
+        this._park.SetBallGlobal(src_id, true);
+        this.add_ball_to_client_parks(src_id);
+        this.on_ball_made_global.__call__([src_id]);
+    }
+
+    /**
+     * Queues a global removal notification if needed, then removes immediately.
+     * Adaptation: explicit owner dispatch replaces native _parent_RemoveBall;
+     * a missing dictionary key throws Error instead of Python KeyError.
+     * Source: destiny/python/destiny/net/server/_actions.py:364-382.
+     * @param {bigint|number} src_id Existing ball identity.
+     * @returns {void} Previous queued actions are not pruned or applied first.
+     */
+    @meta.adapted
+    remove_ball(src_id)
+    {
+        src_id = CjsDestinyBall._toInt64(src_id);
+        if (!this._park.balls.has(src_id)) throw new Error(`Ball is not in park: ${src_id}`);
+        if (this._park.balls.get(src_id).isGlobal) this._notify_remove_global_ball(src_id);
+        CjsBallparkController.prototype.RemoveBall.call(this._park, src_id);
+    }
+
+    /**
+     * Queues the native global-removal notification at the current stamp.
+     * Source: destiny/python/destiny/net/server/_actions.py:384-388.
+     * @param {bigint|number} src_id Removed ball identity.
+     * @returns {void} Does not itself remove a ball.
+     */
+    @meta.implemented
+    _notify_remove_global_ball(src_id) { this._add_to_system_history(src_id, "RemoveGlobalBall"); }
+
+    /**
+     * Queues interactive membership without immediately changing it.
+     * Source: destiny/python/destiny/net/server/_actions.py:540-552.
+     * @param {bigint|number} src_id Ball identity.
+     * @param {boolean} is_interactive Requested state retained until execution.
+     * @returns {void} Appends the native SetBallInteractive tuple.
+     */
+    @meta.implemented
+    set_ball_interactive(src_id, is_interactive) { this._add_to_system_history(src_id, "SetBallInteractive", [is_interactive]); }
+
+    /**
+     * Queues Stop for every remote follower in the native returned order.
+     * Adaptation: optional host tasklet timing is installed by the constructor;
+     * no command is applied or stamp advanced during this method.
+     * Source: destiny/python/destiny/net/server/_actions.py:677-684.
+     * @returns {void} Leaves live follower state unchanged until queued execution.
+     */
+    @meta.adapted
+    clean_up_followers() { for (const id of this._park.GetRemoteFollowers()) this.stop(id); }
+
+    /**
+     * Reads the last queued interactive truth value, otherwise the live flag.
+     * Adaptation: native numeric/boolean values use JS Boolean; empty Python-like
+     * list/map arguments are false. Checked IDs and null replace Python IDs/None.
+     * Source: destiny/python/destiny/net/server/_actions.py:752-758.
+     * @param {bigint|number} src_id Ball identity.
+     * @returns {boolean|null} Pending/live state, or null for an absent ball.
+     */
+    @meta.adapted
+    get_pending_interactive_state(src_id)
+    {
+        const events = this._get_pending_actions(src_id, "SetBallInteractive");
+        if (events.length)
+        {
+            const value = events[events.length - 1][1][1];
+            if (Array.isArray(value) || value instanceof Uint8Array) return value.length !== 0;
+            if (value instanceof Map || value instanceof Set) return value.size !== 0;
+            return typeof value === "number" ? value !== 0 : Boolean(value);
+        }
+        const ball = this._park.balls.get(CjsDestinyBall._toInt64(src_id));
+        return ball ? ball.isInteractive : null;
     }
 }
 
 /**
- * Python tuple equality for this subset's nested arrays and scalar arguments.
+ * Python tuple equality for nested arrays, owned byte strings and scalar arguments.
  *
  * @param {unknown} a Scalar or nested tuple value.
  * @param {unknown} b Scalar or nested tuple value.
@@ -603,6 +799,12 @@ export class Actions
  */
 function sameTuple(a, b)
 {
+    if (a instanceof Uint8Array && b instanceof Uint8Array)
+    {
+        if (a.byteLength !== b.byteLength) return false;
+        for (let i = 0; i < a.byteLength; ++i) if (a[i] !== b[i]) return false;
+        return true;
+    }
     if (Array.isArray(a) && Array.isArray(b))
     {
         if (a.length !== b.length) return false;

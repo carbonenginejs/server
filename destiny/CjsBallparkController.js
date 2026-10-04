@@ -4561,6 +4561,51 @@ export class CjsBallparkController
     }
 
     /**
+     * Maintains the native global map and flag without altering bubble membership.
+     * Adaptation: checked IDs and Map replace native integers/dictionary ownership.
+     * Native quirk: clearing an already false flag leaves a stale global-map entry.
+     * Source: destiny/src/Ballpark.cpp:5091-5118.
+     * @param {bigint|number} id Ball identity.
+     * @param {boolean} flag Requested global state.
+     * @returns {void} Missing balls are ignored.
+     */
+    @meta.blue.method
+    @meta.adapted
+    SetBallGlobal(id, flag)
+    {
+        const ball = this._balls.get(CjsDestinyBall._toInt64(id));
+        if (!ball) return;
+        flag = Boolean(flag);
+        if (flag) this.mGlobals.set(ball.mId, ball);
+        else if (ball.isGlobal) this.mGlobals.delete(ball.mId);
+        ball.isGlobal = flag;
+    }
+
+    /**
+     * Applies the native signed-int32 global-flag binding before owner dispatch.
+     * Adaptation: Number/BigInt/Boolean primitives replace Python integer parsing;
+     * unsupported types throw TypeError and overflow throws RangeError.
+     * Source: destiny/src/Thunkers.cpp:1033-1052.
+     * @param {bigint|number} id Signed-int64 source ID.
+     * @param {number|bigint|boolean} flag Signed-int32 flag; any nonzero value is true.
+     * @returns {void} Does not impose an evolution guard, matching the donor.
+     */
+    @meta.adapted
+    PySetBallGlobal(id, flag)
+    {
+        if (arguments.length !== 2) throw new TypeError("PySetBallGlobal requires two arguments");
+        if (typeof id === "boolean") id = Number(id);
+        if (typeof id !== "bigint" && (typeof id !== "number" || !Number.isInteger(id)))
+            throw new TypeError("PySetBallGlobal requires an integer ID");
+        id = CjsDestinyBall._toInt64(id);
+        if (typeof flag === "boolean") flag = Number(flag);
+        if (typeof flag !== "bigint" && (typeof flag !== "number" || !Number.isInteger(flag)))
+            throw new TypeError("PySetBallGlobal requires an integer flag");
+        if (flag < -2147483648 || flag > 2147483647) throw new RangeError("Global flag exceeds int32");
+        CjsBallparkController.prototype.SetBallGlobal.call(this, id, flag !== 0 && flag !== 0n);
+    }
+
+    /**
      * Assigns both native position samples, then refreshes spatial membership.
      * Adaptation: factory-owned vectors retain double precision with a finite input guard.
      * Core writes bypass Blue accessors, avoiding a second OnModified notification.

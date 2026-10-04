@@ -7,12 +7,12 @@ Summary: Current implementation and the families still required for completion.
 
 The target is the whole public Destiny donor, not only features used by a racing
 demo. Source baseline: `114e89fa584f0e1a81eb0a679aabf41af8870072`.
-The current server suite has 843 passing CPU tests against runtime alpha.9.
+The current server suite has 885 passing CPU tests against runtime alpha.9.
 
 | Family | Current status |
 |---|---|
 | Ball/Ballpark | Movement subset: goto, follow, legacy/new orbit, formation, native stop transitions and basic lifecycle/setters, exact signed-int64 IDs/timestamps and native local-ID allocation |
-| Actions | Movement commands, timestamps, adjacent deduplication and pending queries |
+| Actions | All donor command methods, immediate global/removal operations, byte-content deduplication, pending queries and signals implemented; optional profiling uses a supplied host |
 | AABB/Planed/Triangle/Collision | Numeric primitives implemented; 44 native fixtures and seven additional cases |
 | Clock/host boundary | Separate time/currentTime, Start/Pause, OnTick, AdjustTimes and deferred ball/capsule cleanup implemented; ClientBall sample caches shift with the clock; network batches pending |
 | BoxShape/RectangleShape | Numeric geometry implemented; all 25 native fixtures and 18 additional cases |
@@ -29,7 +29,7 @@ The current server suite has 843 passing CPU tests against runtime alpha.9.
 | Server tickers, bubble updates and recipient batching | BubbleUpdater and remote-follower queries implemented; remaining ticker orchestration and batching pending |
 | Client history merging, wait rules, restore and replay | Python client BaseTicker/Ticker, callback contracts and merge helper implemented; native quirks preserved; PackagedAction requires a host-supplied Blue marshal decoder |
 | Settings and settings utility functions | Native globals, configuration snapshots, bindings and aliases implemented |
-| Signal, remaining timing and Python wrapper utilities | Pending; native-long counter bounds/wrapping are not yet modeled |
+| Signal, remaining timing and Python wrapper utilities | Weak Signal and Timer/TimedFunction implemented with explicit JS receiver/call and host adaptations; wrapper utilities and native-long counter bounds/wrapping remain pending |
 | Native support containers, comparers, Random and full constants | Three sorted-set comparers, DSTCONSTANTS, DESTINYPACKETS and BALLFLAGS implemented; other support families pending |
 | Module lifecycle, interfaces and property notification semantics | Position, angular and harmonic/affiliation Blue store-before-notify implemented; other notification branches, module lifecycle and interface identity pending |
 

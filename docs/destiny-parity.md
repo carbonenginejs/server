@@ -745,3 +745,25 @@ Other property notification branches and server ticker/batcher work remain open.
 Evidence: destiny/src/Thunkers.cpp:1193-1240,2509-2895;
 destiny/src/Ballpark.cpp:6009-6057; destiny/src/Ball.cpp:1506-1537;
 destiny/python/destiny/net/server/_bubbleupdater.py:6-54. Baseline remains 114e89f.
+
+## Actions, Signal and timing checkpoint
+
+The remaining 13 Actions methods now cover gated angular commands, global/local
+changes, native selected-ball payloads, immediate removal, follower cleanup and
+interactive queries. SetBallGlobal/PySetBallGlobal supplies the missing native
+registry prerequisite. History notification fires even when adjacent tuple/byte
+equality suppresses admission. All 24 donor fixtures for the missing methods are
+included; source-derived signal/timer and error-order cases bring the suite to 885.
+
+Signal retains weak function/receiver pairs and strong emission snapshots.
+Explicit __call__ tuples/options and receiver arguments replace Python syntax and
+introspection. Timer/TimedFunction retains native entry/finally-return ordering
+through an explicit synchronous profiling host; no Blue service was invented.
+The [action guide](destiny-actions.md) records these adapters and remaining limits.
+
+Native quirks retained: SetMaxAngularVelocity has an Actions producer and fixture
+but no public C++/Blue consumer; clearing a false global flag does not remove an
+already-stale mGlobals entry. Source: destiny/src/Ballpark.cpp:5091-5118;
+destiny/src/Thunkers.cpp:1033-1052; destiny/python/destiny/net/server/_actions.py;
+destiny/python/destiny/_util/signal.py:8-97;
+destiny/python/destiny/_util/timing.py:8-32. Donor baseline remains 114e89f.
