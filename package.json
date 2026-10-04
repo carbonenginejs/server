@@ -10,6 +10,7 @@
     "./destiny/net/server": "./dist/destiny/net/server/index.js",
     "./destiny/net/client": "./dist/destiny/net/client/index.js",
     "./destiny/geometry": "./dist/destiny/geometry/index.js",
+    "./destiny/custom": "./dist/destiny/custom/index.js",
     "./destiny/partition": "./dist/destiny/partition/index.js",
     "./destiny/_util/settings": "./dist/destiny/_util/settings.js",
     "./destiny/_util/signal": "./dist/destiny/_util/signal.js",

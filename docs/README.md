@@ -11,6 +11,7 @@ Summary: Current APIs, source correspondence and remaining port work.
 - [Global settings and orbit selection](destiny-settings.md)
 - [Action queue](destiny-actions.md)
 - [Numeric collision geometry](destiny-geometry.md)
+- [Custom tube bounds](custom-tube-bounds.md)
 - [Mini shape ownership](destiny-minis.md)
 - [Movement transitions and formations](destiny-formations.md)
 - [Warp simulation and client sampling](destiny-warp.md)
