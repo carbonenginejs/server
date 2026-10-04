@@ -24,9 +24,9 @@ const position = vec3.create();
 const rotation = quat.create();
 const velocity = vec3.create();
 // Reuse these outputs for subsequent frames. ball was returned by park.AddBall.
-ball.UpdateTicks(sceneTicks, position);
-ball.GetValueAtTicks(sceneTicks, rotation);
-ball.GetValueDotAtTicks(sceneTicks, velocity);
+ball.Update_Ticks(sceneTicks, position);
+ball.GetValueAt_Ticks(sceneTicks, rotation);
+ball.GetValueDotAt_Ticks(sceneTicks, velocity);
 ```
 
 Time is an integer Number of 100ns ticks elapsed since the scene's Blue startup.
@@ -36,8 +36,8 @@ rejected. Supply the same clock to park evolution and scene sampling. There is
 no conversion to absolute wallclock.
 
 JavaScript cannot overload on argument type, so the native Be::Time overloads are
-the `...Ticks` methods (`UpdateTicks`, `GetValueAtTicks`, `GetValueDotAtTicks`,
-`GetValueDoubleDotAtTicks`), which the runtime's object samplers call. The plain
+the `..._Ticks` methods (`Update_Ticks`, `GetValueAt_Ticks`, `GetValueDotAt_Ticks`,
+`GetValueDoubleDotAt_Ticks`), which the runtime's object samplers call. The plain
 names are the native double overloads: `Update` reports the wrong overload and
 writes zero (or `(0, 0, 0, -1)` for a rotation), `GetValueAt` samples a position at
 the last position-update time and leaves a rotation alone, and the derivative

@@ -36,10 +36,10 @@ test("reference delegation preserves detached output and acceleration skips inte
     park.dt = 2;
     vec3.set(ball.mOldVel, 1, 3, 5); vec3.set(ball.mNewVel, 5, 7, 9);
     const out = vec3.create(), rotation = quat.fromValues(1, 2, 3, 4), cache = ball.mPosUpdateTime;
-    ball.GetValueDoubleDotAtTicks(50000000, out);
+    ball.GetValueDoubleDotAt_Ticks(50000000, out);
     assert.deepEqual(Array.from(out), [2, 2, 2]);
     assert.equal(ball.mPosUpdateTime, cache);
-    ball.GetValueDoubleDotAtTicks(50000000, rotation);
+    ball.GetValueDoubleDotAt_Ticks(50000000, rotation);
     assert.deepEqual(Array.from(rotation), [1, 2, 3, 4]);
     assert.equal(ego.mCenterDist, -1);
 });
@@ -103,7 +103,7 @@ test("a nested partition callback cannot overwrite the outer curve reference", (
             if (event === "Destiny::Ball::DoPartition")
             {
                 ++callbacks;
-                other.GetValueAtTicks(37500000, nested);
+                other.GetValueAt_Ticks(37500000, nested);
             }
             return true;
         },
@@ -123,7 +123,7 @@ test("a nested partition callback cannot overwrite the outer curve reference", (
     park.GetReferencePoint(35000000, reference);
     const expected = Math.fround(110 - reference[0]);
     ball.showBoxes = true;
-    ball.GetValueAtTicks(35000000, out);
+    ball.GetValueAt_Ticks(35000000, out);
     assert.equal(callbacks, 1);
     assert.equal(out[0], expected);
     assert.notEqual(park.mLastReference[0], reference[0], "nested sample advanced the shared park reference");

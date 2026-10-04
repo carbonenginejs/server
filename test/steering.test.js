@@ -174,13 +174,13 @@ test("dynamic client samples old physical rotation on Number ticks and bypasses 
     ball.mProcessingImpact = true;
     ball.ProcessImpact = () => { throw new Error("dynamic path must not process impact"); };
     const out = quat.create();
-    ball.UpdateTicks(25000000, out);
+    ball.Update_Ticks(25000000, out);
     const omega = Math.exp(-0.5), angle = 1 - omega;
     nearVector(out, [0, 0, Math.sin(angle / 2), Math.cos(angle / 2)]);
     nearVector(ball.mLastAngVel, [0, 0, omega]);
     nearVector(ball.mLastSpeed, [0, 0, 0.5 * omega * Math.cos(angle / 2), -0.5 * omega * Math.sin(angle / 2)]);
     const derivative = quat.fromValues(1, 2, 3, 4);
-    ball.GetValueDotAtTicks(25000000, derivative);
+    ball.GetValueDotAt_Ticks(25000000, derivative);
     assert.deepEqual(Array.from(derivative), [1, 2, 3, 4]);
     config({ useIterativeCollision: true, disableDynamicalOrientationForMissiles: true });
     ball.mode = Ball.DSTBALLMODE.DSTBALL_MISSILE;
@@ -191,7 +191,7 @@ test("dynamic client samples old physical rotation on Number ticks and bypasses 
         assert.equal(fraction, 0.75);
         quat.identity(rotation); vec3.zero(angular);
     } });
-    ball.UpdateTicks(27500000, out);
+    ball.Update_Ticks(27500000, out);
     assert.equal(calls, 1, "client branch follows global flag even for disabled missiles");
 });
 
@@ -300,7 +300,7 @@ test("dynamic goto remains finite and turns toward its target over repeated tick
         assert.ok(ball.mNewRot.every(Number.isFinite));
         assert.ok(ball.mNewAngVel.every(Number.isFinite));
         near(quat.length(ball.mNewRot), 1, 2e-6);
-        ball.UpdateTicks((i + 2) * 10000000, rotation);
+        ball.Update_Ticks((i + 2) * 10000000, rotation);
         assert.ok(rotation.every(Number.isFinite));
     }
     ball.GetRotatedVector(heading);

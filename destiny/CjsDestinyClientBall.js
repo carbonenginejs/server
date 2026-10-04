@@ -87,9 +87,9 @@ export class CjsDestinyClientBall extends CjsDestinyBall
         const vec3_0 = vec3.alloc();
         try
         {
-            this.GetValueDotAtTicks(currentTime, vec3_0);
+            this.GetValueDotAt_Ticks(currentTime, vec3_0);
             const sx = vec3_0[0], sy = vec3_0[1], sz = vec3_0[2];
-            target.GetValueDotAtTicks(currentTime, vec3_0);
+            target.GetValueDotAt_Ticks(currentTime, vec3_0);
             vec3.set(out.relVel, f32(vec3_0[0] - sx), f32(vec3_0[1] - sy), f32(vec3_0[2] - sz));
         }
         finally { vec3.unalloc(vec3_0); }
@@ -110,7 +110,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
             if (g_useDynamicalOrientation)
             {
                 const quat_0 = quat.alloc();
-                try { this.GetValueAtTicks(currentTime, quat_0); }
+                try { this.GetValueAt_Ticks(currentTime, quat_0); }
                 finally { quat.unalloc(quat_0); }
                 const wx = this.mLastAngVel[0], wy = this.mLastAngVel[1], wz = this.mLastAngVel[2];
                 tx -= (wy * z - wz * y) * dist;
@@ -253,9 +253,9 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      */
     @meta.blue.renamed("Update")
     @meta.adapted
-    UpdateTicks(time, out)
+    Update_Ticks(time, out)
     {
-        return this.GetValueAtTicks(time, out);
+        return this.GetValueAt_Ticks(time, out);
     }
 
     /**
@@ -284,7 +284,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
     GetValueAt(_time, out)
     {
         if (out.length === 4) return out;
-        return this.GetValueAtTicks(this.mPosUpdateTime, out);
+        return this.GetValueAt_Ticks(this.mPosUpdateTime, out);
     }
 
     /**
@@ -322,7 +322,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      */
     @meta.blue.renamed("GetValueAt")
     @meta.adapted
-    GetValueAtTicks(time, out)
+    GetValueAt_Ticks(time, out)
     {
         time = CjsDestinyBall._toInt64(time);
         if (out.length === 4) return this._GetRotationAt(time, out);
@@ -379,7 +379,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      */
     @meta.blue.renamed("GetValueDotAt")
     @meta.adapted
-    GetValueDotAtTicks(time, out)
+    GetValueDotAt_Ticks(time, out)
     {
         time = CjsDestinyBall._toInt64(time);
         if (out.length === 4) return out;
@@ -486,7 +486,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
     @meta.adapted
     GetDelta(time, out)
     {
-        this.GetValueAtTicks(time, out);
+        this.GetValueAt_Ticks(time, out);
         return vec3.set(out, f32(this.mDeltaPos[0]), f32(this.mDeltaPos[1]), f32(this.mDeltaPos[2]));
     }
 
@@ -517,7 +517,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      */
     @meta.blue.renamed("GetValueDoubleDotAt")
     @meta.adapted
-    GetValueDoubleDotAtTicks(time, out)
+    GetValueDoubleDotAt_Ticks(time, out)
     {
         CjsDestinyBall._toInt64(time);
         if (out.length === 4) return out;
