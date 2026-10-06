@@ -87,9 +87,9 @@ export class CjsDestinyClientBall extends CjsDestinyBall
         const vec3_0 = vec3.alloc();
         try
         {
-            this.GetValueDotAt_Ticks(currentTime, vec3_0);
+            this.GetValueDotAt__Ticks(currentTime, vec3_0);
             const sx = vec3_0[0], sy = vec3_0[1], sz = vec3_0[2];
-            target.GetValueDotAt_Ticks(currentTime, vec3_0);
+            target.GetValueDotAt__Ticks(currentTime, vec3_0);
             vec3.set(out.relVel, f32(vec3_0[0] - sx), f32(vec3_0[1] - sy), f32(vec3_0[2] - sz));
         }
         finally { vec3.unalloc(vec3_0); }
@@ -110,7 +110,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
             if (g_useDynamicalOrientation)
             {
                 const quat_0 = quat.alloc();
-                try { this.GetValueAt_Ticks(currentTime, quat_0); }
+                try { this.GetValueAt__Ticks(currentTime, quat_0); }
                 finally { quat.unalloc(quat_0); }
                 const wx = this.mLastAngVel[0], wy = this.mLastAngVel[1], wz = this.mLastAngVel[2];
                 tx -= (wy * z - wz * y) * dist;
@@ -251,11 +251,10 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Position vector or rotation quaternion.
      * @returns {Float32Array} The supplied output without allocating a result.
      */
-    @meta.blue.renamed("Update")
     @meta.adapted
-    Update_Ticks(time, out)
+    Update__Ticks(time, out)
     {
-        return this.GetValueAt_Ticks(time, out);
+        return this.GetValueAt__Ticks(time, out);
     }
 
     /**
@@ -284,7 +283,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
     GetValueAt(_time, out)
     {
         if (out.length === 4) return out;
-        return this.GetValueAt_Ticks(this.mPosUpdateTime, out);
+        return this.GetValueAt__Ticks(this.mPosUpdateTime, out);
     }
 
     /**
@@ -320,9 +319,8 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Length-three position or length-four quaternion.
      * @returns {Float32Array} The supplied output.
      */
-    @meta.blue.renamed("GetValueAt")
     @meta.adapted
-    GetValueAt_Ticks(time, out)
+    GetValueAt__Ticks(time, out)
     {
         time = CjsDestinyBall._toInt64(time);
         if (out.length === 4) return this._GetRotationAt(time, out);
@@ -377,9 +375,8 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Length-three velocity or length-four unchanged output.
      * @returns {Float32Array} The supplied output.
      */
-    @meta.blue.renamed("GetValueDotAt")
     @meta.adapted
-    GetValueDotAt_Ticks(time, out)
+    GetValueDotAt__Ticks(time, out)
     {
         time = CjsDestinyBall._toInt64(time);
         if (out.length === 4) return out;
@@ -486,7 +483,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
     @meta.adapted
     GetDelta(time, out)
     {
-        this.GetValueAt_Ticks(time, out);
+        this.GetValueAt__Ticks(time, out);
         return vec3.set(out, f32(this.mDeltaPos[0]), f32(this.mDeltaPos[1]), f32(this.mDeltaPos[2]));
     }
 
@@ -515,9 +512,8 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Three-component acceleration or unchanged quaternion.
      * @returns {Float32Array} The supplied output.
      */
-    @meta.blue.renamed("GetValueDoubleDotAt")
     @meta.adapted
-    GetValueDoubleDotAt_Ticks(time, out)
+    GetValueDoubleDotAt__Ticks(time, out)
     {
         CjsDestinyBall._toInt64(time);
         if (out.length === 4) return out;
