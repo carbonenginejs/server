@@ -4227,7 +4227,7 @@ export class CjsBallparkController
      * @param {...unknown} args The five required PyLaunchMissile arguments.
      * @returns {void} Launches the existing source without creating a ball.
      */
-    @meta.blue.renamed("PyLaunchMissile")
+    @meta.renamed("PyLaunchMissile")
     @meta.adapted
     LaunchMissile(...args)
     {
@@ -4536,7 +4536,7 @@ export class CjsBallparkController
      * @param {...unknown} args Two required PySetBoid arguments.
      * @returns {void} Delegates without inventing flocking behavior.
      */
-    @meta.blue.renamed("PySetBoid")
+    @meta.renamed("PySetBoid")
     @meta.adapted
     SetBoid(...args)
     {

@@ -252,4 +252,4 @@ export class CjsDestinyMiniBox
 }
 
 // Native self-interface admission for BlueList<MiniBox>; no simulation schema lookup.
-meta.blue.interfaceTable({ interfaces: [CjsDestinyMiniBox], chainTo: null })(CjsDestinyMiniBox, { kind: "class" });
+meta.blue.interface()(CjsDestinyMiniBox, { kind: "class" });

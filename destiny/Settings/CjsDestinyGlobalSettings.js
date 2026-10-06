@@ -98,7 +98,7 @@ export class CjsDestinyGlobalSettings
      * @param {CjsDestinySettingsConfiguration} config Configuration to copy.
      * @returns {void} No return value.
      */
-    @meta.blue.renamed("ApplyConfiguration")
+    @meta.renamed("ApplyConfiguration")
     @meta.adapted
     Apply(config)
     {
@@ -111,7 +111,7 @@ export class CjsDestinyGlobalSettings
      *
      * @returns {CjsDestinySettingsConfiguration} Fresh active snapshot.
      */
-    @meta.blue.renamed("GetConfiguration")
+    @meta.renamed("GetConfiguration")
     @meta.adapted
     Get()
     {
@@ -124,7 +124,7 @@ export class CjsDestinyGlobalSettings
      *
      * @returns {CjsDestinySettingsConfiguration} Fresh default snapshot.
      */
-    @meta.blue.renamed("GetDefaultConfiguration")
+    @meta.renamed("GetDefaultConfiguration")
     @meta.adapted
     GetDefault()
     {
@@ -137,7 +137,7 @@ export class CjsDestinyGlobalSettings
      *
      * @returns {void} No return value.
      */
-    @meta.blue.renamed("ResetConfiguration")
+    @meta.renamed("ResetConfiguration")
     @meta.adapted
     Reset()
     {

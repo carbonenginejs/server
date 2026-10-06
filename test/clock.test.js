@@ -67,7 +67,7 @@ test("Start/Pause are idempotent and runtime manual pumping needs no simulation 
 {
     const host = new CjsBlueOS();
     let now = STEP;
-    host.GetRealTime = () => Number(now);
+    host.GetSmoothedTime = () => Number(now);
     const park = new CjsBallparkController(host);
     park.Start();
     park.Start();
