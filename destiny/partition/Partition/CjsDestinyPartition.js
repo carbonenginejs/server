@@ -420,7 +420,6 @@ export class CjsDestinyPartition
      * @param {CjsDestinyKey} key Native key value.
      * @returns {string} Collision-safe Map key.
      */
-    @meta.ours
     _mapKey(key)
     {
         return `${keyHash.Call(key)}:${key.ix},${key.iy},${key.iz},${key.n}`;
@@ -435,7 +434,6 @@ export class CjsDestinyPartition
      * @returns {bigint} Truncated signed-int64 coordinate.
      * @throws {RangeError} For nonfinite or out-of-int64 native-undefined conversions.
      */
-    @meta.ours
     static _coordinate(value)
     {
         if (!Number.isFinite(value)) throw new RangeError("Partition coordinate must be finite");

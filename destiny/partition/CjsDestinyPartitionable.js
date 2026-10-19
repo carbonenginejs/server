@@ -1,4 +1,4 @@
-import { meta } from "@carbonenginejs/runtime/schema";
+import { meta, type } from "@carbonenginejs/runtime/schema";
 
 // Source: destiny/src/Partitionable.h; destiny/src/Partitionable.cpp
 /** Native shared spatial state and abstract membership obligations. */
@@ -11,13 +11,13 @@ export class CjsDestinyPartitionable
     mOldPos = [0, 0, 0];
     mNewBubble = -1;
     mOldBubble = -1;
-    @meta.type.boolean
+    @type.boolean
     isInteractive = false;
     mBoxes = [];
     mMyBox = null;
     mPark = null;
     mEffectStamp = 0;
-    @meta.type.boolean
+    @type.boolean
     isMoribund = false;
 
     /**

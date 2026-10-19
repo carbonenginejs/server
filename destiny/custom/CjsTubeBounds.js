@@ -130,7 +130,6 @@ export class CjsTubeBounds
      * @param {number[][]} profile CCW 2D outline; defaults to a 16-sided unit circle.
      * @returns {Object} Plain versioned collision asset, including capped entry/exit ports.
      */
-    @meta.ours
     static generate(sections, profile = Array.from({ length: 16 }, (_, i) => [Math.cos(i * Math.PI / 8), Math.sin(i * Math.PI / 8)]))
     {
         requireValue(sections.length >= 2 && profile.length >= 3, "Need at least two sections and three profile vertices.");
@@ -191,7 +190,6 @@ export class CjsTubeBounds
      * @param {number} tolerance Maximum matching-vertex distance in metres.
      * @returns {Object} Closed asset with internal caps removed and guide adjacency connected.
      */
-    @meta.ours
     static join(assets, connections, tolerance = 1e-6)
     {
         requireValue(Number.isFinite(tolerance) && tolerance > 0, "Join tolerance must be positive.");
@@ -262,14 +260,12 @@ export class CjsTubeBounds
     }
 
     /** Returns an owned JSON-compatible canonical asset for server/client distribution. */
-    @meta.ours
     GetAsset()
     {
         return JSON.parse(JSON.stringify(this._asset));
     }
 
     /** Returns the SHA-256 identity of the canonical asset, using browser/Node Web Crypto. */
-    @meta.ours
     async GetHash()
     {
         const bytes = new TextEncoder().encode(JSON.stringify(this._asset));
@@ -284,7 +280,6 @@ export class CjsTubeBounds
      * @param {number} radius Nonnegative ship radius.
      * @returns {boolean} True when inside and no deeper than tolerance into a surface.
      */
-    @meta.ours
     ContainsSphere(position, radius)
     {
         checkVector(position); requireValue(Number.isFinite(radius) && radius >= 0, "Radius must be nonnegative.");
@@ -316,7 +311,6 @@ export class CjsTubeBounds
      * @param {Object} out Caller-owned {normal:[0,0,0],time,face}; time is a fraction in [0,1].
      * @returns {boolean} Whether movement approaches a boundary contact.
      */
-    @meta.ours
     SweepSphere(position, displacement, radius, out)
     {
         checkVector(position); checkVector(displacement);
@@ -359,7 +353,6 @@ export class CjsTubeBounds
     }
 
     /** Validates a candidate against the actual finite triangle, including edges. */
-    @meta.ours
     _Consider(time, face, position, displacement, radius, out, faceContact = false)
     {
         if (!Number.isFinite(time) || time > out.time || time * vec3.length(displacement) < -this.tolerance) return;
@@ -394,7 +387,6 @@ export class CjsTubeBounds
      * @param {number} maxContacts Positive integer solver budget.
      * @returns {Object} Output; status is complete, invalid-start or contact-limit.
      */
-    @meta.ours
     MoveSphere(position, velocity, radius, dt, out, maxContacts = 8)
     {
         checkVector(position); checkVector(velocity);
@@ -434,7 +426,6 @@ export class CjsTubeBounds
      * @param {Object} out Owned {center,forward,up,right} vectors; receives fraction.
      * @returns {Object} Orthonormal track frame with clamped longitudinal fraction.
      */
-    @meta.ours
     GetGuide(position, segment, out)
     {
         const guide = this._asset.guides[segment];

@@ -1,4 +1,4 @@
-import { meta } from "@carbonenginejs/runtime/schema";
+import { meta, blue } from "@carbonenginejs/runtime/schema";
 import {
     CjsDestinySettingsConfiguration, g_collisionMaxIterationsDefault,
     g_useIterativeCollisionDefault, g_useDynamicalOrientationDefault,
@@ -28,7 +28,7 @@ export class CjsDestinyGlobalSettings
      * @returns {void} No return value, corresponding to Python None.
      * @throws {TypeError} If config was not constructed as a SettingsConfiguration.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     ApplyConfiguration(config)
     {
@@ -49,7 +49,7 @@ export class CjsDestinyGlobalSettings
      *
      * @returns {CjsDestinySettingsConfiguration} Detached active configuration.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GetConfiguration()
     {
@@ -68,7 +68,7 @@ export class CjsDestinyGlobalSettings
      *
      * @returns {CjsDestinySettingsConfiguration} Detached default configuration.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GetDefaultConfiguration()
     {
@@ -80,7 +80,7 @@ export class CjsDestinyGlobalSettings
      *
      * @returns {void} No return value, corresponding to Python None.
      */
-    @meta.blue.method
+    @blue.method
     @meta.implemented
     ResetConfiguration()
     {

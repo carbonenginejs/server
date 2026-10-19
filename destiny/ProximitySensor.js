@@ -1,4 +1,4 @@
-import { meta } from "@carbonenginejs/runtime/schema";
+import { meta, type } from "@carbonenginejs/runtime/schema";
 import { MapOfLongLongs } from "./MapOfLongLongs.js";
 
 // Source: destiny/src/Ball.h:31-40
@@ -6,19 +6,19 @@ import { MapOfLongLongs } from "./MapOfLongLongs.js";
 @meta.define({ className: "ProximitySensor", modelledOn: "ProximitySensor" })
 export class ProximitySensor
 {
-    @meta.type.float32
+    @type.float32
     range = 0;
 
-    @meta.type.float64
+    @type.float64
     period = 2;
 
-    @meta.type.float64
+    @type.float64
     elapsed = 0;
 
-    @meta.type.boolean
+    @type.boolean
     active = false;
 
-    @meta.type.boolean
+    @type.boolean
     onlyInteractives = false;
 
     balls = new MapOfLongLongs();

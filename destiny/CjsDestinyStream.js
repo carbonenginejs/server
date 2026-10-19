@@ -26,7 +26,6 @@ export class CjsDestinyStream extends CjsByteReader
      * @param {number} offset Byte position from the start.
      * @returns {void} Updates the runtime cursor without truncating.
      */
-    @meta.ours
     Seek(offset)
     {
         if (!Number.isSafeInteger(offset) || offset < 0 || offset > this.end)
@@ -40,7 +39,6 @@ export class CjsDestinyStream extends CjsByteReader
      * @param {number} [size=this.remaining] Maximum bytes to consume.
      * @returns {Uint8Array} Owned byte payload; empty at EOF.
      */
-    @meta.ours
     Read(size = this.remaining)
     {
         if (!Number.isSafeInteger(size) || size < 0) throw new RangeError("Invalid Destiny read size");
@@ -53,7 +51,6 @@ export class CjsDestinyStream extends CjsByteReader
      * @param {ArrayBuffer|ArrayBufferView} data Bytes to copy.
      * @returns {number} Number of bytes written.
      */
-    @meta.ours
     Write(data)
     {
         const bytes = asUint8Array(data), offset = this._AdvanceWrite(bytes.byteLength);
@@ -66,7 +63,6 @@ export class CjsDestinyStream extends CjsByteReader
      * Adaptation: provides the owned payload consumed by transports and fixtures.
      * @returns {Uint8Array} Copy excluding unused capacity.
      */
-    @meta.ours
     GetBytes() { return this.bytes.slice(0, this.end); }
 
     /**
@@ -74,7 +70,6 @@ export class CjsDestinyStream extends CjsByteReader
      * Adaptation: BigInt preserves IDs and raw warp-range bits exactly.
      * @returns {bigint} Little-endian signed value.
      */
-    @meta.ours
     ReadInt64() { const offset = this.offset; this.Skip(8); return this.view.getBigInt64(offset, true); }
 
     /**
@@ -82,7 +77,6 @@ export class CjsDestinyStream extends CjsByteReader
      * Adaptation: DataView supplies the runtime reader's missing float64 primitive.
      * @returns {number} Little-endian floating value.
      */
-    @meta.ours
     ReadFloat64() { const offset = this.offset; this.Skip(8); return this.view.getFloat64(offset, true); }
 
     /**
@@ -91,7 +85,6 @@ export class CjsDestinyStream extends CjsByteReader
      * @param {Float64Array} out Retained vector or caller-owned pool slot.
      * @returns {Float64Array} Supplied storage, with any successful prefix retained on error.
      */
-    @meta.ours
     ReadVector3d(out)
     {
         out[0] = this.ReadFloat64(); out[1] = this.ReadFloat64(); out[2] = this.ReadFloat64();
@@ -104,7 +97,6 @@ export class CjsDestinyStream extends CjsByteReader
      * @param {number} value Field value.
      * @returns {void} Advances by one byte.
      */
-    @meta.ours
     WriteUint8(value) { const offset = this._AdvanceWrite(1); this.view.setUint8(offset, value); }
 
     /**
@@ -113,7 +105,6 @@ export class CjsDestinyStream extends CjsByteReader
      * @param {number} value Field value.
      * @returns {void} Advances by two bytes.
      */
-    @meta.ours
     WriteUint16(value) { const offset = this._AdvanceWrite(2); this.view.setUint16(offset, value, true); }
 
     /**
@@ -122,7 +113,6 @@ export class CjsDestinyStream extends CjsByteReader
      * @param {number} value Field value.
      * @returns {void} Advances by four bytes.
      */
-    @meta.ours
     WriteInt32(value) { const offset = this._AdvanceWrite(4); this.view.setInt32(offset, value, true); }
 
     /**
@@ -131,7 +121,6 @@ export class CjsDestinyStream extends CjsByteReader
      * @param {bigint} value Signed field value.
      * @returns {void} Advances by eight bytes.
      */
-    @meta.ours
     WriteInt64(value) { const offset = this._AdvanceWrite(8); this.view.setBigInt64(offset, value, true); }
 
     /**
@@ -140,7 +129,6 @@ export class CjsDestinyStream extends CjsByteReader
      * @param {number} value Native float field.
      * @returns {void} Advances by four bytes.
      */
-    @meta.ours
     WriteFloat32(value) { const offset = this._AdvanceWrite(4); this.view.setFloat32(offset, value, true); }
 
     /**
@@ -149,7 +137,6 @@ export class CjsDestinyStream extends CjsByteReader
      * @param {number} value Native double field.
      * @returns {void} Advances by eight bytes.
      */
-    @meta.ours
     WriteFloat64(value) { const offset = this._AdvanceWrite(8); this.view.setFloat64(offset, value, true); }
 
     /**
@@ -158,7 +145,6 @@ export class CjsDestinyStream extends CjsByteReader
      * @param {Float64Array} value Three double components.
      * @returns {void} Advances by 24 bytes without a temporary vector.
      */
-    @meta.ours
     WriteVector3d(value)
     {
         const x = value[0], y = value[1], z = value[2];
@@ -171,7 +157,6 @@ export class CjsDestinyStream extends CjsByteReader
      * @param {number} size Byte count.
      * @returns {number} Previous write position.
      */
-    @meta.ours
     _AdvanceWrite(size)
     {
         const offset = this.offset, end = offset + size;

@@ -334,7 +334,6 @@ export class CollisionBallProperties
      * @param {number} size New number of live records.
      * @returns {void} Keeps discarded records private for later reuse.
      */
-    @meta.ours
     static _resizeLocations(owner, size)
     {
         while (owner.m_locations.length > size) owner._locationPool.push(owner.m_locations.pop());

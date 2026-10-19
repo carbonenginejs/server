@@ -132,7 +132,6 @@ export class CjsDestinyTriangle
      * @param {CjsDestinyTriangle} triangle Initial vertices when the pool grows.
      * @returns {Object} Dirty frame to return with _unallocCollisionFrame.
      */
-    @meta.ours
     static _allocCollisionFrame(triangle)
     {
         return CjsDestinyTriangle._collisionFrames.pop() || {
@@ -155,7 +154,6 @@ export class CjsDestinyTriangle
      * @param {Object} frame Frame obtained from _allocCollisionFrame.
      * @returns {void} The caller relinquishes the frame.
      */
-    @meta.ours
     static _unallocCollisionFrame(frame)
     {
         CjsDestinyTriangle._collisionFrames.push(frame);

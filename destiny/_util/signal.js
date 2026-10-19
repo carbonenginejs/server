@@ -153,7 +153,6 @@ export class Signal
      * WeakKeyDictionary prune these entries automatically.
      * @returns {void} Does not retain live callbacks beyond this synchronous job.
      */
-    @meta.ours
     _compact()
     {
         this._functions = this._functions.filter(ref => ref.deref() !== undefined);

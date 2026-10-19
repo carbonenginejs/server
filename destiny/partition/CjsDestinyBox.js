@@ -267,7 +267,6 @@ export class CjsDestinyBox
      * @param {Object} comparer Native Call(x,y) less-than comparer.
      * @returns {void} Mutates membership in place.
      */
-    @meta.ours
     static _insert(values, value, comparer)
     {
         let low = 0, high = values.length;
@@ -288,7 +287,6 @@ export class CjsDestinyBox
      * @param {Object} comparer Native Call(x,y) less-than comparer.
      * @returns {boolean} Whether an equivalent member was removed.
      */
-    @meta.ours
     static _erase(values, value, comparer)
     {
         let low = 0, high = values.length;
