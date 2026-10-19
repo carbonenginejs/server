@@ -1,4 +1,4 @@
-import { meta } from "@carbonenginejs/runtime/schema";
+import { meta, blue, type } from "@carbonenginejs/runtime/schema";
 import { BlueList } from "@carbonenginejs/runtime/blue";
 import { CjsDestinyMiniBall } from "./CjsDestinyMiniBall.js";
 import { CjsDestinyMiniCapsule } from "./CjsDestinyMiniCapsule.js";
@@ -88,9 +88,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads the physical angular speed limit from native backing storage.
      * Adaptation: a JS accessor represents the Blue float field.
      * Source: destiny/src/Ball_Blue.cpp:58-63.
+     * Blue row: Ball_Blue.cpp:59 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current physical angular speed limit.
      */
-    @meta.type.float32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float32
     @meta.adapted
     get maxAngularVelocity()
     {
@@ -117,9 +121,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads the rotational agility from native backing storage.
      * Adaptation: a JS accessor represents the Blue float field.
      * Source: destiny/src/Ball_Blue.cpp:317-323.
+     * Blue row: Ball_Blue.cpp:319 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current rotational agility.
      */
-    @meta.type.float32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float32
     @meta.adapted
     get RotationalAgility()
     {
@@ -146,9 +154,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads the angular velocity component in radians per second from native backing storage.
      * Adaptation: a JS accessor represents the Blue float field.
      * Source: destiny/src/Ball_Blue.cpp:219-241.
+     * Blue row: Ball_Blue.cpp:221 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current angular velocity component in radians per second.
      */
-    @meta.type.float32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float32
     @meta.adapted
     get wx()
     {
@@ -175,9 +187,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads the angular velocity component in radians per second from native backing storage.
      * Adaptation: a JS accessor represents the Blue float field.
      * Source: destiny/src/Ball_Blue.cpp:219-241.
+     * Blue row: Ball_Blue.cpp:229 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current angular velocity component in radians per second.
      */
-    @meta.type.float32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float32
     @meta.adapted
     get wy()
     {
@@ -204,9 +220,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads the angular velocity component in radians per second from native backing storage.
      * Adaptation: a JS accessor represents the Blue float field.
      * Source: destiny/src/Ball_Blue.cpp:219-241.
+     * Blue row: Ball_Blue.cpp:237 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current angular velocity component in radians per second.
      */
-    @meta.type.float32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float32
     @meta.adapted
     get wz()
     {
@@ -233,9 +253,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads the rotation quaternion component from native backing storage.
      * Adaptation: a JS accessor represents the Blue float field.
      * Source: destiny/src/Ball_Blue.cpp:243-273.
+     * Blue row: Ball_Blue.cpp:245 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current rotation quaternion component.
      */
-    @meta.type.float32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float32
     @meta.adapted
     get rx()
     {
@@ -262,9 +286,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads the rotation quaternion component from native backing storage.
      * Adaptation: a JS accessor represents the Blue float field.
      * Source: destiny/src/Ball_Blue.cpp:243-273.
+     * Blue row: Ball_Blue.cpp:253 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current rotation quaternion component.
      */
-    @meta.type.float32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float32
     @meta.adapted
     get ry()
     {
@@ -291,9 +319,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads the rotation quaternion component from native backing storage.
      * Adaptation: a JS accessor represents the Blue float field.
      * Source: destiny/src/Ball_Blue.cpp:243-273.
+     * Blue row: Ball_Blue.cpp:261 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current rotation quaternion component.
      */
-    @meta.type.float32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float32
     @meta.adapted
     get rz()
     {
@@ -320,9 +352,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads the rotation quaternion component from native backing storage.
      * Adaptation: a JS accessor represents the Blue float field.
      * Source: destiny/src/Ball_Blue.cpp:243-273.
+     * Blue row: Ball_Blue.cpp:269 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current rotation quaternion component.
      */
-    @meta.type.float32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float32
     @meta.adapted
     get rw()
     {
@@ -731,9 +767,11 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     /**
      * Exposes the native read-only Blue current-bubble alias.
      *
+     * Blue row: Ball_Blue.cpp:418 MAP_ATTRIBUTE READ.
      * @returns {number} Current bubble ID or -1.
      */
-    @meta.type.int32
+    @blue.read
+    @type.int32
     @meta.implemented
     get newBubbleId()
     {
@@ -743,9 +781,11 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     /**
      * Exposes the native read-only Blue previous-bubble alias.
      *
+     * Blue row: Ball_Blue.cpp:427 MAP_ATTRIBUTE READ.
      * @returns {number} Previous bubble ID or -1.
      */
-    @meta.type.int32
+    @blue.read
+    @type.int32
     @meta.implemented
     get oldBubbleId()
     {
@@ -758,13 +798,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     mNewTime = 0n;
     mOldTime = 0n;
 
-    @meta.type.boolean
+    @type.boolean
     isFree = false;
-    @meta.type.boolean
+    @type.boolean
     isGlobal = false;
-    @meta.type.boolean
+    @type.boolean
     isMassive = false;
-    @meta.type.boolean
+    @type.boolean
     isSpaceJunk = false;
     _isCloaked = 0;
 
@@ -772,9 +812,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads the numeric cloak mode, including non-enumerated native byte values.
      * Adaptation: a JS accessor exposes the byte backing field without schema coercion.
      * Source: destiny/src/Ball.h:113; destiny/src/Ball.cpp:69.
+     * Blue row: Ball_Blue.cpp:107 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Unsigned byte; zero means uncloaked.
      */
-    @meta.type.uint8
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.uint8
     @meta.adapted
     get isCloaked() { return this._isCloaked; }
 
@@ -802,9 +846,12 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mId through id.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:19 MAP_ATTRIBUTE READ | PERSIST.
      * @returns {bigint} Current native value.
      */
-    @meta.type.int64
+    @blue.read
+    @blue.persist
+    @type.int64
     @meta.adapted
     get id()
     {
@@ -828,9 +875,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mMass through mass.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:29 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current native value.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get mass()
     {
@@ -854,9 +905,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mRadius through radius.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:39 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current native value.
      */
-    @meta.type.float32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float32
     @meta.adapted
     get radius()
     {
@@ -880,9 +935,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mMaxVel through maxVelocity.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:49 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current native value.
      */
-    @meta.type.float32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float32
     @meta.adapted
     get maxVelocity()
     {
@@ -909,7 +968,8 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      *
      * @returns {number} Current native value.
      */
-    @meta.type.float32
+    @meta.property()
+    @type.float32
     @meta.adapted
     get agility()
     {
@@ -933,9 +993,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mSpeedFraction through speedFraction.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:327 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current native value.
      */
-    @meta.type.float32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float32
     @meta.adapted
     get speedFraction()
     {
@@ -959,9 +1023,12 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mMode through mode.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:336 MAP_ATTRIBUTE_WITH_CHOOSER READ | ENUM | PERSIST.
      * @returns {number} Current native value.
      */
-    @meta.type.enum("DSTBALLMODE")
+    @blue.read
+    @blue.persist
+    @type.enum("DSTBALLMODE")
     @meta.adapted
     get mode()
     {
@@ -985,9 +1052,12 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mFollowId through followId.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:376 MAP_ATTRIBUTE READ | PERSIST.
      * @returns {bigint} Current native value.
      */
-    @meta.type.int64
+    @blue.read
+    @blue.persist
+    @type.int64
     @meta.adapted
     get followId()
     {
@@ -1011,9 +1081,12 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mFollowRange through followRange.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:386 MAP_ATTRIBUTE READ | PERSIST.
      * @returns {number} Current native value.
      */
-    @meta.type.float32
+    @blue.read
+    @blue.persist
+    @type.float32
     @meta.adapted
     get followRange()
     {
@@ -1037,9 +1110,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mNewPos[0] through x.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:157 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current native value.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get x()
     {
@@ -1066,9 +1143,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mNewPos[1] through y.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:167 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current native value.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get y()
     {
@@ -1095,9 +1176,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mNewPos[2] through z.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:178 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current native value.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get z()
     {
@@ -1124,9 +1209,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mNewVel[0] through vx.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:189 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current native value.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get vx()
     {
@@ -1150,9 +1239,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mNewVel[1] through vy.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:200 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current native value.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get vy()
     {
@@ -1176,9 +1269,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mNewVel[2] through vz.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:211 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current native value.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get vz()
     {
@@ -1202,9 +1299,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mGoto[0] through gotoX.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:347 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current native value.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get gotoX()
     {
@@ -1228,9 +1329,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mGoto[1] through gotoY.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:357 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current native value.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get gotoY()
     {
@@ -1254,9 +1359,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads mGoto[2] through gotoZ.
      * Adaptation: a JS accessor exposes native storage without duplicating the Blue scalar value.
      *
+     * Blue row: Ball_Blue.cpp:367 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Current native value.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get gotoZ()
     {
@@ -1282,7 +1391,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      *
      * @returns {number} Current native value.
      */
-    @meta.ours
     get _oldX()
     {
         return this.mOldPos[0];
@@ -1295,7 +1403,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * @param {number} value New native value.
      * @returns {void} Updates the shared storage.
      */
-    @meta.ours
     set _oldX(value)
     {
         this.mOldPos[0] = value;
@@ -1307,7 +1414,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      *
      * @returns {number} Current native value.
      */
-    @meta.ours
     get _oldY()
     {
         return this.mOldPos[1];
@@ -1320,7 +1426,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * @param {number} value New native value.
      * @returns {void} Updates the shared storage.
      */
-    @meta.ours
     set _oldY(value)
     {
         this.mOldPos[1] = value;
@@ -1332,7 +1437,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      *
      * @returns {number} Current native value.
      */
-    @meta.ours
     get _oldZ()
     {
         return this.mOldPos[2];
@@ -1345,7 +1449,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * @param {number} value New native value.
      * @returns {void} Updates the shared storage.
      */
-    @meta.ours
     set _oldZ(value)
     {
         this.mOldPos[2] = value;
@@ -1357,7 +1460,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      *
      * @returns {number} Current native value.
      */
-    @meta.ours
     get _oldVx()
     {
         return this.mOldVel[0];
@@ -1370,7 +1472,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * @param {number} value New native value.
      * @returns {void} Updates the shared storage.
      */
-    @meta.ours
     set _oldVx(value)
     {
         this.mOldVel[0] = value;
@@ -1382,7 +1483,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      *
      * @returns {number} Current native value.
      */
-    @meta.ours
     get _oldVy()
     {
         return this.mOldVel[1];
@@ -1395,7 +1495,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * @param {number} value New native value.
      * @returns {void} Updates the shared storage.
      */
-    @meta.ours
     set _oldVy(value)
     {
         this.mOldVel[1] = value;
@@ -1407,7 +1506,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      *
      * @returns {number} Current native value.
      */
-    @meta.ours
     get _oldVz()
     {
         return this.mOldVel[2];
@@ -1420,7 +1518,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * @param {number} value New native value.
      * @returns {void} Updates the shared storage.
      */
-    @meta.ours
     set _oldVz(value)
     {
         this.mOldVel[2] = value;
@@ -1432,7 +1529,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      *
      * @returns {number} Current native value.
      */
-    @meta.ours
     get _lastGx()
     {
         return this.mLastG[0];
@@ -1445,7 +1541,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * @param {number} value New native value.
      * @returns {void} Updates the shared storage.
      */
-    @meta.ours
     set _lastGx(value)
     {
         this.mLastG[0] = value;
@@ -1457,7 +1552,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      *
      * @returns {number} Current native value.
      */
-    @meta.ours
     get _lastGy()
     {
         return this.mLastG[1];
@@ -1470,7 +1564,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * @param {number} value New native value.
      * @returns {void} Updates the shared storage.
      */
-    @meta.ours
     set _lastGy(value)
     {
         this.mLastG[1] = value;
@@ -1482,7 +1575,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      *
      * @returns {number} Current native value.
      */
-    @meta.ours
     get _lastGz()
     {
         return this.mLastG[2];
@@ -1495,7 +1587,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * @param {number} value New native value.
      * @returns {void} Updates the shared storage.
      */
-    @meta.ours
     set _lastGz(value)
     {
         this.mLastG[2] = value;
@@ -1507,7 +1598,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      *
      * @returns {number} Current native value.
      */
-    @meta.ours
     get _timeFactor()
     {
         return this.mTimeFactor;
@@ -1520,7 +1610,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * @param {number} value New native value.
      * @returns {void} Updates the shared storage.
      */
-    @meta.ours
     set _timeFactor(value)
     {
         this.mTimeFactor = value;
@@ -1532,7 +1621,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      *
      * @returns {CjsDestinyBall|null} Current native value.
      */
-    @meta.ours
     get _followPtr()
     {
         return this.mFollowPtr;
@@ -1545,7 +1633,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * @param {CjsDestinyBall|null} value New native value.
      * @returns {void} Updates the shared storage.
      */
-    @meta.ours
     set _followPtr(value)
     {
         this.mFollowPtr = value;
@@ -1557,7 +1644,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      *
      * @returns {Set<bigint>} Current native value.
      */
-    @meta.ours
     get _followers()
     {
         return this.mFollowers;
@@ -1570,7 +1656,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * @param {Set<bigint>} value New native value.
      * @returns {void} Updates the shared storage.
      */
-    @meta.ours
     set _followers(value)
     {
         this.mFollowers = value;
@@ -1655,7 +1740,7 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * @param {number} r Descriptor radius; the actual Ball clamps negative values.
      * @returns {void} The descriptor is accessible through miniBalls.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     AddMiniBall(x, y, z, r)
     {
@@ -2165,9 +2250,12 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     /**
      * Reads the native readonly effect counter, also used as warp start/alignment state.
      * Source: destiny/src/Ball_Blue.cpp:407-414.
+     * Blue row: Ball_Blue.cpp:408 MAP_ATTRIBUTE READ | PERSIST.
      * @returns {number} Native simulation counter value.
      */
-    @meta.type.int32
+    @blue.read
+    @blue.persist
+    @type.int32
     @meta.implemented
     get effectStamp() { return this.mEffectStamp; }
 
@@ -2175,9 +2263,12 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads the native owner identity, repurposed as an integer warp factor.
      * Adaptation: signed-int64 BigInt preserves the native storage exactly.
      * Source: destiny/src/Ball_Blue.cpp:395-405.
+     * Blue row: Ball_Blue.cpp:398 MAP_ATTRIBUTE READWRITE | PERSIST.
      * @returns {bigint} Native owner/factor bits.
      */
-    @meta.type.int64
+    @blue.readwrite
+    @blue.persist
+    @type.int64
     @meta.adapted
     get ownerId() { return this.mOwnerId; }
 
@@ -2196,7 +2287,8 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Source: destiny/src/Ball_Blue.cpp:436-442.
      * @returns {number} Formation byte, including 255 for the native -1 sentinel.
      */
-    @meta.type.uint8
+    @blue.read
+    @type.uint8
     @meta.adapted
     get formationID() { return this.mFormationID & 255; }
 
@@ -2206,7 +2298,7 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Source: destiny/src/Ball.cpp:2275-2306.
      * @returns {number} Slot index or native -1 for unavailable/invalid formations.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     ReserveFormationSlot()
     {
@@ -2231,7 +2323,7 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * @param {number|bigint} slot Native size_t slot; a negative integer wraps unsigned.
      * @returns {void} Does not stop or unlink followers occupying the slot.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     FreeFormationSlot(slot)
     {
@@ -2248,9 +2340,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * Reads the native collision harmonic used by field filtering.
      * Adaptation: signed-int64 BigInt preserves the complete native value.
      * Source: destiny/src/Ball_Blue.cpp:126-134.
+     * Blue row: Ball_Blue.cpp:127 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {bigint} Current collision harmonic.
      */
-    @meta.type.int64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.int64
     @meta.adapted
     get harmonic() { return this.mHarmonic; }
 
@@ -2271,9 +2367,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     /**
      * Reads the native corporation used by field filtering.
      * Source: destiny/src/Ball_Blue.cpp:136-144.
+     * Blue row: Ball_Blue.cpp:137 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Signed-int32 corporation value.
      */
-    @meta.type.int32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.int32
     @meta.implemented
     get corporationID() { return this.mCorporationID; }
 
@@ -2296,9 +2396,13 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     /**
      * Reads the native alliance used by field filtering.
      * Source: destiny/src/Ball_Blue.cpp:146-154.
+     * Blue row: Ball_Blue.cpp:147 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Signed-int32 alliance value.
      */
-    @meta.type.int32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.int32
     @meta.implemented
     get allianceID() { return this.mAllianceID; }
 
@@ -2378,7 +2482,6 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      * @returns {bigint} Exact signed-int64 value.
      * @throws {RangeError} If the value is not an exact signed-int64 input.
      */
-    @meta.ours
     static _toInt64(value)
     {
         if (typeof value === "number" && Number.isSafeInteger(value)) value = BigInt(value);

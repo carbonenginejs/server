@@ -1,4 +1,4 @@
-import { meta } from "@carbonenginejs/runtime/schema";
+import { meta, blue, type } from "@carbonenginejs/runtime/schema";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { CjsDestinyBall } from "../CjsDestinyBall.js";
 import { CjsDestinyStaticCollidable } from "../partition/CjsDestinyStaticCollidable.js";
@@ -232,9 +232,11 @@ export class CjsDestinyOrientedBox extends CjsDestinyStaticCollidable
 
     /**
      * Reads the Blue shape identity.
+     * Blue row: OrientedBox_Blue.cpp:18 MAP_ATTRIBUTE READWRITE.
      * @returns {bigint} Native signed ID.
      */
-    @meta.type.int64
+    @blue.readwrite
+    @type.int64
     @meta.implemented
     get id() { return this.mId; }
 
@@ -255,9 +257,11 @@ export class CjsDestinyOrientedBox extends CjsDestinyStaticCollidable
 
     /**
      * Reads the only native Blue corner component.
+     * Blue row: OrientedBox_Blue.cpp:20 MAP_ATTRIBUTE READ.
      * @returns {number} Corner A X component.
      */
-    @meta.type.float64
+    @blue.read
+    @type.float64
     @meta.implemented
     get corner_x() { return this.m_boxShape.m_corners[0][0]; }
 }

@@ -1,4 +1,4 @@
-import { meta } from "@carbonenginejs/runtime/schema";
+import { meta, blue, type } from "@carbonenginejs/runtime/schema";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { quat } from "@carbonenginejs/runtime/math/quat";
 import { vec3d } from "./math/vec3d.js";
@@ -556,7 +556,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Source: destiny/src/Ball.cpp:1979-1995.
      * @returns {Array} Low/high coordinates, inflated radius and 27 integer flags.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GetPartitionBoxes()
     {
@@ -577,7 +577,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} pos Offset from the center, not an absolute world position.
      * @returns {void} Starts or retargets derived impact rotation without changing physics.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     ApplyImpulsiveForceAtPosition(impactForce, pos)
     {
@@ -726,9 +726,11 @@ export class CjsDestinyClientBall extends CjsDestinyBall
 
     /**
      * Reads Carbon's native partition visualization flag.
+     * Blue row: Ball_Blue.cpp:548 MAP_ATTRIBUTE READWRITE.
      * @returns {boolean} Whether interpolated position dispatches partition geometry.
      */
-    @meta.type.boolean
+    @blue.readwrite
+    @type.boolean
     @meta.implemented
     get showBoxes()
     {
@@ -749,9 +751,11 @@ export class CjsDestinyClientBall extends CjsDestinyBall
 
     /**
      * Reads Carbon's native Blue centerDist property.
+     * Blue row: Ball_Blue.cpp:556 MAP_PROPERTY_READONLY.
      * @returns {number} Distance supplied by GetCenterDistance.
      */
-    @meta.type.float64
+    @blue.property()
+    @type.float64
     @meta.implemented
     get centerDist()
     {
@@ -760,9 +764,11 @@ export class CjsDestinyClientBall extends CjsDestinyBall
 
     /**
      * Reads Carbon's native Blue surfaceDist property.
+     * Blue row: Ball_Blue.cpp:563 MAP_PROPERTY_READONLY.
      * @returns {number} Distance supplied by GetSurfaceDistance.
      */
-    @meta.type.float64
+    @blue.property()
+    @type.float64
     @meta.implemented
     get surfaceDist()
     {
@@ -771,9 +777,11 @@ export class CjsDestinyClientBall extends CjsDestinyBall
 
     /**
      * Reads Carbon's native Blue maxAngle parameter.
+     * Blue row: Ball_Blue.cpp:570 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored float32 value.
      */
-    @meta.type.float32
+    @blue.readwrite
+    @type.float32
     @meta.implemented
     get maxAngle()
     {
@@ -794,9 +802,11 @@ export class CjsDestinyClientBall extends CjsDestinyBall
 
     /**
      * Reads Carbon's native Blue maxAngularVelocity parameter.
+     * Blue row: Ball_Blue.cpp:578 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored float32 value.
      */
-    @meta.type.float32
+    @blue.readwrite
+    @type.float32
     @meta.implemented
     get maxAngularVelocity()
     {
@@ -817,9 +827,11 @@ export class CjsDestinyClientBall extends CjsDestinyBall
 
     /**
      * Reads Carbon's native Blue speedModifier parameter.
+     * Blue row: Ball_Blue.cpp:586 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored float32 value.
      */
-    @meta.type.float32
+    @blue.readwrite
+    @type.float32
     @meta.implemented
     get speedModifier()
     {
@@ -840,9 +852,11 @@ export class CjsDestinyClientBall extends CjsDestinyBall
 
     /**
      * Reads Carbon's native Blue minimumAngularVelocity parameter.
+     * Blue row: Ball_Blue.cpp:594 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored float32 value.
      */
-    @meta.type.float32
+    @blue.readwrite
+    @type.float32
     @meta.implemented
     get minimumAngularVelocity()
     {

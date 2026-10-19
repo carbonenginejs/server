@@ -1,4 +1,4 @@
-import { meta } from "@carbonenginejs/runtime/schema";
+import { meta, blue, type } from "@carbonenginejs/runtime/schema";
 
 // Source: destiny/src/Settings.h
 // Source: destiny/src/Settings_Blue.cpp
@@ -42,7 +42,6 @@ export class CjsDestinySettingsConfiguration
      * @param {unknown} value Candidate configuration.
      * @returns {boolean} Whether construction established the configuration identity.
      */
-    @meta.ours
     static _isConfiguration(value)
     {
         return configurations.has(value);
@@ -52,10 +51,11 @@ export class CjsDestinySettingsConfiguration
      * Reads the native collision iteration cap without enforcing its recommendation.
      * Adaptation: the Windows64 size_t boundary uses exact unsigned BigInt storage.
      *
+     * Blue row: Settings_Blue.cpp:27 MAP_ATTRIBUTE READWRITE.
      * @returns {bigint} Maximum iterative-collision iterations; zero is accepted.
      */
-    @meta.blue.readwrite
-    @meta.type.uint64
+    @blue.readwrite
+    @type.uint64
     @meta.adapted
     get collisionMaxIterations()
     {
@@ -89,10 +89,11 @@ export class CjsDestinySettingsConfiguration
     /**
      * Reads the native iterative-collision switch.
      *
+     * Blue row: Settings_Blue.cpp:35 MAP_ATTRIBUTE READWRITE.
      * @returns {boolean} Whether iterative collision is selected globally when applied.
      */
-    @meta.blue.readwrite
-    @meta.type.boolean
+    @blue.readwrite
+    @type.boolean
     @meta.implemented
     get useIterativeCollision()
     {
@@ -115,10 +116,11 @@ export class CjsDestinySettingsConfiguration
     /**
      * Reads the native dynamical-orientation switch.
      *
+     * Blue row: Settings_Blue.cpp:42 MAP_ATTRIBUTE READWRITE.
      * @returns {boolean} Whether dynamical orientation is selected when applied.
      */
-    @meta.blue.readwrite
-    @meta.type.boolean
+    @blue.readwrite
+    @type.boolean
     @meta.implemented
     get useDynamicalOrientation()
     {
@@ -141,10 +143,11 @@ export class CjsDestinySettingsConfiguration
     /**
      * Reads the native missile-only dynamical-orientation exception.
      *
+     * Blue row: Settings_Blue.cpp:49 MAP_ATTRIBUTE READWRITE.
      * @returns {boolean} Whether missiles bypass dynamical orientation when it is enabled.
      */
-    @meta.blue.readwrite
-    @meta.type.boolean
+    @blue.readwrite
+    @type.boolean
     @meta.implemented
     get disableDynamicalOrientationForMissiles()
     {
@@ -167,10 +170,11 @@ export class CjsDestinySettingsConfiguration
     /**
      * Reads the native choice between new and legacy orbit.
      *
+     * Blue row: Settings_Blue.cpp:56 MAP_ATTRIBUTE READWRITE.
      * @returns {boolean} Whether the new orbit algorithm is selected when applied.
      */
-    @meta.blue.readwrite
-    @meta.type.boolean
+    @blue.readwrite
+    @type.boolean
     @meta.implemented
     get useNewOrbit()
     {
@@ -201,7 +205,6 @@ export class CjsDestinySettingsConfiguration
      * @throws {TypeError} If the input is not boolean or an integer.
      * @throws {RangeError} If the integer is outside signed int32.
      */
-    @meta.ours
     static _toBoolean(value)
     {
         if (typeof value === "boolean") return value;

@@ -1,4 +1,4 @@
-import { meta } from "@carbonenginejs/runtime/schema";
+import { meta, blue, type } from "@carbonenginejs/runtime/schema";
 import { vec3d } from "./math/vec3d.js";
 
 // Source: destiny/src/MiniCapsule.h
@@ -26,18 +26,24 @@ export class CjsDestinyMiniCapsule
     /**
      * Reads the native descriptor identity assigned after attachment.
      * Adaptation: a read-only JS accessor replaces the Blue field exposure.
+     * Blue row: MiniCapsule_Blue.cpp:15 MAP_ATTRIBUTE READ.
      * @returns {bigint} Last materialized collider ID, initially zero.
      */
-    @meta.type.int64
+    @blue.read
+    @type.int64
     @meta.adapted
     get id() { return this.mId; }
 
     /**
      * Reads the descriptor's radius component.
      * Adaptation: a JS accessor exposes native backing storage without schema APIs.
+     * Blue row: MiniCapsule_Blue.cpp:25 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @meta.type.float32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float32
     @meta.adapted
     get radius() { return this.mRadius; }
 
@@ -53,9 +59,13 @@ export class CjsDestinyMiniCapsule
     /**
      * Reads the descriptor's ax component.
      * Adaptation: a JS accessor exposes native backing storage without schema APIs.
+     * Blue row: MiniCapsule_Blue.cpp:35 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get ax() { return this.mHemisphereA[0]; }
 
@@ -71,9 +81,13 @@ export class CjsDestinyMiniCapsule
     /**
      * Reads the descriptor's ay component.
      * Adaptation: a JS accessor exposes native backing storage without schema APIs.
+     * Blue row: MiniCapsule_Blue.cpp:45 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get ay() { return this.mHemisphereA[1]; }
 
@@ -89,9 +103,13 @@ export class CjsDestinyMiniCapsule
     /**
      * Reads the descriptor's az component.
      * Adaptation: a JS accessor exposes native backing storage without schema APIs.
+     * Blue row: MiniCapsule_Blue.cpp:55 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get az() { return this.mHemisphereA[2]; }
 
@@ -107,9 +125,13 @@ export class CjsDestinyMiniCapsule
     /**
      * Reads the descriptor's bx component.
      * Adaptation: a JS accessor exposes native backing storage without schema APIs.
+     * Blue row: MiniCapsule_Blue.cpp:65 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get bx() { return this.mHemisphereB[0]; }
 
@@ -125,9 +147,13 @@ export class CjsDestinyMiniCapsule
     /**
      * Reads the descriptor's by component.
      * Adaptation: a JS accessor exposes native backing storage without schema APIs.
+     * Blue row: MiniCapsule_Blue.cpp:75 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get by() { return this.mHemisphereB[1]; }
 
@@ -143,9 +169,13 @@ export class CjsDestinyMiniCapsule
     /**
      * Reads the descriptor's bz component.
      * Adaptation: a JS accessor exposes native backing storage without schema APIs.
+     * Blue row: MiniCapsule_Blue.cpp:85 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get bz() { return this.mHemisphereB[2]; }
 
@@ -160,4 +190,4 @@ export class CjsDestinyMiniCapsule
 }
 
 // Native self-interface admission for BlueList<MiniCapsule>; no simulation schema lookup.
-meta.blue.interface()(CjsDestinyMiniCapsule, { kind: "class" });
+blue.interface()(CjsDestinyMiniCapsule, { kind: "class" });

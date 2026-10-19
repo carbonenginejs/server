@@ -1,4 +1,4 @@
-import { meta } from "@carbonenginejs/runtime/schema";
+import { meta, blue, type } from "@carbonenginejs/runtime/schema";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { CjsDestinyBall } from "../CjsDestinyBall.js";
 import { CjsDestinyStaticCollidable } from "../partition/CjsDestinyStaticCollidable.js";
@@ -172,7 +172,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {number[]} value Mutable vector.
      * @returns {number[]} Supplied vector.
      */
-    @meta.ours
     static _normalize(value)
     {
         const length = Math.sqrt(vec3.dot(value, value));
@@ -397,9 +396,11 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
 
     /**
      * Reads the native Blue id component.
+     * Blue row: Capsule_Blue.cpp:15 MAP_ATTRIBUTE READWRITE.
      * @returns {bigint} Stored value.
      */
-    @meta.type.int64
+    @blue.readwrite
+    @type.int64
     @meta.implemented
     get id() { return this.mId; }
 
@@ -414,9 +415,11 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
 
     /**
      * Reads the native Blue ax component.
+     * Blue row: Capsule_Blue.cpp:16 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored value.
      */
-    @meta.type.float64
+    @blue.readwrite
+    @type.float64
     @meta.implemented
     get ax() { return this.mHemisphereA[0]; }
 
@@ -431,9 +434,11 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
 
     /**
      * Reads the native Blue ay component.
+     * Blue row: Capsule_Blue.cpp:17 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored value.
      */
-    @meta.type.float64
+    @blue.readwrite
+    @type.float64
     @meta.implemented
     get ay() { return this.mHemisphereA[1]; }
 
@@ -448,9 +453,11 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
 
     /**
      * Reads the native Blue az component.
+     * Blue row: Capsule_Blue.cpp:18 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored value.
      */
-    @meta.type.float64
+    @blue.readwrite
+    @type.float64
     @meta.implemented
     get az() { return this.mHemisphereA[2]; }
 
@@ -465,9 +472,11 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
 
     /**
      * Reads the native Blue bx component.
+     * Blue row: Capsule_Blue.cpp:19 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored value.
      */
-    @meta.type.float64
+    @blue.readwrite
+    @type.float64
     @meta.implemented
     get bx() { return this.mHemisphereB[0]; }
 
@@ -482,9 +491,11 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
 
     /**
      * Reads the native Blue by component.
+     * Blue row: Capsule_Blue.cpp:20 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored value.
      */
-    @meta.type.float64
+    @blue.readwrite
+    @type.float64
     @meta.implemented
     get by() { return this.mHemisphereB[1]; }
 
@@ -499,9 +510,11 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
 
     /**
      * Reads the native Blue bz component.
+     * Blue row: Capsule_Blue.cpp:21 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored value.
      */
-    @meta.type.float64
+    @blue.readwrite
+    @type.float64
     @meta.implemented
     get bz() { return this.mHemisphereB[2]; }
 
@@ -516,9 +529,11 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
 
     /**
      * Reads the native Blue radius component.
+     * Blue row: Capsule_Blue.cpp:22 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored value.
      */
-    @meta.type.float32
+    @blue.readwrite
+    @type.float32
     @meta.implemented
     get radius() { return this.mRadius; }
 

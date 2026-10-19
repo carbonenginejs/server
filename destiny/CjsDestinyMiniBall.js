@@ -1,4 +1,4 @@
-import { meta } from "@carbonenginejs/runtime/schema";
+import { meta, blue, type } from "@carbonenginejs/runtime/schema";
 import { vec3d } from "./math/vec3d.js";
 
 // Source: destiny/src/MiniBall.h
@@ -21,18 +21,24 @@ export class CjsDestinyMiniBall
     /**
      * Reads the native descriptor identity assigned after attachment.
      * Adaptation: a read-only JS accessor replaces the Blue field exposure.
+     * Blue row: Miniball_Blue.cpp:15 MAP_ATTRIBUTE READ.
      * @returns {bigint} Last materialized collider ID, initially zero.
      */
-    @meta.type.int64
+    @blue.read
+    @type.int64
     @meta.adapted
     get id() { return this.mId; }
 
     /**
      * Reads the descriptor's radius component.
      * Adaptation: a JS accessor exposes native backing storage without schema APIs.
+     * Blue row: Miniball_Blue.cpp:25 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @meta.type.float32
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float32
     @meta.adapted
     get radius() { return this.mRadius; }
 
@@ -48,9 +54,13 @@ export class CjsDestinyMiniBall
     /**
      * Reads the descriptor's x component.
      * Adaptation: a JS accessor exposes native backing storage without schema APIs.
+     * Blue row: Miniball_Blue.cpp:35 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get x() { return this.mPos[0]; }
 
@@ -66,9 +76,13 @@ export class CjsDestinyMiniBall
     /**
      * Reads the descriptor's y component.
      * Adaptation: a JS accessor exposes native backing storage without schema APIs.
+     * Blue row: Miniball_Blue.cpp:45 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get y() { return this.mPos[1]; }
 
@@ -84,9 +98,13 @@ export class CjsDestinyMiniBall
     /**
      * Reads the descriptor's z component.
      * Adaptation: a JS accessor exposes native backing storage without schema APIs.
+     * Blue row: Miniball_Blue.cpp:55 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @meta.type.float64
+    @blue.notify
+    @blue.readwrite
+    @blue.persist
+    @type.float64
     @meta.adapted
     get z() { return this.mPos[2]; }
 
@@ -101,4 +119,4 @@ export class CjsDestinyMiniBall
 }
 
 // Native self-interface admission for BlueList<MiniBall>; no simulation schema lookup.
-meta.blue.interface()(CjsDestinyMiniBall, { kind: "class" });
+blue.interface()(CjsDestinyMiniBall, { kind: "class" });

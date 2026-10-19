@@ -186,6 +186,7 @@ test("settings metadata records native identities and Blue aliases without simul
     for (const field of ["collisionMaxIterations", "useIterativeCollision", "useDynamicalOrientation",
         "disableDynamicalOrientationForMissiles", "useNewOrbit"])
     {
+        // Settings_Blue.cpp:27-56: each row is MAP_ATTRIBUTE ... Be::READWRITE.
         assert.deepEqual(CjsSchema.getField(Configuration, field).edit, { read: true, write: true });
     }
     for (const [alias, original] of [["Apply", "ApplyConfiguration"], ["Get", "GetConfiguration"],

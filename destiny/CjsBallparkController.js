@@ -1,4 +1,4 @@
-import { meta } from "@carbonenginejs/runtime/schema";
+import { meta, blue, type } from "@carbonenginejs/runtime/schema";
 import { IBlueEvents } from "@carbonenginejs/runtime/blue";
 import { CjsDestinyBall } from "./CjsDestinyBall.js";
 import { CjsDestinyClientBall } from "./CjsDestinyClientBall.js";
@@ -35,7 +35,7 @@ const ORBITAL_PRECESSION = 0.001;
  * proximity scanning and native state streams are available; server batching remains pending.
  */
 @meta.define({ className: "CjsBallparkController", modelledOn: "Ballpark" })
-@meta.blue.inherit(IBlueEvents)
+@blue.inherit(IBlueEvents)
 export class CjsBallparkController
 {
     mWarpSpeed = 2;
@@ -61,11 +61,11 @@ export class CjsBallparkController
     mRollSpeedDecay = -0.9;
     mRollAcceleration = 1;
     mRollDecay = -0.5;
-    @meta.type.int32
+    @type.int32
     currentTime = 0;
-    @meta.type.int32
+    @type.int32
     tickInterval = 1000;
-    @meta.type.boolean
+    @type.boolean
     isMaster = false;
 
     mHaveTicks = false;
@@ -99,9 +99,12 @@ export class CjsBallparkController
      * Reads the exact native mTime value in 100ns units.
      * Adaptation: BigInt represents signed-int64 timestamps without Number rounding.
      *
+     * Blue row: Ballpark_Blue.cpp:56 MAP_ATTRIBUTE READWRITE | PERSIST.
      * @returns {bigint} Last simulation timestamp, separate from currentTime.
      */
-    @meta.type.int64
+    @blue.readwrite
+    @blue.persist
+    @type.int64
     @meta.adapted
     get time()
     {
@@ -125,9 +128,11 @@ export class CjsBallparkController
     /**
      * Reads native mHaveTicks, independently of direct Evolve/OnTick calls.
      *
+     * Blue row: Ballpark_Blue.cpp:114 MAP_ATTRIBUTE READ.
      * @returns {boolean} Whether Start has registered this park with its host.
      */
-    @meta.type.boolean
+    @blue.read
+    @type.boolean
     @meta.implemented
     get isRunning()
     {
@@ -152,7 +157,7 @@ export class CjsBallparkController
      * @returns {void} No return value.
      * @throws {Error} If no Blue host was supplied.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     Start()
     {
@@ -168,7 +173,7 @@ export class CjsBallparkController
      *
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     Pause()
     {
@@ -192,7 +197,7 @@ export class CjsBallparkController
      * @param {*} cookie Registration cookie; unused by the donor.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     OnTick(realTime, simTime, cookie)
     {
@@ -241,7 +246,7 @@ export class CjsBallparkController
      * @param {bigint|number} timeDelta Signed clock adjustment in 100ns units.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     AdjustTimes(timeDelta)
     {
@@ -386,7 +391,7 @@ export class CjsBallparkController
      * Adaptation: explicit owner dispatch replaces the native Blue binding.
      * @returns {bigint[]} Owned list of remote or invalid followers.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GetRemoteFollowers() { return CjsBallparkController.prototype.PyGetRemoteFollowers.call(this); }
 
@@ -516,7 +521,7 @@ export class CjsBallparkController
      * @param {...*} args Four output Maps followed by the ordered user list.
      * @returns {void} Mutates outputs and emits transitions through the core binding.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     AdditionsAndDeletions(...args) { return CjsBallparkController.prototype.PyAdditionsAndDeletions.apply(this, args); }
 
@@ -830,7 +835,6 @@ export class CjsBallparkController
      *
      * @returns {Generator<CjsDestinyBall>} Live ascending-ID traversal.
      */
-    @meta.ours
     *_iterateFreeBalls()
     {
         let index = 0;
@@ -849,7 +853,6 @@ export class CjsBallparkController
      * @param {CjsDestinyBall} ball Ball with its native signed-int64 identity.
      * @returns {void} Existing representatives are retained.
      */
-    @meta.ours
     _insertFreeBall(ball)
     {
         if (this.mFreeBalls.has(ball.mId)) return;
@@ -865,7 +868,6 @@ export class CjsBallparkController
      * @param {bigint} id Native signed-int64 map key.
      * @returns {void} Missing keys are ignored like native erase-by-key.
      */
-    @meta.ours
     _removeFreeBall(id)
     {
         if (!this.mFreeBalls.delete(id)) return;
@@ -1025,7 +1027,7 @@ export class CjsBallparkController
      * @returns {CjsDestinyBall} Created or updated live ball.
      * @throws {RangeError} If the ID or scalar inputs cannot be represented safely.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     AddBall(objectId, mass, radius, maxVel, isFree, isGlobal, isMassive,
         isInteractive, isSpaceJunk, x, y, z, vx, vy, vz, agility, speedFraction)
@@ -1269,7 +1271,7 @@ export class CjsBallparkController
      * @param {bigint|number} id Signed-int64 ball identity; Number inputs must be safe integers.
      * @returns {CjsDestinyBall|null} Live ball, or null when absent.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GetBall(id)
     {
@@ -1278,9 +1280,12 @@ export class CjsBallparkController
 
     /**
      * Reads the native Blue ego identifier.
+     * Blue row: Ballpark_Blue.cpp:15 MAP_ATTRIBUTE READWRITE | PERSIST.
      * @returns {bigint} Ball used as the renderer's reference origin.
      */
-    @meta.type.int64
+    @blue.readwrite
+    @blue.persist
+    @type.int64
     @meta.implemented
     get ego()
     {
@@ -2162,7 +2167,7 @@ export class CjsBallparkController
      * @param {bigint|number} id Native static-shape ID.
      * @returns {Array|null} [width, center], or null when missing or detached.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GetStaticCollidableBox(id)
     {
@@ -2290,7 +2295,7 @@ export class CjsBallparkController
      * @param {number} [delay=0] Tick delay before buffered cleanup.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     RemoveBall(id, delay = 0)
     {
@@ -2359,7 +2364,7 @@ export class CjsBallparkController
      *
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     ClearAll()
     {
@@ -2498,7 +2503,7 @@ export class CjsBallparkController
      * @throws {Error} If an active ball uses an unknown mode value.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     Evolve(timestamp = 0n)
     {
@@ -2711,7 +2716,7 @@ export class CjsBallparkController
      * @param {CjsDestinyBall} ball Ball whose existing state is read or updated.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     EvolveBehaviorForBall(ball)
     {
@@ -2850,7 +2855,7 @@ export class CjsBallparkController
      * @param {CjsDestinyBall} ball Ball whose existing state is read or updated.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     EvolveGoto(ball)
     {
@@ -2931,7 +2936,7 @@ export class CjsBallparkController
      * @param {CjsDestinyBall} ball Ball whose existing state is read or updated.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     EvolveFollow(ball)
     {
@@ -2955,7 +2960,7 @@ export class CjsBallparkController
      * @param {number} currentTime Native integer tick counter.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     EvolveOrbit(ball, currentTime)
     {
@@ -3235,7 +3240,7 @@ export class CjsBallparkController
      * @param {number} currentTime Native integer tick counter.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     EvolveOldStyleOrbit(ball, currentTime)
     {
@@ -3307,7 +3312,7 @@ export class CjsBallparkController
      * @param {CjsDestinyBall} ball Ball whose existing state is read or updated.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.implemented
     EvolveStop(ball)
     {
@@ -3329,7 +3334,7 @@ export class CjsBallparkController
      * @param {boolean} [missile=false] Bypass the native close-distance thrust scaling.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GotoThrust(ball, x, y, z, missile = false)
     {
@@ -3365,7 +3370,7 @@ export class CjsBallparkController
      * @param {number} t Integration duration in seconds.
      * @returns {void} Zero duration leaves both outputs untouched.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     Integrate(p, v, a, m, k, timeFactor, t)
     {
@@ -3567,9 +3572,11 @@ export class CjsBallparkController
     /**
      * Reads Carbon's exposed warp-speed property, unused by trajectory calculations.
      * Source: destiny/src/Ballpark.cpp:101; destiny/src/Ballpark_Blue.cpp:95-103.
+     * Blue row: Ballpark_Blue.cpp:96 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored native double value.
      */
-    @meta.type.float64
+    @blue.readwrite
+    @type.float64
     @meta.implemented
     get warpSpeed() { return this.mWarpSpeed; }
 
@@ -3597,7 +3604,7 @@ export class CjsBallparkController
      * @param {number} [warpFactor=20] Signed-int32 milli-AU/s factor; nonpositive becomes one.
      * @returns {void} Exact repeated destinations preserve the current warp command.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     WarpTo(id, x, y, z, minRange = 20000, warpFactor = 20)
     {
@@ -3770,7 +3777,7 @@ export class CjsBallparkController
      * @param {number} warpFactor Native signed-int32 warp factor.
      * @returns {void} GOTO fallback does not enter warp.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     EntityWarpIn(id, x, y, z, warpFactor)
     {
@@ -3848,7 +3855,7 @@ export class CjsBallparkController
      * @param {Array} formationList Pairs of display name and local offset vectors.
      * @returns {void} Clears then appends definitions in input order.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     LoadFormations(formationList)
     {
@@ -3868,7 +3875,7 @@ export class CjsBallparkController
      * @param {number} formationID Signed-char formation index; -1 disables leadership.
      * @returns {void} Does not reserve slots or update followers when reusing an ID.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallFormation(id, formationID)
     {
@@ -3917,7 +3924,7 @@ export class CjsBallparkController
      * @param {number} slot Native formation slot, normally returned by ReserveFormationSlot.
      * @returns {void} Bubble/cloak rejection occurs after stopping the previous order.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     FormationFollow(id, targetId, slot)
     {
@@ -3987,7 +3994,7 @@ export class CjsBallparkController
      * @param {number} [z] Position Z in the scalar overload.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GotoPoint(id, x, y, z)
     {
@@ -4025,7 +4032,7 @@ export class CjsBallparkController
      * @param {number} [z] Direction Z in the scalar overload.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GotoDirection(id, x, y, z)
     {
@@ -4057,7 +4064,7 @@ export class CjsBallparkController
      * @param {number} time Growth duration in seconds, rejected only when nonpositive.
      * @returns {void} The created ball remains fixed until SetBallFree is called.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     AddMushroom(ownerId, range, time)
     {
@@ -4248,7 +4255,7 @@ export class CjsBallparkController
      * @param {number} [range] Surface separation in meters.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     FollowBall(id, targetId, range = 1)
     {
@@ -4282,7 +4289,7 @@ export class CjsBallparkController
      * @param {number} [range] Surface separation in meters.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     Orbit(id, targetId, range = 1)
     {
@@ -4312,7 +4319,7 @@ export class CjsBallparkController
      * @param {bigint|number|CjsDestinyBall} id Signed-int64 identity or native Ball reference.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     Stop(id)
     {
@@ -4353,7 +4360,7 @@ export class CjsBallparkController
      * @param {bigint|number} id Ball identity.
      * @returns {void} Missing balls are ignored.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallRigid(id)
     {
@@ -4373,7 +4380,7 @@ export class CjsBallparkController
      * @param {number} delay Signed-int32 tick count, clamped to at least one.
      * @returns {void} Existing velocity survives entry into troll mode.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallTroll(id, delay)
     {
@@ -4438,7 +4445,7 @@ export class CjsBallparkController
      * @param {boolean} field Whether to enter FIELD mode.
      * @returns {void} Disabling FIELD stops it; other modes remain unchanged.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallHarmonic(id, harmonic, corporationID, allianceID, field)
     {
@@ -4552,7 +4559,7 @@ export class CjsBallparkController
      * @param {boolean} flag New massiveness flag.
      * @returns {void} Missing balls are ignored.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallMassive(id, flag)
     {
@@ -4569,7 +4576,7 @@ export class CjsBallparkController
      * @param {boolean} flag Requested global state.
      * @returns {void} Missing balls are ignored.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallGlobal(id, flag)
     {
@@ -4618,7 +4625,7 @@ export class CjsBallparkController
      * @param {number} z Position component in meters.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallPosition(id, x, y, z)
     {
@@ -4639,7 +4646,7 @@ export class CjsBallparkController
      * @param {number} z Velocity component in meters per second.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallVelocity(id, x, y, z)
     {
@@ -4662,7 +4669,7 @@ export class CjsBallparkController
      * @param {number} wz Angular velocity Z in radians per second.
      * @returns {void} Missing balls are ignored.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallAngularVelocity(id, wx, wy, wz)
     {
@@ -4683,7 +4690,7 @@ export class CjsBallparkController
      * @param {number} rw Quaternion W.
      * @returns {void} Norms at or below 1e-20 and unordered NaN are ignored.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallRotation(id, rx, ry, rz, rw)
     {
@@ -4708,7 +4715,7 @@ export class CjsBallparkController
      * @param {number} maxAngVel Maximum angular speed in radians per second.
      * @returns {void} Negative limits and missing balls are ignored.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetMaxAngularSpeed(id, maxAngVel)
     {
@@ -4726,7 +4733,7 @@ export class CjsBallparkController
      * @param {number} rotAgility Rotational agility modifier.
      * @returns {void} Nonpositive values and missing balls are ignored.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallAngularAgility(id, rotAgility)
     {
@@ -4743,7 +4750,7 @@ export class CjsBallparkController
      * @param {number} mass Mass in kilograms.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallMass(id, mass)
     {
@@ -4762,7 +4769,7 @@ export class CjsBallparkController
      * @param {number} radius Radius in meters, narrowed to float32.
      * @returns {void} Mutates the native backing field before insertion callbacks.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallRadius(id, radius)
     {
@@ -4781,7 +4788,7 @@ export class CjsBallparkController
      * @param {number} notificationRange Range in meters; only negative values are ignored.
      * @returns {void} Registration updates before the within flag is reset.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetNotificationRange(id, notificationRange)
     {
@@ -4802,7 +4809,7 @@ export class CjsBallparkController
      * @param {number} trackingRange Double range; nonpositive cancels tracking.
      * @returns {void} A missing target leaves prior tracking unchanged.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetTargetTracking(id, targetId, trackingRange)
     {
@@ -4831,7 +4838,7 @@ export class CjsBallparkController
      * @param {boolean} [onlyInteractives=false] Interactive-only candidate filter.
      * @returns {void} Missing balls and rejected combined radii are ignored.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     AddProximitySensor(id, range, period = 2, shuffle = 0, onlyInteractives = false)
     {
@@ -4846,7 +4853,7 @@ export class CjsBallparkController
      * @param {bigint|number} id Sensor ball identity.
      * @returns {void} Missing balls are ignored.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     RemoveProximitySensor(id)
     {
@@ -5151,7 +5158,7 @@ export class CjsBallparkController
      * @param {...unknown} args Source stream and optional partial argument.
      * @returns {void} Restores stream records through the native wrapper flow.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     ReadFullStateFromStream(...args)
     {
@@ -5318,7 +5325,7 @@ export class CjsBallparkController
      * @param {...unknown} args Stream and optional source identity.
      * @returns {void} Writes through the native-shaped wrapper.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     WriteFullStateToStream(...args)
     {
@@ -5365,7 +5372,7 @@ export class CjsBallparkController
      * @param {CjsDestinyStream} stream Destination stream.
      * @returns {void} Writes through the native-shaped wrapper.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     WriteBallsToStream(ballList, stream)
     {
@@ -5390,7 +5397,7 @@ export class CjsBallparkController
      * @param {number|boolean|bigint} optimalSignatureRadius Optimal signature radius.
      * @returns {number|number[]} Accuracy for reference arguments, or the Blue result list.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GetAccuracy(srcId, dstId, optimalRange, falloff, trackingSpeed, signatureRadius, optimalSignatureRadius)
     {
@@ -5522,7 +5529,7 @@ export class CjsBallparkController
      * @param {...unknown} input (id,range[,includeCloaked]), (x,y,z,range[,includeCloaked]), or helper tuple/flag.
      * @returns {Array} IDs or [squared center distance, ID] pairs; no sorting.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GetBallIdsInRange(...input)
     {
@@ -5599,7 +5606,7 @@ export class CjsBallparkController
      * @param {...unknown} args Ball/range or coordinate/range arguments.
      * @returns {Array} [distanceSquared, ID] pairs.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GetBallIdsAndDistInRange(...args) { return CjsBallparkController.prototype.GetBallIdsInRange.call(this, args, true); }
 
@@ -5618,7 +5625,7 @@ export class CjsBallparkController
      * @param {number} range Inflated surface range; negative values are not clamped.
      * @returns {bigint[]} Matching identities, including cloaked candidates.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GetBallIdsInRangeOfTriangle(id, ux, uy, uz, vx, vy, vz, range)
     {
@@ -5656,7 +5663,7 @@ export class CjsBallparkController
      * @param {number} angle Native half-angle in radians, not halved by this query.
      * @returns {bigint[]} Matching sphere identities, including cloaked candidates.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GetBallIdsInCone(id, vx, vy, vz, angle)
     {
@@ -5702,7 +5709,7 @@ export class CjsBallparkController
      * @param {number} radius Capsule radius, without clamping.
      * @returns {bigint[]} Matching identities, including cloaked candidates.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GetBallIdsInCapsule(id, vx, vy, vz, radius)
     {
@@ -5750,7 +5757,7 @@ export class CjsBallparkController
      * @param {...unknown} args Exactly two ball identities.
      * @returns {number|null} Center distance or missing sentinel.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GetCenterDist(...args)
     {
@@ -5783,7 +5790,7 @@ export class CjsBallparkController
      * @param {...unknown} args Exactly two ball identities.
      * @returns {number|null} Unclamped surface distance or missing sentinel.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     GetSurfaceDist(...args)
     {
@@ -5836,7 +5843,7 @@ export class CjsBallparkController
      * @param {...unknown} args Source ID, full angle, range and direction components.
      * @returns {bigint[]|null} Center-query result, independent of bubble membership.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     ScanCone(...args)
     {
@@ -5894,7 +5901,7 @@ export class CjsBallparkController
      * @param {number} [range=2000] Float32 sensor range for normal master cloaks.
      * @returns {void} Sets mode and non-massive state after follower transitions.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     CloakBall(id, cloakMode, range = 2000)
     {
@@ -5917,7 +5924,7 @@ export class CjsBallparkController
      * @param {bigint|number} id Ball identity.
      * @returns {void} Proper warp retains massiveness and remembered contacts.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     UncloakBall(id)
     {
@@ -5987,7 +5994,7 @@ export class CjsBallparkController
      * @param {bigint|number} dstId Destination identity.
      * @returns {bigint} Occluder ID, 0n for clear, or -2n for missing/different-bubble endpoints.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     CheckVisibility(srcId, dstId)
     {
@@ -6070,7 +6077,7 @@ export class CjsBallparkController
      * @param {number} speed Maximum speed in meters per second.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetMaxSpeed(id, speed)
     {
@@ -6088,7 +6095,7 @@ export class CjsBallparkController
      * @param {number} agility Native positive mass/agility multiplier.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallAgility(id, agility)
     {
@@ -6105,7 +6112,7 @@ export class CjsBallparkController
      * @param {CjsDestinyBall} ball Ball whose existing state is read or updated.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.implemented
     SetBallTimeFactor(ball)
     {
@@ -6121,7 +6128,7 @@ export class CjsBallparkController
      * @param {number} fraction Requested fraction of maximum speed.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetSpeedFraction(id, fraction)
     {
@@ -6141,7 +6148,7 @@ export class CjsBallparkController
      * @param {boolean} isFree Whether the ball can move.
      * @returns {void} No return value.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallFree(id, isFree)
     {
@@ -6478,7 +6485,7 @@ export class CjsBallparkController
      * @param {Function|null} callback Callback receiving the detached Ball.
      * @returns {void} Affects every park and detached Ball, not only this instance.
      */
-    @meta.blue.method
+    @blue.method
     @meta.adapted
     SetBallNotInParkCallback(callback)
     {
@@ -6494,7 +6501,6 @@ export class CjsBallparkController
      * @param {boolean} after Whether equality must be skipped.
      * @returns {number} First qualifying index or the array length.
      */
-    @meta.ours
     static _freeBallIndex(ids, id, after)
     {
         let low = 0, high = ids.length;
@@ -6516,7 +6522,6 @@ export class CjsBallparkController
      * @returns {bigint} Exact interval in 100ns units.
      * @throws {RangeError} If interval arithmetic is outside the supported native domain.
      */
-    @meta.ours
     static _tickTime(interval)
     {
         if (!Number.isInteger(interval) || interval <= 0 || interval > 214748)
@@ -6532,7 +6537,6 @@ export class CjsBallparkController
      * instead. Sampling fills p/v, while default angular values are reset here.
      * @returns {Object} Dirty frame; return to collisionFrames in finally.
      */
-    @meta.ours
     static _allocCollisionFrame()
     {
         const frame = CjsBallparkController.collisionFrames.pop() || {
@@ -6609,7 +6613,6 @@ export class CjsBallparkController
      * @param {number|boolean|bigint} value Numeric scalar without string coercion.
      * @returns {number} Double-precision argument value.
      */
-    @meta.ours
     static _accuracyDouble(value)
     {
         if (typeof value === "number") return value;
