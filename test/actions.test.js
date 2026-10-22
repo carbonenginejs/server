@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CjsSchema } from "@carbonenginejs/runtime/schema";
 import { CjsBallparkController } from "@carbonenginejs/server/destiny";
 import { Actions } from "@carbonenginejs/server/destiny/net/server";
 
@@ -152,11 +151,9 @@ test("queued movement applied before Evolve matches direct commands and delays r
     assert.deepEqual(actions.flush_history(), [[ID, 1, ["Stop", [ID]]]]);
 });
 
-test("Actions declares provenance and owns independent signals", () =>
+test("Actions owns independent signals", () =>
 {
     const actions = new Actions(new CjsBallparkController());
-    assert.equal(CjsSchema.getClassName(Actions), "Actions");
-    assert.equal(CjsSchema.getSchema(Actions).modelledOn, "destiny.net.server.Actions");
     assert.equal(actions.on_add_to_system_history.__len__(), 0);
     assert.equal(actions.on_ball_made_global.__len__(), 0);
     assert.notEqual(actions.on_add_to_system_history, actions.on_ball_made_global);

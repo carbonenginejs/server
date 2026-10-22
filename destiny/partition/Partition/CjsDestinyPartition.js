@@ -1,4 +1,3 @@
-import { meta } from "@carbonenginejs/runtime/schema";
 import { CjsDestinyBall } from "../../CjsDestinyBall.js";
 import { CjsDestinyKey } from "./CjsDestinyKey.js";
 import { CjsDestinyKeyHash } from "./CjsDestinyKeyHash.js";
@@ -12,7 +11,9 @@ const keyHash = new CjsDestinyKeyHash();
 const { DSTBALL_MISSILE, DSTBALL_FIELD } = CjsDestinyBall.DSTBALLMODE;
 
 /** Carbon sparse multilevel spatial partition and native candidate enumeration. */
-@meta.define({ className: "CjsDestinyPartition", modelledOn: "Partition" })
+/**
+ * Modelled on: Partition (destiny/src/Partition.h:126-219)
+ */
 export class CjsDestinyPartition
 {
     static NearbyCriteria = CjsDestinyNearbyCriteria;
@@ -52,7 +53,6 @@ export class CjsDestinyPartition
      * @param {{ix: bigint, iy: bigint, iz: bigint}} out Destination key coordinates.
      * @returns {void} Invalid levels write zeros.
      */
-    @meta.adapted
     GetBoxKey(pos, level, out)
     {
         if (!Number.isInteger(level) || level < 0 || level >= this.mNumberOfLevels)
@@ -77,7 +77,6 @@ export class CjsDestinyPartition
      * @param {number} [level] Grid level for the index overload.
      * @returns {CjsDestinyBox|null} Box or native null sentinel.
      */
-    @meta.adapted
     GetBox(i, j, k = true, level)
     {
         if (arguments.length < 4)
@@ -117,7 +116,6 @@ export class CjsDestinyPartition
      * @param {number} level Grid level.
      * @returns {CjsDestinyBox|null} Existing box or null for missing/invalid levels.
      */
-    @meta.adapted
     CheckBox(ix, iy, iz, level)
     {
         if (!Number.isInteger(level) || level < 0 || level >= this.mNumberOfLevels) return null;
@@ -131,7 +129,6 @@ export class CjsDestinyPartition
      * @param {number[]|Float64Array} pos World position.
      * @returns {CjsDestinyBox|null} Existing top-level cell.
      */
-    @meta.implemented
     GetExistingTopBox(pos)
     {
         return this.GetBox(10000000, pos, false);
@@ -146,7 +143,6 @@ export class CjsDestinyPartition
      * @param {number[]|Float64Array} pos Input position and output center.
      * @returns {void} Mutates the supplied vector.
      */
-    @meta.adapted
     GetBoxCenter(level, pos)
     {
         if (!Number.isInteger(level) || level < 0 || level >= this.mNumberOfLevels)
@@ -164,7 +160,6 @@ export class CjsDestinyPartition
      *
      * @returns {number} Native signed-int count.
      */
-    @meta.implemented
     GetSize()
     {
         let sum = 0;
@@ -178,7 +173,6 @@ export class CjsDestinyPartition
      * @param {CjsDestinyBox|null} box Starting cell.
      * @returns {CjsDestinyBox|null} Root cell or null.
      */
-    @meta.implemented
     GetTopmost(box)
     {
         if (!box) return null;
@@ -196,7 +190,6 @@ export class CjsDestinyPartition
      * @param {bigint|number} k Z offset.
      * @returns {CjsDestinyBox|null} Offset cell or null for null input.
      */
-    @meta.adapted
     GetOffsetBox(box, i, j, k)
     {
         if (!box) return null;
@@ -214,7 +207,6 @@ export class CjsDestinyPartition
      * @param {bigint|number} k Z offset.
      * @returns {CjsDestinyBox|null} Existing offset cell.
      */
-    @meta.adapted
     CheckOffsetBox(box, i, j, k)
     {
         if (!box) return null;
@@ -227,7 +219,6 @@ export class CjsDestinyPartition
      *
      * @returns {void} No return value.
      */
-    @meta.implemented
     ClearTraversalFlag()
     {
         for (const box of this.mLevels[0].values()) box.mBubble = -1;
@@ -240,7 +231,6 @@ export class CjsDestinyPartition
      *
      * @returns {void} No return value.
      */
-    @meta.adapted
     DumpPartition()
     {
         for (let level = 0; level < this.mNumberOfLevels; ++level)
@@ -256,7 +246,6 @@ export class CjsDestinyPartition
      * @param {CjsDestinyBox[]} out Destination vector.
      * @returns {void} Appends without clearing existing entries.
      */
-    @meta.adapted
     ExplodeChildren(children, out)
     {
         for (const box of children)
@@ -275,7 +264,6 @@ export class CjsDestinyPartition
      * @param {boolean} isMaster Whether master bubble filtering applies.
      * @returns {void} Appends candidates.
      */
-    @meta.implemented
     GetProximityCandidates(ball, uni, uniStat, isMaster)
     {
         const filter = new CjsDestinyNearbyCriteria();
@@ -294,7 +282,6 @@ export class CjsDestinyPartition
      * @param {boolean} isMaster Whether master bubble filtering applies.
      * @returns {void} Appends candidates without a final sort.
      */
-    @meta.implemented
     GetCollisionCandidates(ball, uni, uniStat, isMaster)
     {
         if (ball.mMode === DSTBALL_MISSILE)
@@ -318,7 +305,6 @@ export class CjsDestinyPartition
      * @param {CjsDestinyNearbyCriteria} filter Native filter flags.
      * @returns {void} Appends each newly accepted object once.
      */
-    @meta.adapted
     GetNearbyBalls(ball, uni, uniStat, isMaster, filter)
     {
         if (!ball) return;
@@ -402,7 +388,6 @@ export class CjsDestinyPartition
      * @param {number} level Grid level.
      * @returns {Array|null} [width, lowerCornerVectors], or null for invalid/empty levels.
      */
-    @meta.adapted
     GetActiveBoxes(level)
     {
         if (!Number.isInteger(level) || level < 0 || level >= this.mNumberOfLevels) return null;

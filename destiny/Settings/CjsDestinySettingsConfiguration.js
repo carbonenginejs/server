@@ -1,5 +1,3 @@
-import { meta, blue, type } from "@carbonenginejs/runtime/schema";
-
 // Source: destiny/src/Settings.h
 // Source: destiny/src/Settings_Blue.cpp
 // Source: blueexposure/include/BlueTypeTraits.h
@@ -14,7 +12,9 @@ export const g_disableDynamicalOrientationForMissilesDefault = false;
 export const g_useNewOrbitDefault = false;
 
 /** Mutable, detached configuration of Carbon's five global Destiny settings. */
-@meta.define({ className: "CjsDestinySettingsConfiguration", modelledOn: "SettingsConfiguration" })
+/**
+ * Modelled on: SettingsConfiguration (destiny/src/Settings.h:23-32)
+ */
 export class CjsDestinySettingsConfiguration
 {
     m_collisionMaxIterations = g_collisionMaxIterationsDefault;
@@ -54,9 +54,6 @@ export class CjsDestinySettingsConfiguration
      * Blue row: Settings_Blue.cpp:27 MAP_ATTRIBUTE READWRITE.
      * @returns {bigint} Maximum iterative-collision iterations; zero is accepted.
      */
-    @blue.readwrite
-    @type.uint64
-    @meta.adapted
     get collisionMaxIterations()
     {
         return this.m_collisionMaxIterations;
@@ -72,7 +69,6 @@ export class CjsDestinySettingsConfiguration
      * @throws {RangeError} If an integer is unsafe, negative or outside uint64.
      * @throws {TypeError} If the value has no supported integer representation.
      */
-    @meta.adapted
     set collisionMaxIterations(value)
     {
         if (typeof value === "boolean") value = value ? 1n : 0n;
@@ -92,9 +88,6 @@ export class CjsDestinySettingsConfiguration
      * Blue row: Settings_Blue.cpp:35 MAP_ATTRIBUTE READWRITE.
      * @returns {boolean} Whether iterative collision is selected globally when applied.
      */
-    @blue.readwrite
-    @type.boolean
-    @meta.implemented
     get useIterativeCollision()
     {
         return this.m_useIterativeCollision;
@@ -107,7 +100,6 @@ export class CjsDestinySettingsConfiguration
      * @param {boolean|number|bigint} value Boolean or signed-int32 integer; nonzero means true.
      * @returns {void} No return value.
      */
-    @meta.adapted
     set useIterativeCollision(value)
     {
         this.m_useIterativeCollision = CjsDestinySettingsConfiguration._toBoolean(value);
@@ -119,9 +111,6 @@ export class CjsDestinySettingsConfiguration
      * Blue row: Settings_Blue.cpp:42 MAP_ATTRIBUTE READWRITE.
      * @returns {boolean} Whether dynamical orientation is selected when applied.
      */
-    @blue.readwrite
-    @type.boolean
-    @meta.implemented
     get useDynamicalOrientation()
     {
         return this.m_useDynamicalOrientation;
@@ -134,7 +123,6 @@ export class CjsDestinySettingsConfiguration
      * @param {boolean|number|bigint} value Boolean or signed-int32 integer; nonzero means true.
      * @returns {void} No return value.
      */
-    @meta.adapted
     set useDynamicalOrientation(value)
     {
         this.m_useDynamicalOrientation = CjsDestinySettingsConfiguration._toBoolean(value);
@@ -146,9 +134,6 @@ export class CjsDestinySettingsConfiguration
      * Blue row: Settings_Blue.cpp:49 MAP_ATTRIBUTE READWRITE.
      * @returns {boolean} Whether missiles bypass dynamical orientation when it is enabled.
      */
-    @blue.readwrite
-    @type.boolean
-    @meta.implemented
     get disableDynamicalOrientationForMissiles()
     {
         return this.m_disableDynamicalOrientationForMissiles;
@@ -161,7 +146,6 @@ export class CjsDestinySettingsConfiguration
      * @param {boolean|number|bigint} value Boolean or signed-int32 integer; nonzero means true.
      * @returns {void} No return value.
      */
-    @meta.adapted
     set disableDynamicalOrientationForMissiles(value)
     {
         this.m_disableDynamicalOrientationForMissiles = CjsDestinySettingsConfiguration._toBoolean(value);
@@ -173,9 +157,6 @@ export class CjsDestinySettingsConfiguration
      * Blue row: Settings_Blue.cpp:56 MAP_ATTRIBUTE READWRITE.
      * @returns {boolean} Whether the new orbit algorithm is selected when applied.
      */
-    @blue.readwrite
-    @type.boolean
-    @meta.implemented
     get useNewOrbit()
     {
         return this.m_useNewOrbit;
@@ -188,7 +169,6 @@ export class CjsDestinySettingsConfiguration
      * @param {boolean|number|bigint} value Boolean or signed-int32 integer; nonzero means true.
      * @returns {void} No return value.
      */
-    @meta.adapted
     set useNewOrbit(value)
     {
         this.m_useNewOrbit = CjsDestinySettingsConfiguration._toBoolean(value);

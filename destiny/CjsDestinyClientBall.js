@@ -1,4 +1,3 @@
-import { meta, blue, type } from "@carbonenginejs/runtime/schema";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { quat } from "@carbonenginejs/runtime/math/quat";
 import { vec3d } from "./math/vec3d.js";
@@ -13,7 +12,9 @@ const f32 = Math.fround;
 // Source: destiny/src/Ball.cpp:1118-1191
 // Source: destiny/src/Ball_Blue.cpp:538-616
 /** Carbon ClientBall motion curves, legacy orientation and derived impact rotation. */
-@meta.define({ className: "CjsDestinyClientBall", modelledOn: "ClientBall" })
+/**
+ * Modelled on: ClientBall (destiny/src/Ball.h:395-607)
+ */
 export class CjsDestinyClientBall extends CjsDestinyBall
 {
     mLastYaw = 0;
@@ -68,7 +69,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {object} out Owned float64 relVel vector and radVel, shortDist, transVel, angVel scalars.
      * @returns {object} Supplied record, preserving unrequested and singular outputs.
      */
-    @meta.adapted
     CalculateRelativeVelocities(target, calcRelative, calcRadial, calcTransversal, calcAngular, out)
     {
         if (!target) return out;
@@ -130,7 +130,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {boolean} [snap=false] Bypass the native angle damping.
      * @returns {void} Updates orientation state in place.
      */
-    @meta.adapted
     CalculateYawPitchRoll(snap = false)
     {
         super.CalculateYawPitchRoll(snap);
@@ -148,7 +147,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Adaptation: separate class scratch composes the native quaternion derivative.
      * @returns {void} Initializes first-sample state and resets elapsed time per tick.
      */
-    @meta.adapted
     InforceContinuity()
     {
         if (!this.mPark) return;
@@ -182,7 +180,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {number|bigint} time Elapsed 100ns ticks since the scene's Blue startup.
      * @returns {bigint} Shifted ticks, or unchanged ticks when detached.
      */
-    @meta.adapted
     GetShiftedTime(time)
     {
         time = CjsDestinyBall._toInt64(time);
@@ -198,7 +195,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float64Array} out Caller-owned absolute position.
      * @returns {Float64Array} The supplied output.
      */
-    @meta.adapted
     InterpolatedPosition(time, out)
     {
         time = CjsDestinyBall._toInt64(time);
@@ -251,7 +247,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Position vector or rotation quaternion.
      * @returns {Float32Array} The supplied output without allocating a result.
      */
-    @meta.adapted
     Update__Ticks(time, out)
     {
         return this.GetValueAt__Ticks(time, out);
@@ -264,7 +259,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Position vector or rotation quaternion.
      * @returns {Float32Array} The supplied output.
      */
-    @meta.adapted
     Update(_time, out)
     {
         console.error("Ball::Update() -> Use the Be::Time version instead.");
@@ -279,7 +273,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Position vector or rotation quaternion.
      * @returns {Float32Array} The supplied output.
      */
-    @meta.adapted
     GetValueAt(_time, out)
     {
         if (out.length === 4) return out;
@@ -292,7 +285,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Caller-owned output.
      * @returns {Float32Array} The supplied output.
      */
-    @meta.adapted
     GetValueDotAt(_time, out)
     {
         return out;
@@ -304,7 +296,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Caller-owned output.
      * @returns {Float32Array} The supplied output.
      */
-    @meta.adapted
     GetValueDoubleDotAt(_time, out)
     {
         return out;
@@ -319,7 +310,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Length-three position or length-four quaternion.
      * @returns {Float32Array} The supplied output.
      */
-    @meta.adapted
     GetValueAt__Ticks(time, out)
     {
         time = CjsDestinyBall._toInt64(time);
@@ -375,7 +365,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Length-three velocity or length-four unchanged output.
      * @returns {Float32Array} The supplied output.
      */
-    @meta.adapted
     GetValueDotAt__Ticks(time, out)
     {
         time = CjsDestinyBall._toInt64(time);
@@ -399,7 +388,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Caller-owned quaternion.
      * @returns {Float32Array} The supplied output.
      */
-    @meta.adapted
     _GetRotationAt(time, out)
     {
         if (!this.mPark)
@@ -465,7 +453,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {number} time Unused curve-set time in seconds.
      * @returns {void} No state changes.
      */
-    @meta.implemented
     UpdateValue(time)
     {
     }
@@ -480,7 +467,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Caller-owned three-component delta.
      * @returns {Float32Array} The supplied output, rounded to float32.
      */
-    @meta.adapted
     GetDelta(time, out)
     {
         this.GetValueAt__Ticks(time, out);
@@ -495,7 +481,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float64Array} out Caller-owned absolute reference point.
      * @returns {Float64Array} The supplied output.
      */
-    @meta.adapted
     GetReferencePoint(time, out)
     {
         time = CjsDestinyBall._toInt64(time);
@@ -512,7 +497,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} out Three-component acceleration or unchanged quaternion.
      * @returns {Float32Array} The supplied output.
      */
-    @meta.adapted
     GetValueDoubleDotAt__Ticks(time, out)
     {
         CjsDestinyBall._toInt64(time);
@@ -538,7 +522,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Source: destiny/src/Ball.cpp:1951-1974.
      * @returns {void} Sends the native DoPartition event when a bridge is attached.
      */
-    @meta.adapted
     DispatchPartition()
     {
         for (let i = 0; i < 27; ++i) this.mBoxList[i] = Number(this.mActiveBoxes[i]);
@@ -556,8 +539,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Source: destiny/src/Ball.cpp:1979-1995.
      * @returns {Array} Low/high coordinates, inflated radius and 27 integer flags.
      */
-    @blue.method
-    @meta.adapted
     GetPartitionBoxes()
     {
         const box = this.mMyBox;
@@ -577,8 +558,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} pos Offset from the center, not an absolute world position.
      * @returns {void} Starts or retargets derived impact rotation without changing physics.
      */
-    @blue.method
-    @meta.adapted
     ApplyImpulsiveForceAtPosition(impactForce, pos)
     {
         if (this.mInvInertiaTensor < 0)
@@ -618,7 +597,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {number} dt Elapsed seconds, converted to native float32.
      * @returns {void} Composes impact onto the current legacy orientation.
      */
-    @meta.adapted
     ProcessImpact(dt)
     {
         dt = f32(dt);
@@ -674,7 +652,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {number} dt Elapsed seconds, converted to native float32.
      * @returns {void} Updates the derived impact quaternion only.
      */
-    @meta.adapted
     ApplyAngularVelocityToRotation(dt)
     {
         dt = f32(dt);
@@ -697,7 +674,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Source: destiny/src/Ball.cpp:2102-2112.
      * @returns {number} Surface separation or zero for detached/invalid/self ego.
      */
-    @meta.adapted
     GetSurfaceDistance()
     {
         if (!this.mPark || this.mPark.mEgo <= 0n) return 0;
@@ -713,7 +689,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Source: destiny/src/Ball.cpp:2115-2124.
      * @returns {number} Nonnegative center separation without populating the cache.
      */
-    @meta.adapted
     GetCenterDistance()
     {
         if (this.mCenterDist < 0 && this.mPark.mEgo !== 0n)
@@ -729,9 +704,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Blue row: Ball_Blue.cpp:548 MAP_ATTRIBUTE READWRITE.
      * @returns {boolean} Whether interpolated position dispatches partition geometry.
      */
-    @blue.readwrite
-    @type.boolean
-    @meta.implemented
     get showBoxes()
     {
         return this.mShowBoxes;
@@ -743,7 +715,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {boolean} value New visibility flag.
      * @returns {void} Stores the flag without dispatching immediately.
      */
-    @meta.adapted
     set showBoxes(value)
     {
         this.mShowBoxes = Boolean(value);
@@ -754,9 +725,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Blue row: Ball_Blue.cpp:556 MAP_PROPERTY_READONLY.
      * @returns {number} Distance supplied by GetCenterDistance.
      */
-    @blue.property()
-    @type.float64
-    @meta.implemented
     get centerDist()
     {
         return this.GetCenterDistance();
@@ -767,9 +735,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Blue row: Ball_Blue.cpp:563 MAP_PROPERTY_READONLY.
      * @returns {number} Distance supplied by GetSurfaceDistance.
      */
-    @blue.property()
-    @type.float64
-    @meta.implemented
     get surfaceDist()
     {
         return this.GetSurfaceDistance();
@@ -780,9 +745,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Blue row: Ball_Blue.cpp:570 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored float32 value.
      */
-    @blue.readwrite
-    @type.float32
-    @meta.implemented
     get maxAngle()
     {
         return this.mMaxAngle;
@@ -794,7 +756,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {number} value New parameter value.
      * @returns {void} Stores the native field.
      */
-    @meta.adapted
     set maxAngle(value)
     {
         this.mMaxAngle = f32(value);
@@ -805,9 +766,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Blue row: Ball_Blue.cpp:578 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored float32 value.
      */
-    @blue.readwrite
-    @type.float32
-    @meta.implemented
     get maxAngularVelocity()
     {
         return this.mMaxAngularVelocity;
@@ -819,7 +777,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {number} value New parameter value.
      * @returns {void} Stores the native field.
      */
-    @meta.adapted
     set maxAngularVelocity(value)
     {
         this.mMaxAngularVelocity = f32(value);
@@ -830,9 +787,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Blue row: Ball_Blue.cpp:586 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored float32 value.
      */
-    @blue.readwrite
-    @type.float32
-    @meta.implemented
     get speedModifier()
     {
         return this.mSpeedModifier;
@@ -844,7 +798,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {number} value New parameter value.
      * @returns {void} Stores the native field.
      */
-    @meta.adapted
     set speedModifier(value)
     {
         this.mSpeedModifier = f32(value);
@@ -855,9 +808,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * Blue row: Ball_Blue.cpp:594 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored float32 value.
      */
-    @blue.readwrite
-    @type.float32
-    @meta.implemented
     get minimumAngularVelocity()
     {
         return this.mMinimumAngularVelocity;
@@ -869,7 +819,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {number} value New parameter value.
      * @returns {void} Stores the native field.
      */
-    @meta.adapted
     set minimumAngularVelocity(value)
     {
         this.mMinimumAngularVelocity = f32(value);
@@ -883,7 +832,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {Float32Array} value Native float quaternion.
      * @returns {Float32Array} The supplied output.
      */
-    @meta.adapted
     static _normalizeQuaternion(out, value)
     {
         const x = value[0], y = value[1], z = value[2], w = value[3];
@@ -902,7 +850,6 @@ export class CjsDestinyClientBall extends CjsDestinyBall
      * @param {number} t Float32 interpolation weight.
      * @returns {Float32Array} The supplied output.
      */
-    @meta.adapted
     static _slerp(out, a, b, t)
     {
         let epsilon = 1, first = f32(1 - t), second = t;

@@ -1,4 +1,3 @@
-import { meta } from "@carbonenginejs/runtime/schema";
 import { CjsDestinyPartitionable } from "./CjsDestinyPartitionable.js";
 import { CjsDestinyBox } from "./CjsDestinyBox.js";
 import { CjsDestinyBoxSortComparer } from "./SortedSets/CjsDestinyBoxSortComparer.js";
@@ -7,7 +6,9 @@ import { CjsDestinyBoxSortComparer } from "./SortedSets/CjsDestinyBoxSortCompare
 const boxComparer = new CjsDestinyBoxSortComparer();
 
 /** Native static-shape membership and abstract collision obligations. */
-@meta.define({ className: "CjsDestinyStaticCollidable", modelledOn: "StaticCollidable" })
+/**
+ * Modelled on: StaticCollidable (destiny/src/StaticCollidable.h:10-43)
+ */
 export class CjsDestinyStaticCollidable extends CjsDestinyPartitionable
 {
     mParentBallId = 0n;
@@ -18,7 +19,6 @@ export class CjsDestinyStaticCollidable extends CjsDestinyPartitionable
      *
      * @returns {void} Resets mBoxes and mMyBox only.
      */
-    @meta.adapted
     ClearBoxes()
     {
         this.mBoxes.length = 0;
@@ -31,7 +31,6 @@ export class CjsDestinyStaticCollidable extends CjsDestinyPartitionable
      *
      * @returns {void} Clears links after all box removals.
      */
-    @meta.adapted
     DeleteFromBoxes()
     {
         for (const box of this.mBoxes) box.RemoveStaticCollidable(this);
@@ -45,7 +44,6 @@ export class CjsDestinyStaticCollidable extends CjsDestinyPartitionable
      * @param {CjsDestinyBox|null} box Destination cell.
      * @returns {void} Duplicate equivalent cells retain their existing representative.
      */
-    @meta.adapted
     InsertInBox(box)
     {
         if (!box) return;
@@ -59,7 +57,6 @@ export class CjsDestinyStaticCollidable extends CjsDestinyPartitionable
      * @param {number} dt Native unused timestep.
      * @returns {number} Concrete shape's bounding radius.
      */
-    @meta.implemented
     GetInflatedRadius(dt)
     {
         return this.GetBoundingRadius();
@@ -72,7 +69,6 @@ export class CjsDestinyStaticCollidable extends CjsDestinyPartitionable
      * @param {boolean} isActive Unused activity state.
      * @returns {void} No state changes.
      */
-    @meta.implemented
     SetBoxActive(boxId, isActive)
     {
     }
@@ -84,7 +80,6 @@ export class CjsDestinyStaticCollidable extends CjsDestinyPartitionable
      * @param {number[]|Float64Array} out Destination center.
      * @returns {number[]|Float64Array} Concrete shape's center.
      */
-    @meta.adapted
     GetCenter(out)
     {
         throw new Error("StaticCollidable.GetCenter is abstract");
@@ -97,7 +92,6 @@ export class CjsDestinyStaticCollidable extends CjsDestinyPartitionable
      * @param {Object} ball Native-shaped ball.
      * @returns {void} Concrete shape's response.
      */
-    @meta.adapted
     CollideWithBall(ball)
     {
         throw new Error("StaticCollidable.CollideWithBall is abstract");
@@ -113,7 +107,6 @@ export class CjsDestinyStaticCollidable extends CjsDestinyPartitionable
      * @param {{normal: number[]|Float64Array, timeOfImpact: number}} out Native reference outputs.
      * @returns {boolean} Concrete shape's collision result.
      */
-    @meta.adapted
     CheckCollision(p0, p1, radius, out)
     {
         throw new Error("StaticCollidable.CheckCollision is abstract");

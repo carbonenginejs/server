@@ -1,8 +1,8 @@
-import { meta, type } from "@carbonenginejs/runtime/schema";
-
 // Source: destiny/src/Partitionable.h; destiny/src/Partitionable.cpp
 /** Native shared spatial state and abstract membership obligations. */
-@meta.define({ className: "CjsDestinyPartitionable", modelledOn: "Partitionable" })
+/**
+ * Modelled on: Partitionable (destiny/src/Partitionable.h:14-43)
+ */
 export class CjsDestinyPartitionable
 {
     mId = 0n;
@@ -11,13 +11,11 @@ export class CjsDestinyPartitionable
     mOldPos = [0, 0, 0];
     mNewBubble = -1;
     mOldBubble = -1;
-    @type.boolean
     isInteractive = false;
     mBoxes = [];
     mMyBox = null;
     mPark = null;
     mEffectStamp = 0;
-    @type.boolean
     isMoribund = false;
 
     /**
@@ -26,7 +24,6 @@ export class CjsDestinyPartitionable
      *
      * @returns {void} Implemented by the concrete native owner.
      */
-    @meta.adapted
     ClearBoxes()
     {
         throw new Error("Partitionable.ClearBoxes is abstract");
@@ -38,7 +35,6 @@ export class CjsDestinyPartitionable
      *
      * @returns {void} Implemented by the concrete native owner.
      */
-    @meta.adapted
     DeleteFromBoxes()
     {
         throw new Error("Partitionable.DeleteFromBoxes is abstract");
@@ -51,7 +47,6 @@ export class CjsDestinyPartitionable
      * @param {CjsDestinyBox|null} box Destination cell.
      * @returns {void} Implemented by the concrete native owner.
      */
-    @meta.adapted
     InsertInBox(box)
     {
         throw new Error("Partitionable.InsertInBox is abstract");
@@ -63,7 +58,6 @@ export class CjsDestinyPartitionable
      *
      * @returns {number} Concrete owner's native float radius.
      */
-    @meta.adapted
     GetBoundingRadius()
     {
         throw new Error("Partitionable.GetBoundingRadius is abstract");
@@ -76,7 +70,6 @@ export class CjsDestinyPartitionable
      * @param {number} dt Interval to bound.
      * @returns {number} Concrete owner's inflated radius.
      */
-    @meta.adapted
     GetInflatedRadius(dt)
     {
         throw new Error("Partitionable.GetInflatedRadius is abstract");
@@ -90,7 +83,6 @@ export class CjsDestinyPartitionable
      * @param {boolean} isActive Activity state.
      * @returns {void} Implemented by the concrete native owner.
      */
-    @meta.adapted
     SetBoxActive(boxId, isActive)
     {
         throw new Error("Partitionable.SetBoxActive is abstract");
@@ -105,7 +97,6 @@ export class CjsDestinyPartitionable
      * @param {number} newBubbleId Bubble to retain across reinsertion.
      * @returns {void} Implemented by the concrete native owner.
      */
-    @meta.adapted
     InsertInBoxes(box1, top, newBubbleId)
     {
         throw new Error("Partitionable.InsertInBoxes is abstract");

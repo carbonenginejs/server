@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test, { afterEach } from "node:test";
-import { CjsSchema } from "@carbonenginejs/runtime/schema";
 import { CjsDestinySettingsConfiguration as Configuration, CjsDestinyGlobalSettings as GlobalSettings,
     CjsBallparkController, settings } from "@carbonenginejs/server/destiny";
 import { is_dynamical_orientation_enabled, enable_dynamical_orientation,
@@ -177,21 +176,3 @@ test("iterative and dynamical settings select supported evolution paths", () =>
     assert.ok(ball.mNewRot.every(Number.isFinite));
 });
 
-test("settings metadata records native identities and Blue aliases without simulation hydration", () =>
-{
-    assert.ok(CjsSchema.getField(Configuration, "collisionMaxIterations"));
-    assert.ok(CjsSchema.getField(Configuration, "useNewOrbit"));
-    assert.equal(CjsSchema.getSchema(Configuration).modelledOn, "SettingsConfiguration");
-    assert.equal(CjsSchema.getSchema(GlobalSettings).modelledOn, "GlobalSettings");
-    for (const field of ["collisionMaxIterations", "useIterativeCollision", "useDynamicalOrientation",
-        "disableDynamicalOrientationForMissiles", "useNewOrbit"])
-    {
-        // Settings_Blue.cpp:27-56: each row is MAP_ATTRIBUTE ... Be::READWRITE.
-        assert.deepEqual(CjsSchema.getField(Configuration, field).edit, { read: true, write: true });
-    }
-    for (const [alias, original] of [["Apply", "ApplyConfiguration"], ["Get", "GetConfiguration"],
-        ["GetDefault", "GetDefaultConfiguration"], ["Reset", "ResetConfiguration"]])
-    {
-        assert.equal(CjsSchema.getMethod(GlobalSettings, alias).carbon.originalName, original);
-    }
-});

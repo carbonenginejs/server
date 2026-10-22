@@ -1,4 +1,3 @@
-import { meta, blue, type } from "@carbonenginejs/runtime/schema";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { CjsDestinyBall } from "../CjsDestinyBall.js";
 import { CjsDestinyStaticCollidable } from "../partition/CjsDestinyStaticCollidable.js";
@@ -8,7 +7,9 @@ import { CjsDestinyAABB } from "./CjsDestinyAABB.js";
 // Source: destiny/src/OrientedBox.h:11-39; destiny/src/OrientedBox.cpp:6-322
 // Source: destiny/src/OrientedBox_Blue.cpp:11-29
 /** Carbon static oriented-box geometry, partition memberships and collision response. */
-@meta.define({ className: "CjsDestinyOrientedBox", modelledOn: "OrientedBox" })
+/**
+ * Modelled on: OrientedBox (destiny/src/OrientedBox.h:12-37)
+ */
 export class CjsDestinyOrientedBox extends CjsDestinyStaticCollidable
 {
     m_boxShape = new CjsDestinyBoxShape();
@@ -37,7 +38,6 @@ export class CjsDestinyOrientedBox extends CjsDestinyStaticCollidable
      * @param {number} z2 Local Z edge Z.
      * @returns {void} Rebuilds derived geometry only.
      */
-    @meta.adapted
     Initialize(theID, parentObjectId, c0, c1, c2, x0, x1, x2, y0, y1, y2, z0, z1, z2)
     {
         this.mId = CjsDestinyBall._toInt64(theID);
@@ -56,7 +56,6 @@ export class CjsDestinyOrientedBox extends CjsDestinyStaticCollidable
      *
      * @returns {number} Float32 bounding radius.
      */
-    @meta.implemented
     GetBoundingRadius()
     {
         return Math.fround(this.m_boxShape.GetBoundingRadius());
@@ -68,7 +67,6 @@ export class CjsDestinyOrientedBox extends CjsDestinyStaticCollidable
      * @param {number[]} out Destination center.
      * @returns {number[]} Supplied destination.
      */
-    @meta.adapted
     GetCenter(out)
     {
         return this.m_boxShape.GetCenter(out);
@@ -84,7 +82,6 @@ export class CjsDestinyOrientedBox extends CjsDestinyStaticCollidable
      * @param {{normal: number[], timeOfImpact: number}} out Collision outputs.
      * @returns {boolean} Whether the sphere intersects.
      */
-    @meta.adapted
     CheckCollision(p0, p1, radius, out)
     {
         radius = Math.fround(radius);
@@ -108,7 +105,6 @@ export class CjsDestinyOrientedBox extends CjsDestinyStaticCollidable
      * @param {CjsDestinyBall} ball Candidate ball.
      * @returns {void} Updates collision acceleration and IDs on contact.
      */
-    @meta.adapted
     CollideWithBall(ball)
     {
         if (!ball.isFree) return;
@@ -136,7 +132,6 @@ export class CjsDestinyOrientedBox extends CjsDestinyStaticCollidable
      * @param {number} timeOfImpact Tick fraction, or -1 for no collision.
      * @returns {void} Appends the shape ID even when an equal-time force is weaker.
      */
-    @meta.adapted
     ReactToCollision(ball, ballPosition, ballVelocity, m1, normal, timeOfImpact)
     {
         if (timeOfImpact === -1) return;
@@ -181,7 +176,6 @@ export class CjsDestinyOrientedBox extends CjsDestinyStaticCollidable
      * @param {number} newBubbleId Master bubble ID to restore.
      * @returns {void} Same-key/same-modifier calls retain memberships.
      */
-    @meta.adapted
     InsertInBoxes(box1, top, newBubbleId)
     {
         const partition = this.mPark.mPartition, radius = this.mAABB.GetLongestWidth() / 2;
@@ -235,9 +229,6 @@ export class CjsDestinyOrientedBox extends CjsDestinyStaticCollidable
      * Blue row: OrientedBox_Blue.cpp:18 MAP_ATTRIBUTE READWRITE.
      * @returns {bigint} Native signed ID.
      */
-    @blue.readwrite
-    @type.int64
-    @meta.implemented
     get id() { return this.mId; }
 
     /**
@@ -245,14 +236,12 @@ export class CjsDestinyOrientedBox extends CjsDestinyStaticCollidable
      * @param {bigint|number} value Shape ID.
      * @returns {void} Does not reindex owning collections.
      */
-    @meta.adapted
     set id(value) { this.mId = CjsDestinyBall._toInt64(value); }
 
     /**
      * Reads the Blue owner reference.
      * @returns {Object|null} Owning park.
      */
-    @meta.implemented
     get park() { return this.mPark; }
 
     /**
@@ -260,8 +249,5 @@ export class CjsDestinyOrientedBox extends CjsDestinyStaticCollidable
      * Blue row: OrientedBox_Blue.cpp:20 MAP_ATTRIBUTE READ.
      * @returns {number} Corner A X component.
      */
-    @blue.read
-    @type.float64
-    @meta.implemented
     get corner_x() { return this.m_boxShape.m_corners[0][0]; }
 }

@@ -1,4 +1,3 @@
-import { meta } from "@carbonenginejs/runtime/schema";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { quat } from "@carbonenginejs/runtime/math/quat";
 import { vec3d } from "./math/vec3d.js";
@@ -9,8 +8,9 @@ import { vec3d } from "./math/vec3d.js";
  * Native collision impulse with owned linear and angular changes.
  * Adaptation: scalar defaults model the value-initialized new CollisionImpact()
  * used by Ballpark, including collider zero rather than the no-collision -1.
+ *
+ * Carbon: CollisionImpact (destiny/src/CollisionStructures.h:11-17)
  */
-@meta.define({ className: "CollisionImpact", carbon: "CollisionImpact" })
 export class CollisionImpact
 {
     timeOfImpact = 0;
@@ -20,7 +20,9 @@ export class CollisionImpact
 }
 
 /** Native earliest-contact candidate, borrowing its collider and owning its impact. */
-@meta.define({ className: "CollisionItem", carbon: "CollisionItem" })
+/**
+ * Carbon: CollisionItem (destiny/src/CollisionStructures.h:23-33)
+ */
 export class CollisionItem
 {
     timeOfImpact = -1;
@@ -32,7 +34,9 @@ export class CollisionItem
 }
 
 /** Native collision history point with independently owned position, velocity and rotation. */
-@meta.define({ className: "BallLocation", carbon: "BallLocation" })
+/**
+ * Carbon: BallLocation (destiny/src/CollisionStructures.h:36-45)
+ */
 export class BallLocation
 {
     time = -1;

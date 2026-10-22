@@ -1,8 +1,8 @@
-import { meta } from "@carbonenginejs/runtime/schema";
-
 // Source: destiny/python/destiny/net/client/_interface.py:6-95.
 /** Native client-game callbacks; applications implement the abstract operations. */
-@meta.define({ className: "DestinyClientTickerInterface", carbon: "destiny.net.client.ClientTickerInterface" })
+/**
+ * Carbon: ClientTickerInterface (destiny/python/destiny/net/client/_interface.py:6-95)
+ */
 export class ClientTickerInterface
 {
     _ballpark = null;
@@ -12,7 +12,6 @@ export class ClientTickerInterface
      * @param {CjsBallparkController|null} ballpark Active park.
      * @returns {void} Replaces the retained reference.
      */
-    @meta.implemented
     set_ballpark(ballpark) { this._ballpark = ballpark; }
 
     /**
@@ -20,7 +19,6 @@ export class ClientTickerInterface
      * Adaptation: an abstract invocation throws in JS instead of ABC enforcement.
      * @returns {void} Implement in the game adapter.
      */
-    @meta.adapted
     on_set_state() { throw new TypeError("ClientTickerInterface.on_set_state is abstract"); }
 
     /**
@@ -30,7 +28,6 @@ export class ClientTickerInterface
      * @param {Array} args Native positional arguments.
      * @returns {void} Implement in the game adapter.
      */
-    @meta.adapted
     on_ballpark_local_action(func_name, args) { throw new TypeError("ClientTickerInterface.on_ballpark_local_action is abstract"); }
 
     /**
@@ -38,7 +35,6 @@ export class ClientTickerInterface
      * Adaptation: an abstract invocation throws in JS instead of ABC enforcement.
      * @returns {boolean} Implement in the game adapter.
      */
-    @meta.adapted
     should_log_actions() { throw new TypeError("ClientTickerInterface.should_log_actions is abstract"); }
 
     /**
@@ -48,7 +44,6 @@ export class ClientTickerInterface
      * @param {boolean} [is_terminal=false] Whether removal represents destruction.
      * @returns {number} Delay in simulation ticks, supplied by the game.
      */
-    @meta.adapted
     get_ball_destruction_delay(ball, is_terminal = false) { throw new TypeError("ClientTickerInterface.get_ball_destruction_delay is abstract"); }
 
     /**
@@ -59,7 +54,6 @@ export class ClientTickerInterface
      * @param {boolean} [is_release=false] Whether the scene is being released.
      * @returns {Map<bigint|number,number>} IDs and tick delays supplied by the game.
      */
-    @meta.adapted
     get_ball_destruction_delays(ball_ids, is_release = false) { throw new TypeError("ClientTickerInterface.get_ball_destruction_delays is abstract"); }
 
     /**
@@ -70,7 +64,6 @@ export class ClientTickerInterface
      * @param {boolean} [is_terminal=false] Whether removal represents destruction.
      * @returns {void} Implement in the game adapter.
      */
-    @meta.adapted
     clean_up_after_ball_removal(ball_id, ball, is_terminal = false) { throw new TypeError("ClientTickerInterface.clean_up_after_ball_removal is abstract"); }
 
     /**
@@ -80,6 +73,5 @@ export class ClientTickerInterface
      * @param {boolean} [is_release=false] Whether the scene is being released.
      * @returns {void} Implement in the game adapter.
      */
-    @meta.adapted
     clean_up_after_multiple_ball_removal(ball_ids, is_release = false) { throw new TypeError("ClientTickerInterface.clean_up_after_multiple_ball_removal is abstract"); }
 }

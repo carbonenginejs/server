@@ -1,8 +1,8 @@
-import { meta } from "@carbonenginejs/runtime/schema";
-
 // Source: destiny/src/Partition.h:104-123
 /** Carbon KeyHash with the Windows x64 MSVC integral-hash dependency made explicit. */
-@meta.define({ className: "CjsDestinyKeyHash", modelledOn: "KeyHash" })
+/**
+ * Modelled on: KeyHash (destiny/src/Partition.h:104-121)
+ */
 export class CjsDestinyKeyHash
 {
     /**
@@ -15,7 +15,6 @@ export class CjsDestinyKeyHash
      * @param {CjsDestinyKey} key Native key to hash.
      * @returns {bigint} Windows x64 size_t hash.
      */
-    @meta.adapted
     Call(key)
     {
         let seed = 0n;

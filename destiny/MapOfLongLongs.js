@@ -1,8 +1,8 @@
-import { meta } from "@carbonenginejs/runtime/schema";
-
 // Source: destiny/src/MapOfLongLongs.h
 /** Native signed-int64 map with replacement insertion and non-inserting zero reads. */
-@meta.define({ className: "MapOfLongLongs", modelledOn: "MapOfLongLongs" })
+/**
+ * Modelled on: MapOfLongLongs (destiny/src/MapOfLongLongs.h:7-25)
+ */
 export class MapOfLongLongs extends Map
 {
     /**
@@ -12,7 +12,6 @@ export class MapOfLongLongs extends Map
      * @param {bigint} value Signed-int64 value.
      * @returns {void} Replaces an existing value without adding a second entry.
      */
-    @meta.adapted
     insert(key, value) { super.set(key, value); }
 
     /**
@@ -21,6 +20,5 @@ export class MapOfLongLongs extends Map
      * @param {bigint} key Signed-int64 key.
      * @returns {bigint} Stored value or zero when absent.
      */
-    @meta.adapted
     get(key) { return super.has(key) ? super.get(key) : 0n; }
 }

@@ -1,10 +1,8 @@
-import { meta } from "@carbonenginejs/runtime/schema";
 import { CjsByteReader } from "@carbonenginejs/runtime/resource/format";
 import { asUint8Array } from "@carbonenginejs/runtime/utils/bytes";
 
 // Source: destiny/src/Thunkers.cpp:2083-2257,2897-3377
 /** Server-owned seekable byte adapter for Destiny's native Blue stream consumers. */
-@meta.define({ className: "CjsDestinyStream" })
 export class CjsDestinyStream extends CjsByteReader
 {
     /**

@@ -1,4 +1,3 @@
-import { meta } from "@carbonenginejs/runtime/schema";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { GetPointOnBallThatFirstIntersectsPlane } from "../Collision.js";
 import { CjsDestinyRectangleShape } from "./CjsDestinyRectangleShape.js";
@@ -18,7 +17,9 @@ const CONNECTED_SIDES = [
 const sideMapping = [[SIDE_LEFT, SIDE_RIGHT], [SIDE_BOTTOM, SIDE_TOP], [SIDE_BACK, SIDE_FRONT]];
 
 /** Carbon box corners, faces, line intersections and swept-sphere collision queries. */
-@meta.define({ className: "CjsDestinyBoxShape", modelledOn: "BoxShape" })
+/**
+ * Modelled on: BoxShape (destiny/src/BoxShape.h:45-67)
+ */
 export class CjsDestinyBoxShape
 {
     m_corners = Array.from({ length: BoxCorner.CORNER_COUNT }, () => [0, 0, 0]);
@@ -78,7 +79,6 @@ export class CjsDestinyBoxShape
      * @param {number[]|Float64Array} p Query point.
      * @returns {number} Native BoxCorner value.
      */
-    @meta.implemented
     GetClosestCornerToPoint(p)
     {
         let closestCorner = CORNER_A;
@@ -104,7 +104,6 @@ export class CjsDestinyBoxShape
      * @param {number[]|Float64Array} p Query point.
      * @returns {number[]|Float64Array} Supplied destination.
      */
-    @meta.adapted
     GetClosestPointOnBox(out, p)
     {
         const { vec3_0, vec3_1, vec3_2 } = CjsDestinyBoxShape.scratch;
@@ -136,7 +135,6 @@ export class CjsDestinyBoxShape
      * @param {{side1: number, d1: number, side2: number, d2: number}} out Native reference outputs.
      * @returns {boolean} Whether the strict slab interval has positive length.
      */
-    @meta.adapted
     RayIntersect(origin, ray, out)
     {
         const { vec3_0, tmin, tmax, revert } = CjsDestinyBoxShape.scratch;
@@ -198,7 +196,6 @@ export class CjsDestinyBoxShape
      * @param {{collisionPoint: number[]|Float64Array, collisionTime: number, normal: number[]|Float64Array}} out Native reference outputs.
      * @returns {boolean} Whether Carbon reports an overlap or a face collision.
      */
-    @meta.adapted
     CollideWithSphere(spherePosition, sphereRadius, sphereVelocity, out)
     {
         const { vec3_3, vec3_4, vec3_5, vec3_6, vec3_7, hit } = CjsDestinyBoxShape.scratch;
@@ -277,7 +274,6 @@ export class CjsDestinyBoxShape
      * @param {number[]|Float64Array} out Destination vector.
      * @returns {number[]|Float64Array} Supplied destination.
      */
-    @meta.adapted
     GetCenter(out)
     {
         const a = this.m_corners[CORNER_A], h = this.m_corners[CORNER_H];
@@ -290,7 +286,6 @@ export class CjsDestinyBoxShape
      *
      * @returns {number} Native bounding-sphere radius.
      */
-    @meta.implemented
     GetBoundingRadius()
     {
         return Math.sqrt(vec3.squaredDistance(this.m_corners[CORNER_H], this.m_corners[CORNER_A])) / 2;

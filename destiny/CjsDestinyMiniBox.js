@@ -1,4 +1,4 @@
-import { meta, blue, type } from "@carbonenginejs/runtime/schema";
+import { blue } from "@carbonenginejs/runtime/schema";
 import { vec3d } from "./math/vec3d.js";
 
 // Source: destiny/src/MiniBox.h
@@ -9,8 +9,9 @@ import { vec3d } from "./math/vec3d.js";
  * Adaptation: owned f64 views and JS accessors replace native value fields;
  * GC replaces IRoot locking. Native Python constructors remain outside this surface.
  * The parent ID stays undefined until assigned, matching native indeterminate storage.
+ *
+ * Modelled on: MiniBox (destiny/src/MiniBox.h:14-34)
  */
-@meta.define({ className: "CjsDestinyMiniBox", modelledOn: "MiniBox" })
 export class CjsDestinyMiniBox
 {
     mId = 0n;
@@ -31,9 +32,6 @@ export class CjsDestinyMiniBox
      * Blue row: MiniBox_Blue.cpp:15 MAP_ATTRIBUTE READ.
      * @returns {bigint} Last materialized collider ID, initially zero.
      */
-    @blue.read
-    @type.int64
-    @meta.adapted
     get id() { return this.mId; }
 
     /**
@@ -42,11 +40,6 @@ export class CjsDestinyMiniBox
      * Blue row: MiniBox_Blue.cpp:25 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float64
-    @meta.adapted
     get c0() { return this.mCorner[0]; }
 
     /**
@@ -55,7 +48,6 @@ export class CjsDestinyMiniBox
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set c0(value) { this.mCorner[0] = value; }
 
     /**
@@ -64,11 +56,6 @@ export class CjsDestinyMiniBox
      * Blue row: MiniBox_Blue.cpp:33 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float64
-    @meta.adapted
     get c1() { return this.mCorner[1]; }
 
     /**
@@ -77,7 +64,6 @@ export class CjsDestinyMiniBox
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set c1(value) { this.mCorner[1] = value; }
 
     /**
@@ -86,11 +72,6 @@ export class CjsDestinyMiniBox
      * Blue row: MiniBox_Blue.cpp:41 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float64
-    @meta.adapted
     get c2() { return this.mCorner[2]; }
 
     /**
@@ -99,7 +80,6 @@ export class CjsDestinyMiniBox
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set c2(value) { this.mCorner[2] = value; }
 
     /**
@@ -108,11 +88,6 @@ export class CjsDestinyMiniBox
      * Blue row: MiniBox_Blue.cpp:51 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float64
-    @meta.adapted
     get x0() { return this.mLocalX[0]; }
 
     /**
@@ -121,7 +96,6 @@ export class CjsDestinyMiniBox
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set x0(value) { this.mLocalX[0] = value; }
 
     /**
@@ -130,11 +104,6 @@ export class CjsDestinyMiniBox
      * Blue row: MiniBox_Blue.cpp:59 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float64
-    @meta.adapted
     get x1() { return this.mLocalX[1]; }
 
     /**
@@ -143,7 +112,6 @@ export class CjsDestinyMiniBox
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set x1(value) { this.mLocalX[1] = value; }
 
     /**
@@ -152,11 +120,6 @@ export class CjsDestinyMiniBox
      * Blue row: MiniBox_Blue.cpp:67 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float64
-    @meta.adapted
     get x2() { return this.mLocalX[2]; }
 
     /**
@@ -165,7 +128,6 @@ export class CjsDestinyMiniBox
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set x2(value) { this.mLocalX[2] = value; }
 
     /**
@@ -174,11 +136,6 @@ export class CjsDestinyMiniBox
      * Blue row: MiniBox_Blue.cpp:77 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float64
-    @meta.adapted
     get y0() { return this.mLocalY[0]; }
 
     /**
@@ -187,7 +144,6 @@ export class CjsDestinyMiniBox
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set y0(value) { this.mLocalY[0] = value; }
 
     /**
@@ -196,11 +152,6 @@ export class CjsDestinyMiniBox
      * Blue row: MiniBox_Blue.cpp:85 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float64
-    @meta.adapted
     get y1() { return this.mLocalY[1]; }
 
     /**
@@ -209,7 +160,6 @@ export class CjsDestinyMiniBox
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set y1(value) { this.mLocalY[1] = value; }
 
     /**
@@ -218,11 +168,6 @@ export class CjsDestinyMiniBox
      * Blue row: MiniBox_Blue.cpp:93 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float64
-    @meta.adapted
     get y2() { return this.mLocalY[2]; }
 
     /**
@@ -231,7 +176,6 @@ export class CjsDestinyMiniBox
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set y2(value) { this.mLocalY[2] = value; }
 
     /**
@@ -240,11 +184,6 @@ export class CjsDestinyMiniBox
      * Blue row: MiniBox_Blue.cpp:103 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float64
-    @meta.adapted
     get z0() { return this.mLocalZ[0]; }
 
     /**
@@ -253,7 +192,6 @@ export class CjsDestinyMiniBox
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set z0(value) { this.mLocalZ[0] = value; }
 
     /**
@@ -262,11 +200,6 @@ export class CjsDestinyMiniBox
      * Blue row: MiniBox_Blue.cpp:111 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float64
-    @meta.adapted
     get z1() { return this.mLocalZ[1]; }
 
     /**
@@ -275,7 +208,6 @@ export class CjsDestinyMiniBox
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set z1(value) { this.mLocalZ[1] = value; }
 
     /**
@@ -284,11 +216,6 @@ export class CjsDestinyMiniBox
      * Blue row: MiniBox_Blue.cpp:119 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float64
-    @meta.adapted
     get z2() { return this.mLocalZ[2]; }
 
     /**
@@ -297,9 +224,9 @@ export class CjsDestinyMiniBox
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set z2(value) { this.mLocalZ[2] = value; }
 }
 
 // Native self-interface admission for BlueList<MiniBox>; no simulation schema lookup.
+// BlueList admits items through the runtime exposure table, which has no non-schema registration API.
 blue.interface()(CjsDestinyMiniBox, { kind: "class" });

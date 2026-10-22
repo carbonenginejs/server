@@ -1,4 +1,4 @@
-import { meta, blue, type } from "@carbonenginejs/runtime/schema";
+import { blue } from "@carbonenginejs/runtime/schema";
 import { vec3d } from "./math/vec3d.js";
 
 // Source: destiny/src/MiniBall.h
@@ -8,8 +8,9 @@ import { vec3d } from "./math/vec3d.js";
  * Carbon MiniBall descriptor, separate from its materialized world collider.
  * Adaptation: owned f64 views and JS accessors replace native value fields;
  * GC replaces IRoot locking. Native Python constructors remain outside this surface.
+ *
+ * Modelled on: MiniBall (destiny/src/MiniBall.h:14-31)
  */
-@meta.define({ className: "CjsDestinyMiniBall", modelledOn: "MiniBall" })
 export class CjsDestinyMiniBall
 {
     mId = 0n;
@@ -24,9 +25,6 @@ export class CjsDestinyMiniBall
      * Blue row: Miniball_Blue.cpp:15 MAP_ATTRIBUTE READ.
      * @returns {bigint} Last materialized collider ID, initially zero.
      */
-    @blue.read
-    @type.int64
-    @meta.adapted
     get id() { return this.mId; }
 
     /**
@@ -35,11 +33,6 @@ export class CjsDestinyMiniBall
      * Blue row: Miniball_Blue.cpp:25 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float32
-    @meta.adapted
     get radius() { return this.mRadius; }
 
     /**
@@ -48,7 +41,6 @@ export class CjsDestinyMiniBall
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set radius(value) { this.mRadius = Math.fround(value); }
 
     /**
@@ -57,11 +49,6 @@ export class CjsDestinyMiniBall
      * Blue row: Miniball_Blue.cpp:35 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float64
-    @meta.adapted
     get x() { return this.mPos[0]; }
 
     /**
@@ -70,7 +57,6 @@ export class CjsDestinyMiniBall
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set x(value) { this.mPos[0] = value; }
 
     /**
@@ -79,11 +65,6 @@ export class CjsDestinyMiniBall
      * Blue row: Miniball_Blue.cpp:45 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float64
-    @meta.adapted
     get y() { return this.mPos[1]; }
 
     /**
@@ -92,7 +73,6 @@ export class CjsDestinyMiniBall
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set y(value) { this.mPos[1] = value; }
 
     /**
@@ -101,11 +81,6 @@ export class CjsDestinyMiniBall
      * Blue row: Miniball_Blue.cpp:55 MAP_ATTRIBUTE READWRITE | NOTIFY | PERSIST.
      * @returns {number} Stored descriptor value, independent of any world collider.
      */
-    @blue.notify
-    @blue.readwrite
-    @blue.persist
-    @type.float64
-    @meta.adapted
     get z() { return this.mPos[2]; }
 
     /**
@@ -114,9 +89,9 @@ export class CjsDestinyMiniBall
      * @param {number} value New descriptor component.
      * @returns {void} Updates only the descriptor.
      */
-    @meta.adapted
     set z(value) { this.mPos[2] = value; }
 }
 
 // Native self-interface admission for BlueList<MiniBall>; no simulation schema lookup.
+// BlueList admits items through the runtime exposure table, which has no non-schema registration API.
 blue.interface()(CjsDestinyMiniBall, { kind: "class" });

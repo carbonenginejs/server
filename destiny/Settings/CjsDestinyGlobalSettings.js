@@ -1,4 +1,3 @@
-import { meta, blue } from "@carbonenginejs/runtime/schema";
 import {
     CjsDestinySettingsConfiguration, g_collisionMaxIterationsDefault,
     g_useIterativeCollisionDefault, g_useDynamicalOrientationDefault,
@@ -15,7 +14,9 @@ export let g_disableDynamicalOrientationForMissiles = g_disableDynamicalOrientat
 export let g_useNewOrbit = g_useNewOrbitDefault;
 
 /** Copies and resets the native Destiny globals shared by all ballparks. */
-@meta.define({ className: "CjsDestinyGlobalSettings", modelledOn: "GlobalSettings" })
+/**
+ * Modelled on: GlobalSettings (destiny/src/Settings.h:35-44)
+ */
 export class CjsDestinyGlobalSettings
 {
     /**
@@ -28,8 +29,6 @@ export class CjsDestinyGlobalSettings
      * @returns {void} No return value, corresponding to Python None.
      * @throws {TypeError} If config was not constructed as a SettingsConfiguration.
      */
-    @blue.method
-    @meta.adapted
     ApplyConfiguration(config)
     {
         if (!CjsDestinySettingsConfiguration._isConfiguration(config))
@@ -49,8 +48,6 @@ export class CjsDestinyGlobalSettings
      *
      * @returns {CjsDestinySettingsConfiguration} Detached active configuration.
      */
-    @blue.method
-    @meta.adapted
     GetConfiguration()
     {
         const config = new CjsDestinySettingsConfiguration();
@@ -68,8 +65,6 @@ export class CjsDestinyGlobalSettings
      *
      * @returns {CjsDestinySettingsConfiguration} Detached default configuration.
      */
-    @blue.method
-    @meta.adapted
     GetDefaultConfiguration()
     {
         return new CjsDestinySettingsConfiguration();
@@ -80,8 +75,6 @@ export class CjsDestinyGlobalSettings
      *
      * @returns {void} No return value, corresponding to Python None.
      */
-    @blue.method
-    @meta.implemented
     ResetConfiguration()
     {
         g_collisionMaxIterations = g_collisionMaxIterationsDefault;
@@ -97,9 +90,9 @@ export class CjsDestinyGlobalSettings
      *
      * @param {CjsDestinySettingsConfiguration} config Configuration to copy.
      * @returns {void} No return value.
+     *
+     * Carbon name: ApplyConfiguration.
      */
-    @meta.renamed("ApplyConfiguration")
-    @meta.adapted
     Apply(config)
     {
         this.ApplyConfiguration(config);
@@ -110,9 +103,9 @@ export class CjsDestinyGlobalSettings
      * Adaptation: an explicit JS delegate replaces native method aliasing.
      *
      * @returns {CjsDestinySettingsConfiguration} Fresh active snapshot.
+     *
+     * Carbon name: GetConfiguration.
      */
-    @meta.renamed("GetConfiguration")
-    @meta.adapted
     Get()
     {
         return this.GetConfiguration();
@@ -123,9 +116,9 @@ export class CjsDestinyGlobalSettings
      * Adaptation: an explicit JS delegate replaces native method aliasing.
      *
      * @returns {CjsDestinySettingsConfiguration} Fresh default snapshot.
+     *
+     * Carbon name: GetDefaultConfiguration.
      */
-    @meta.renamed("GetDefaultConfiguration")
-    @meta.adapted
     GetDefault()
     {
         return this.GetDefaultConfiguration();
@@ -136,9 +129,9 @@ export class CjsDestinyGlobalSettings
      * Adaptation: an explicit JS delegate replaces native method aliasing.
      *
      * @returns {void} No return value.
+     *
+     * Carbon name: ResetConfiguration.
      */
-    @meta.renamed("ResetConfiguration")
-    @meta.adapted
     Reset()
     {
         this.ResetConfiguration();

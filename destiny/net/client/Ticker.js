@@ -1,4 +1,3 @@
-import { meta } from "@carbonenginejs/runtime/schema";
 import { CjsBallparkController } from "../../CjsBallparkController.js";
 import { CjsDestinyBall } from "../../CjsDestinyBall.js";
 import { CjsDestinyStream } from "../../CjsDestinyStream.js";
@@ -9,7 +8,9 @@ import { merge_state_into_history } from "./_util.js";
 const LOCAL_ACTIONS = new Set(["AddBallsToPark", "RemoveBall", "RemoveBalls"]);
 
 /** Client action history, native stream snapshots and tick synchronization. */
-@meta.define({ className: "DestinyClientTicker", carbon: "destiny.net.client.Ticker" })
+/**
+ * Carbon: Ticker (destiny/python/destiny/net/client/_ticker.py:21-415)
+ */
 export class Ticker extends BaseTicker
 {
     _should_rebase = false;
@@ -36,7 +37,6 @@ export class Ticker extends BaseTicker
      * @param {CjsBallparkController|null} ballpark New active park.
      * @returns {void} Notifies both interfaces.
      */
-    @meta.implemented
     set_ballpark(ballpark)
     {
         super.set_ballpark(ballpark); this._client_ticker_interface.set_ballpark(ballpark);
@@ -50,7 +50,6 @@ export class Ticker extends BaseTicker
      * @param {boolean} wait_for_bubble Whether to wait for companion bubble events.
      * @returns {void} Empty or stale ordinary updates are ignored.
      */
-    @meta.adapted
     _flush_state(state, wait_for_bubble)
     {
         if (!state.length) { this._logger.warn("Empty state received from remote ballpark"); return; }
@@ -75,7 +74,6 @@ export class Ticker extends BaseTicker
      * Source: destiny/python/destiny/net/client/_ticker.py:88-123.
      * @returns {void} Waiting groups and updates one or two ticks ahead defer.
      */
-    @meta.adapted
     do_pre_tick()
     {
         while (this._history.length)
@@ -103,7 +101,6 @@ export class Ticker extends BaseTicker
      * @param {bigint|number} ego_ball_id Ego ball identity.
      * @returns {void} Creates a base snapshot after successful startup.
      */
-    @meta.adapted
     _set_state(state, ego_ball_id)
     {
         this._client_ticker_interface.on_set_state(); this._ballpark.ClearAll();
@@ -123,7 +120,6 @@ export class Ticker extends BaseTicker
      * @param {Array} state Ordered stamped actions.
      * @returns {void} Reports recoverable desync when synchronization fails.
      */
-    @meta.adapted
     _real_flush_state(state)
     {
         if (!state.length) { this._logger.warn("Empty state received from remote ballpark"); return; }
@@ -163,7 +159,6 @@ export class Ticker extends BaseTicker
      * @param {number} stamp Post-tick label supplied by the host.
      * @returns {void} Resets the rebase flag only after a successful flush.
      */
-    @meta.implemented
     do_post_tick(stamp)
     {
         if (this._should_rebase) { this.flush_simulation_history(); this._should_rebase = false; }
@@ -174,7 +169,6 @@ export class Ticker extends BaseTicker
      * Replaces the snapshot list without changing its last-stamp marker.
      * @returns {void} Old list references remain detached.
      */
-    @meta.implemented
     clear_states() { this._states = []; }
 
     /**
@@ -185,7 +179,6 @@ export class Ticker extends BaseTicker
      * @param {boolean} [mid_tick=false] Whether this snapshot was captured in pre-tick.
      * @returns {void} Does not capture omitted native transient state or local IDs.
      */
-    @meta.adapted
     store_state(mid_tick = false)
     {
         if (!this._ballpark.isRunning) return;
@@ -205,7 +198,6 @@ export class Ticker extends BaseTicker
      * @param {number} stamp Target simulation tick.
      * @returns {number} One on success; zero if rewind has no eligible snapshot.
      */
-    @meta.adapted
     synchronize_to_simulation_time(stamp)
     {
         let last_stamp;
@@ -230,7 +222,6 @@ export class Ticker extends BaseTicker
      * @param {boolean} [new_base_snapshot=true] False clears without saving a base.
      * @returns {void} Retains at most the eligible mid-state and the new base.
      */
-    @meta.adapted
     flush_simulation_history(new_base_snapshot = true)
     {
         let last_mid_state = null;
@@ -253,7 +244,6 @@ export class Ticker extends BaseTicker
      * @param {ArrayBuffer|ArrayBufferView} state Selected-ball packet bytes.
      * @returns {void} Partial=2 still replaces fixed minis, as the native reader does.
      */
-    @meta.adapted
     AddBallsToPark(state) { this._ballpark.ReadFullStateFromStream(new CjsDestinyStream(state), 2); }
 
     /**
@@ -264,7 +254,6 @@ export class Ticker extends BaseTicker
      * @param {boolean} [terminal=false] Whether the game treats this as destruction.
      * @returns {void} Cleanup receives the pre-removal ball, including null if absent.
      */
-    @meta.adapted
     RemoveBall(ball_id, terminal = false)
     {
         const ball = CjsBallparkController.prototype.GetBall.call(this._ballpark, ball_id);
@@ -281,7 +270,6 @@ export class Ticker extends BaseTicker
      * @param {boolean} [is_release=false] Whether the whole park is being released.
      * @returns {void} Removes exactly the IDs returned by the delay callback.
      */
-    @meta.adapted
     RemoveBalls(ball_ids, is_release = false)
     {
         this._client_ticker_interface.clean_up_after_multiple_ball_removal(ball_ids, is_release);
@@ -293,7 +281,6 @@ export class Ticker extends BaseTicker
      * Marks the simulation invalid pending a subsequent SetState.
      * @returns {void} Does not clear history or pause the park.
      */
-    @meta.implemented
     invalidate_state() { this._state_is_valid = false; }
 
     /**
@@ -302,7 +289,6 @@ export class Ticker extends BaseTicker
      * Source: destiny/python/destiny/net/client/_ticker.py:402-415.
      * @returns {void} Native last-stamp and should-rebase fields remain unchanged.
      */
-    @meta.adapted
     release()
     {
         this.RemoveBalls(Array.from(this._ballpark.balls.keys()), true); this._ballpark.ClearAll();

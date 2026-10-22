@@ -1,8 +1,8 @@
-import { meta } from "@carbonenginejs/runtime/schema";
-
 // Source: destiny/src/SortedSets.h:12-17; destiny/src/Box.cpp:278-282
 /** Native box ordering by the complete partition key. */
-@meta.define({ className: "CjsDestinyBoxSortComparer", modelledOn: "BoxSortComparer" })
+/**
+ * Modelled on: BoxSortComparer (destiny/src/SortedSets.h:12-16)
+ */
 export class CjsDestinyBoxSortComparer
 {
     /**
@@ -12,7 +12,6 @@ export class CjsDestinyBoxSortComparer
      * @param {CjsDestinyBox} y Second box.
      * @returns {boolean} Whether x precedes y.
      */
-    @meta.adapted
     Call(x, y)
     {
         return x.mKey.LessThan(y.mKey);

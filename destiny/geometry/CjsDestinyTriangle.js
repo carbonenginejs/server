@@ -1,11 +1,12 @@
-import { meta } from "@carbonenginejs/runtime/schema";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { vec3d } from "../math/vec3d.js";
 import { CjsDestinyPlaned } from "./CjsDestinyPlaned.js";
 
 // Source: destiny/src/Triangle.h; destiny/src/Triangle.cpp
 /** Carbon triangle queries with float64 storage preserving Vector3d precision. */
-@meta.define({ className: "CjsDestinyTriangle", modelledOn: "Triangle" })
+/**
+ * Modelled on: Triangle (destiny/src/Triangle.h:8-19)
+ */
 export class CjsDestinyTriangle
 {
     a = vec3d.create();
@@ -35,7 +36,6 @@ export class CjsDestinyTriangle
      * @param {number[]|Float64Array} out Caller-owned double-precision vector to receive the result.
      * @returns {number[]|Float64Array} The supplied output vector.
      */
-    @meta.adapted
     GetNormal(out)
     {
         const { vec3d_0, vec3d_1 } = CjsDestinyTriangle.scratch;
@@ -55,7 +55,6 @@ export class CjsDestinyTriangle
      * @param {number[]|Float64Array} p Query point.
      * @returns {number[]|Float64Array} The supplied output vector.
      */
-    @meta.adapted
     GetClosestPoint(out, p)
     {
         const { vec3d_0, vec3d_1, vec3d_2, vec3d_3, vec3d_4 } = CjsDestinyTriangle.scratch;
@@ -106,7 +105,6 @@ export class CjsDestinyTriangle
      * @param {number[]|Float64Array} p Query point.
      * @returns {boolean} Native barycentric containment result.
      */
-    @meta.implemented
     ContainsPoint(p)
     {
         const { vec3d_0, vec3d_1, vec3d_2 } = CjsDestinyTriangle.scratch;

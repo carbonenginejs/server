@@ -1,8 +1,8 @@
-import { meta } from "@carbonenginejs/runtime/schema";
-
 // Source: destiny/python/destiny/net/server/_bubbleupdater.py:6-54.
 /** Collects native bubble deltas once per simulation tick before acknowledging them. */
-@meta.define({ className: "DestinyServerBubbleUpdater", carbon: "destiny.net.server.BubbleUpdater" })
+/**
+ * Carbon: BubbleUpdater (destiny/python/destiny/net/server/_bubbleupdater.py:6-54)
+ */
 export class BubbleUpdater
 {
     _park = null;
@@ -24,7 +24,6 @@ export class BubbleUpdater
      * Calculates deltas, acknowledges markers, then caches the current tick.
      * @returns {void} Repeated calls in the same tick retain the previous outputs.
      */
-    @meta.implemented
     additions_and_deletions()
     {
         if (this._tick !== this._park.currentTime)
@@ -41,7 +40,6 @@ export class BubbleUpdater
      * Maps and arrays retain native dictionary/list identities and order.
      * @returns {void} Failures leave the new maps installed and the tick unacknowledged.
      */
-    @meta.adapted
     _process_additions_and_deletions_for_tick()
     {
         this.user_balls = [];

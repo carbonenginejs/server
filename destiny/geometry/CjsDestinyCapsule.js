@@ -1,4 +1,3 @@
-import { meta, blue, type } from "@carbonenginejs/runtime/schema";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { CjsDestinyBall } from "../CjsDestinyBall.js";
 import { CjsDestinyStaticCollidable } from "../partition/CjsDestinyStaticCollidable.js";
@@ -8,7 +7,9 @@ import { CollideTwoSpheres, Quadratic } from "./Collision.js";
 // Source: destiny/src/Capsule.h:12-33; destiny/src/Capsule.cpp:11-581
 // Source: destiny/src/Capsule_Blue.cpp:8-28
 /** Carbon static capsule queries, sampled memberships and both response paths. */
-@meta.define({ className: "CjsDestinyCapsule", modelledOn: "Capsule" })
+/**
+ * Modelled on: Capsule (destiny/src/Capsule.h:11-31)
+ */
 export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
 {
     mHemisphereA = [0, 0, 0];
@@ -32,7 +33,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {number} radius Float radius.
      * @returns {void} Rebuilds derived geometry without changing membership.
      */
-    @meta.adapted
     Initialize(theID, parentObjectId, ax, ay, az, bx, by, bz, radius)
     {
         this.mId = CjsDestinyBall._toInt64(theID);
@@ -49,7 +49,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * Computes radius with native intermediate float rounding.
      * @returns {number} Float32 bounding sphere radius.
      */
-    @meta.implemented
     GetBoundingRadius()
     {
         return Math.fround(Math.fround(Math.fround(Math.sqrt(vec3.dot(this.mAB, this.mAB))) * 0.5) + this.mRadius);
@@ -60,7 +59,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {number[]} out Destination center.
      * @returns {number[]} Supplied destination.
      */
-    @meta.adapted
     GetCenter(out)
     {
         return vec3.scale(out, vec3.add(out, this.mHemisphereA, this.mHemisphereB), 0.5);
@@ -77,7 +75,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {{normal: number[], timeOfImpact: number}} out Contact outputs.
      * @returns {boolean} Whether the source test accepts contact.
      */
-    @meta.adapted
     CheckCollision(p0, p1, radius, out)
     {
         radius = Math.fround(radius);
@@ -190,7 +187,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {number[]} vp1 Predicted velocity, copied on entry.
      * @returns {void} Applies response when native root/cap selection finds contact.
      */
-    @meta.adapted
     HandleCollisionNonIteratively(ball, p0, p1, m1, vp1)
     {
         p0 = [...p0]; p1 = [...p1]; vp1 = [...vp1];
@@ -270,7 +266,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {CjsDestinyBall} ball Candidate ball.
      * @returns {void} May record collision acceleration and IDs.
      */
-    @meta.adapted
     CollideWithBall(ball)
     {
         if (!ball.isFree) return;
@@ -298,7 +293,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {number} timeOfImpact Tick fraction, or -1 for no collision.
      * @returns {void} Outward acceleration suppresses positive-time response only.
      */
-    @meta.adapted
     ReactToCollision(ball, ballPosition, ballVelocity, m1, normal, timeOfImpact)
     {
         if (timeOfImpact === -1) return;
@@ -347,7 +341,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {number} newBubbleId Master bubble ID to restore.
      * @returns {void} Same-key and nonpositive-radius early returns retain membership.
      */
-    @meta.adapted
     InsertInBoxes(box1, top, newBubbleId)
     {
         if (this.mMyBox && box1.mKey.Equals(this.mMyBox.mKey)) return;
@@ -399,9 +392,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * Blue row: Capsule_Blue.cpp:15 MAP_ATTRIBUTE READWRITE.
      * @returns {bigint} Stored value.
      */
-    @blue.readwrite
-    @type.int64
-    @meta.implemented
     get id() { return this.mId; }
 
     /**
@@ -410,7 +400,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {bigint|number} value New value.
      * @returns {void} Stores only this component.
      */
-    @meta.adapted
     set id(value) { this.mId = CjsDestinyBall._toInt64(value); }
 
     /**
@@ -418,9 +407,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * Blue row: Capsule_Blue.cpp:16 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored value.
      */
-    @blue.readwrite
-    @type.float64
-    @meta.implemented
     get ax() { return this.mHemisphereA[0]; }
 
     /**
@@ -429,7 +415,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {number} value New value.
      * @returns {void} Stores only this component.
      */
-    @meta.implemented
     set ax(value) { this.mHemisphereA[0] = value; }
 
     /**
@@ -437,9 +422,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * Blue row: Capsule_Blue.cpp:17 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored value.
      */
-    @blue.readwrite
-    @type.float64
-    @meta.implemented
     get ay() { return this.mHemisphereA[1]; }
 
     /**
@@ -448,7 +430,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {number} value New value.
      * @returns {void} Stores only this component.
      */
-    @meta.implemented
     set ay(value) { this.mHemisphereA[1] = value; }
 
     /**
@@ -456,9 +437,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * Blue row: Capsule_Blue.cpp:18 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored value.
      */
-    @blue.readwrite
-    @type.float64
-    @meta.implemented
     get az() { return this.mHemisphereA[2]; }
 
     /**
@@ -467,7 +445,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {number} value New value.
      * @returns {void} Stores only this component.
      */
-    @meta.implemented
     set az(value) { this.mHemisphereA[2] = value; }
 
     /**
@@ -475,9 +452,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * Blue row: Capsule_Blue.cpp:19 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored value.
      */
-    @blue.readwrite
-    @type.float64
-    @meta.implemented
     get bx() { return this.mHemisphereB[0]; }
 
     /**
@@ -486,7 +460,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {number} value New value.
      * @returns {void} Stores only this component.
      */
-    @meta.implemented
     set bx(value) { this.mHemisphereB[0] = value; }
 
     /**
@@ -494,9 +467,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * Blue row: Capsule_Blue.cpp:20 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored value.
      */
-    @blue.readwrite
-    @type.float64
-    @meta.implemented
     get by() { return this.mHemisphereB[1]; }
 
     /**
@@ -505,7 +475,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {number} value New value.
      * @returns {void} Stores only this component.
      */
-    @meta.implemented
     set by(value) { this.mHemisphereB[1] = value; }
 
     /**
@@ -513,9 +482,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * Blue row: Capsule_Blue.cpp:21 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored value.
      */
-    @blue.readwrite
-    @type.float64
-    @meta.implemented
     get bz() { return this.mHemisphereB[2]; }
 
     /**
@@ -524,7 +490,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {number} value New value.
      * @returns {void} Stores only this component.
      */
-    @meta.implemented
     set bz(value) { this.mHemisphereB[2] = value; }
 
     /**
@@ -532,9 +497,6 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * Blue row: Capsule_Blue.cpp:22 MAP_ATTRIBUTE READWRITE.
      * @returns {number} Stored value.
      */
-    @blue.readwrite
-    @type.float32
-    @meta.implemented
     get radius() { return this.mRadius; }
 
     /**
@@ -543,14 +505,12 @@ export class CjsDestinyCapsule extends CjsDestinyStaticCollidable
      * @param {number} value New value.
      * @returns {void} Stores only this component.
      */
-    @meta.adapted
     set radius(value) { this.mRadius = Math.fround(value); }
 
     /**
      * Reads the native Blue owner reference.
      * @returns {Object|null} Owning park.
      */
-    @meta.implemented
     get park() { return this.mPark; }
 
 }

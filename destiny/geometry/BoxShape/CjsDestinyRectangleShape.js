@@ -1,11 +1,12 @@
-import { meta } from "@carbonenginejs/runtime/schema";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { CjsDestinyTriangle } from "../CjsDestinyTriangle.js";
 import { IntersectSphereTriangle } from "../Collision.js";
 
 // Source: destiny/src/BoxShape.h:31-43; destiny/src/BoxShape.cpp:8-32
 /** Carbon rectangle face with double-precision vertices and swept-sphere queries. */
-@meta.define({ className: "CjsDestinyRectangleShape", modelledOn: "RectangleShape" })
+/**
+ * Modelled on: RectangleShape (destiny/src/BoxShape.h:31-43)
+ */
 export class CjsDestinyRectangleShape
 {
     m_a = [0, 0, 0];
@@ -56,7 +57,6 @@ export class CjsDestinyRectangleShape
      * @param {{collisionPoint: number[]|Float64Array, collisionTime: number, normal: number[]|Float64Array}} out Native reference outputs.
      * @returns {boolean} Whether the selected triangle is hit.
      */
-    @meta.adapted
     CollideWithSphere(spherePosition, sphereRadius, sphereVelocity, out)
     {
         const { vec3_0, vec3_1, vec3_2, triangle } = CjsDestinyRectangleShape.scratch;

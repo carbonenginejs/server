@@ -1,4 +1,3 @@
-import { meta } from "@carbonenginejs/runtime/schema";
 import { CjsDestinyKey } from "./Partition/CjsDestinyKey.js";
 import { CjsDestinyBoxSortComparer, CjsDestinyBallSortComparer, CjsDestinyStaticCollidableSortComparer }
     from "./SortedSets/index.js";
@@ -9,7 +8,9 @@ const ballComparer = new CjsDestinyBallSortComparer();
 const staticComparer = new CjsDestinyStaticCollidableSortComparer();
 
 /** Carbon partition cell with sorted occupants, parent ownership and bubble traversal. */
-@meta.define({ className: "CjsDestinyBox", modelledOn: "Box" })
+/**
+ * Modelled on: Box (destiny/src/Box.h:12-70)
+ */
 export class CjsDestinyBox
 {
     lo = [0, 0, 0];
@@ -63,7 +64,6 @@ export class CjsDestinyBox
      *
      * @returns {void} The released box is no longer valid for use.
      */
-    @meta.adapted
     Dispose()
     {
         if (this.mParent) this.mParent.RemoveChildren(this);
@@ -80,7 +80,6 @@ export class CjsDestinyBox
      *
      * @returns {void} No return value.
      */
-    @meta.implemented
     ReleaseBox()
     {
         this.mPartition.mBoxAllocator.ReleaseBox(this);
@@ -92,7 +91,6 @@ export class CjsDestinyBox
      * @param {CjsDestinyBox} box Other cell.
      * @returns {boolean} Whether the keys match.
      */
-    @meta.adapted
     Equals(box)
     {
         return this.mKey.Equals(box.mKey);
@@ -105,7 +103,6 @@ export class CjsDestinyBox
      * @param {*} object Stored host object or null.
      * @returns {void} No return value.
      */
-    @meta.adapted
     SetObject(object)
     {
         if (object === this.mObject) return;
@@ -117,7 +114,6 @@ export class CjsDestinyBox
      *
      * @returns {void} Top-level boxes retain a null parent.
      */
-    @meta.implemented
     SetParent()
     {
         if (this.mLevel === 0) return;
@@ -133,7 +129,6 @@ export class CjsDestinyBox
      * @param {CjsDestinyBox|null} box Child to insert.
      * @returns {void} Null and equivalent existing entries are ignored.
      */
-    @meta.adapted
     AddChildren(box)
     {
         if (box) CjsDestinyBox._insert(this.mChildren, box, boxComparer);
@@ -146,7 +141,6 @@ export class CjsDestinyBox
      * @param {Object|null} ball Native-shaped ball.
      * @returns {void} Null and equivalent existing entries are ignored.
      */
-    @meta.adapted
     AddBall(ball)
     {
         if (ball) CjsDestinyBox._insert(this.balls, ball, ballComparer);
@@ -159,7 +153,6 @@ export class CjsDestinyBox
      * @param {Object|null} collidable Native-shaped static object.
      * @returns {void} Null and equivalent existing entries are ignored.
      */
-    @meta.adapted
     AddStaticCollidable(collidable)
     {
         if (collidable) CjsDestinyBox._insert(this.mStaticCollidables, collidable, staticComparer);
@@ -172,7 +165,6 @@ export class CjsDestinyBox
      * @param {CjsDestinyBox} box Child key to remove.
      * @returns {void} No return value.
      */
-    @meta.adapted
     RemoveChildren(box)
     {
         if (!CjsDestinyBox._erase(this.mChildren, box, boxComparer)) console.error("Box::RemoveChildren failure", box.mKey);
@@ -186,7 +178,6 @@ export class CjsDestinyBox
      * @param {Object} ball Native-shaped ball key to remove.
      * @returns {void} No return value.
      */
-    @meta.adapted
     RemoveBall(ball)
     {
         if (!CjsDestinyBox._erase(this.balls, ball, ballComparer)) console.error("Box::RemoveBall failure", ball.mId);
@@ -200,7 +191,6 @@ export class CjsDestinyBox
      * @param {Object} collidable Native-shaped static key to remove.
      * @returns {void} No return value.
      */
-    @meta.adapted
     RemoveStaticCollidable(collidable)
     {
         if (!CjsDestinyBox._erase(this.mStaticCollidables, collidable, staticComparer))
@@ -215,7 +205,6 @@ export class CjsDestinyBox
      * @param {number} seed Bubble identifier.
      * @returns {void} Marks all reachable unmarked boxes on this level.
      */
-    @meta.adapted
     Traverse(seed)
     {
         if (this.mBubble !== -1) return;
@@ -244,7 +233,6 @@ export class CjsDestinyBox
      *
      * @returns {number} Neighbor bubble or -1, including edge-clamped self aliases.
      */
-    @meta.implemented
     NearbyBubbles()
     {
         for (let i = -1n; i < 2n; ++i)

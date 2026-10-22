@@ -1,4 +1,3 @@
-import { meta } from "@carbonenginejs/runtime/schema";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { vec3d } from "../math/vec3d.js";
 import { CjsDestinyTriangle } from "../geometry/CjsDestinyTriangle.js";
@@ -39,7 +38,6 @@ function firstRoot(a, b, c)
  * Game-specific enclosed track boundary, independent of native Ballpark evolution.
  * This is an extension, not a Carbon class or a replacement for its collision solvers.
  */
-@meta.define({ className: "CjsTubeBounds" })
 export class CjsTubeBounds
 {
     _asset = null;

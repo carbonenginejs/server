@@ -1,8 +1,8 @@
-import { meta } from "@carbonenginejs/runtime/schema";
-
 // Source: destiny/src/Partition.h:195-209
 /** Carbon Partition::NearbyCriteria flags and its two native preset cases. */
-@meta.define({ className: "CjsDestinyNearbyCriteria", modelledOn: "Partition::NearbyCriteria" })
+/**
+ * Modelled on: Partition::NearbyCriteria (destiny/src/Partition.h:195-209)
+ */
 export class CjsDestinyNearbyCriteria
 {
     _flags = 0;
@@ -13,7 +13,6 @@ export class CjsDestinyNearbyCriteria
      *
      * @returns {number} Zero or one.
      */
-    @meta.adapted
     get EXCLUDE_FIXED_BALLS()
     {
         return (this._flags >>> 0) & 1;
@@ -26,7 +25,6 @@ export class CjsDestinyNearbyCriteria
      * @param {number|bigint|boolean} value Integer flag value.
      * @returns {void} Updates only this native flag.
      */
-    @meta.adapted
     set EXCLUDE_FIXED_BALLS(value)
     {
         const bit = typeof value === "bigint" ? Number(value & 1n) : Number(value) & 1;
@@ -39,7 +37,6 @@ export class CjsDestinyNearbyCriteria
      *
      * @returns {number} Zero or one.
      */
-    @meta.adapted
     get EXCLUDE_INERT_BALLS()
     {
         return (this._flags >>> 1) & 1;
@@ -52,7 +49,6 @@ export class CjsDestinyNearbyCriteria
      * @param {number|bigint|boolean} value Integer flag value.
      * @returns {void} Updates only this native flag.
      */
-    @meta.adapted
     set EXCLUDE_INERT_BALLS(value)
     {
         const bit = typeof value === "bigint" ? Number(value & 1n) : Number(value) & 1;
@@ -65,7 +61,6 @@ export class CjsDestinyNearbyCriteria
      *
      * @returns {number} Zero or one.
      */
-    @meta.adapted
     get EXCLUDE_MISSILES()
     {
         return (this._flags >>> 2) & 1;
@@ -78,7 +73,6 @@ export class CjsDestinyNearbyCriteria
      * @param {number|bigint|boolean} value Integer flag value.
      * @returns {void} Updates only this native flag.
      */
-    @meta.adapted
     set EXCLUDE_MISSILES(value)
     {
         const bit = typeof value === "bigint" ? Number(value & 1n) : Number(value) & 1;
@@ -91,7 +85,6 @@ export class CjsDestinyNearbyCriteria
      *
      * @returns {number} Zero or one.
      */
-    @meta.adapted
     get EXCLUDE_CLOAKED()
     {
         return (this._flags >>> 3) & 1;
@@ -104,7 +97,6 @@ export class CjsDestinyNearbyCriteria
      * @param {number|bigint|boolean} value Integer flag value.
      * @returns {void} Updates only this native flag.
      */
-    @meta.adapted
     set EXCLUDE_CLOAKED(value)
     {
         const bit = typeof value === "bigint" ? Number(value & 1n) : Number(value) & 1;
@@ -117,7 +109,6 @@ export class CjsDestinyNearbyCriteria
      *
      * @returns {number} Zero or one.
      */
-    @meta.adapted
     get EXCLUDE_HARMONICS_TEST()
     {
         return (this._flags >>> 4) & 1;
@@ -130,7 +121,6 @@ export class CjsDestinyNearbyCriteria
      * @param {number|bigint|boolean} value Integer flag value.
      * @returns {void} Updates only this native flag.
      */
-    @meta.adapted
     set EXCLUDE_HARMONICS_TEST(value)
     {
         const bit = typeof value === "bigint" ? Number(value & 1n) : Number(value) & 1;

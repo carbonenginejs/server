@@ -1,8 +1,8 @@
-import { meta } from "@carbonenginejs/runtime/schema";
-
 // Source: destiny/python/destiny/net/client/_baseticker.py:12-140.
 /** Client pre-tick base owning incoming history and malformed-batch reporting. */
-@meta.define({ className: "DestinyClientBaseTicker", carbon: "destiny.net.client.BaseTicker" })
+/**
+ * Carbon: BaseTicker (destiny/python/destiny/net/client/_baseticker.py:12-117)
+ */
 export class BaseTicker
 {
     _ballpark = null;
@@ -33,7 +33,6 @@ export class BaseTicker
      * @param {CjsBallparkController|null} ballpark Active park, or null between scenes.
      * @returns {void} Existing history is retained.
      */
-    @meta.implemented
     set_ballpark(ballpark) { this._ballpark = ballpark; this._error_handler.set_ballpark(ballpark); }
 
     /**
@@ -41,7 +40,6 @@ export class BaseTicker
      * Adaptation: JS throws on an abstract call instead of Python ABC construction.
      * @returns {void} Always throws.
      */
-    @meta.adapted
     do_pre_tick() { throw new TypeError("BaseTicker.do_pre_tick is abstract"); }
 
     /**
@@ -51,7 +49,6 @@ export class BaseTicker
      * @param {boolean} wait_for_bubble Whether bubble events are still expected.
      * @returns {void} No active park ignores the update.
      */
-    @meta.adapted
     update(state, wait_for_bubble)
     {
         if (this._ballpark === null) return;
@@ -66,7 +63,6 @@ export class BaseTicker
      * @param {boolean} wait_for_bubble Bubble wait flag.
      * @returns {void} Always throws.
      */
-    @meta.adapted
     _flush_state(state, wait_for_bubble) { throw new TypeError("BaseTicker._flush_state is abstract"); }
 
     /**
@@ -81,7 +77,6 @@ export class BaseTicker
      * uses its registered constant label rather than minifiable Function.name.
      * @returns {void} Level above Python INFO (20) skips the dump.
      */
-    @meta.adapted
     _dump_history()
     {
         if (this._logger.level > 20) return;
@@ -110,7 +105,6 @@ export class BaseTicker
      * @param {Array} state Expanded events.
      * @returns {void} Invokes the fatal handler once when multiple stamps exist.
      */
-    @meta.adapted
     _report_update_if_bad(state)
     {
         const timestamps = new Set(state.map(action => action[0]));

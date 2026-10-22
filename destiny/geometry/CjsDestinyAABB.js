@@ -1,9 +1,10 @@
-import { meta } from "@carbonenginejs/runtime/schema";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 
 // Source: destiny/src/AABB.h; destiny/src/AABB.cpp
 /** Carbon axis-aligned bounds, using Number arrays for native Vector3d values. */
-@meta.define({ className: "CjsDestinyAABB", modelledOn: "AABB" })
+/**
+ * Modelled on: AABB (destiny/src/AABB.h:7-17)
+ */
 export class CjsDestinyAABB
 {
     mLowCorner = [0, 0, 0];
@@ -31,7 +32,6 @@ export class CjsDestinyAABB
      * @param {number[]|Float64Array} vertex Vertex in world coordinates.
      * @returns {void} No return value.
      */
-    @meta.implemented
     Update(vertex)
     {
         for (let i = 0; i < 3; i++)
@@ -49,7 +49,6 @@ export class CjsDestinyAABB
      * @param {number} radius Radius in meters.
      * @returns {boolean} True only when these bounds exclude contact.
      */
-    @meta.implemented
     CanExcludeCollision(p0, p1, radius)
     {
         for (let i = 0; i < 3; i++)
@@ -65,7 +64,6 @@ export class CjsDestinyAABB
      *
      * @returns {number} Largest signed axis extent.
      */
-    @meta.implemented
     GetLongestWidth()
     {
         return Math.max(this.mHighCorner[0] - this.mLowCorner[0],

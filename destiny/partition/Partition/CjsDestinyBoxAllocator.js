@@ -1,9 +1,10 @@
-import { meta } from "@carbonenginejs/runtime/schema";
 import { CjsDestinyBox } from "../CjsDestinyBox.js";
 
 // Source: destiny/src/Partition.h:50-64; destiny/src/Partition.cpp:520-554
 /** Carbon box allocation boundary with synchronous teardown and JavaScript memory ownership. */
-@meta.define({ className: "CjsDestinyBoxAllocator", modelledOn: "BoxAllocator" })
+/**
+ * Modelled on: BoxAllocator (destiny/src/Partition.h:50-64)
+ */
 export class CjsDestinyBoxAllocator
 {
     /**
@@ -18,7 +19,6 @@ export class CjsDestinyBoxAllocator
      * @param {CjsDestinyPartition} partition Owning partition.
      * @returns {CjsDestinyBox} Allocated and registered box.
      */
-    @meta.adapted
     GetNewBox(i, j, k, level, partition)
     {
         return new CjsDestinyBox(i, j, k, level, partition);
@@ -32,7 +32,6 @@ export class CjsDestinyBoxAllocator
      * @param {CjsDestinyBox} box Box being released.
      * @returns {void} No return value.
      */
-    @meta.adapted
     ReleaseBox(box)
     {
         box.Dispose();

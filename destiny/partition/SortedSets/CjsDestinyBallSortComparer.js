@@ -1,8 +1,8 @@
-import { meta } from "@carbonenginejs/runtime/schema";
-
 // Source: destiny/src/SortedSets.h:19-24; destiny/src/Ball.cpp:2528-2549
 /** Native ball ordering with parent identity for pairs of local mini-balls. */
-@meta.define({ className: "CjsDestinyBallSortComparer", modelledOn: "BallSortComparer" })
+/**
+ * Modelled on: BallSortComparer (destiny/src/SortedSets.h:19-23)
+ */
 export class CjsDestinyBallSortComparer
 {
     /**
@@ -12,7 +12,6 @@ export class CjsDestinyBallSortComparer
      * @param {Object} y Ball with native mId/mOwnerId state.
      * @returns {boolean} Whether x precedes y.
      */
-    @meta.adapted
     Call(x, y)
     {
         if (x.mId < 0n && y.mId < 0n)

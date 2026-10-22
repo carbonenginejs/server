@@ -1,4 +1,3 @@
-import { meta } from "@carbonenginejs/runtime/schema";
 import { vec3 } from "@carbonenginejs/runtime/math/vec3";
 import { quat } from "@carbonenginejs/runtime/math/quat";
 import { vec3d } from "./math/vec3d.js";
@@ -16,8 +15,9 @@ const f32 = Math.fround;
  * instead of reserving a C++ vector capacity. Times are undefined until Initialize
  * because native construction leaves them indeterminate. Removed records must
  * not be retained by callers; reused slots are reset as freshly constructed values.
+ *
+ * Carbon: CollisionBallProperties (destiny/src/CollisionBallProperties.h:12-75)
  */
-@meta.define({ className: "CollisionBallProperties", carbon: "CollisionBallProperties" })
 export class CollisionBallProperties
 {
     m_fuzzyDelta = 1e-4;
@@ -39,7 +39,6 @@ export class CollisionBallProperties
      * @param {number} tEnd End of this history interval in seconds.
      * @returns {void} Invalidates history without returning previous colliders.
      */
-    @meta.adapted
     Initialize(ball, tEnd)
     {
         this.m_ball = ball;
@@ -87,7 +86,6 @@ export class CollisionBallProperties
      * @param {CollisionImpact} impact Applied linear/angular changes and collision time.
      * @returns {Array<Array<number|bigint>>} Later collisions, newest first; caller owns the result.
      */
-    @meta.adapted
     AddImpact(impact)
     {
         const invalidated = [];
@@ -150,7 +148,6 @@ export class CollisionBallProperties
      * @param {bigint|number} collider Signed-int64 collision identity.
      * @returns {Array<Array<number|bigint>>} Later collisions in chronological order.
      */
-    @meta.adapted
     RemoveImpact(time, collider)
     {
         collider = CjsDestinyBall._toInt64(collider);
@@ -189,7 +186,6 @@ export class CollisionBallProperties
      * Source: destiny/src/CollisionBallProperties.cpp:168-195.
      * @returns {void} Updates search times only when an endpoint is appended.
      */
-    @meta.adapted
     CalculateEnd()
     {
         const previous = this.m_locations[this.m_locations.length - 1];
@@ -226,7 +222,6 @@ export class CollisionBallProperties
      * @param {number} timeOfImpact Fraction of the current search interval, not absolute time.
      * @returns {boolean} Whether this near-start collision should be ignored.
      */
-    @meta.adapted
     IgnoreCollision(colliderID, timeOfImpact)
     {
         colliderID = CjsDestinyBall._toInt64(colliderID);
@@ -248,7 +243,6 @@ export class CollisionBallProperties
      * @param {number} time Sample time in seconds; extrapolation is permitted.
      * @returns {number} Native zero-based index, including zero for an empty history.
      */
-    @meta.implemented
     FindLocationsIndex(time)
     {
         let index = 0;
@@ -267,7 +261,6 @@ export class CollisionBallProperties
      * @param {number} time Sample time in seconds, not clamped to the history.
      * @returns {void} Writes the two outputs; all temporary vectors are returned.
      */
-    @meta.adapted
     CalculatePosition(position, velocity, time)
     {
         const location = this.m_locations[this.FindLocationsIndex(time)];
@@ -304,7 +297,6 @@ export class CollisionBallProperties
      * @param {number} time Sample time in seconds, with native extrapolation.
      * @returns {void} Writes angular state and releases temporary storage.
      */
-    @meta.adapted
     CalculateRotation(rotation, omega, time)
     {
         const location = this.m_locations[this.FindLocationsIndex(time)];

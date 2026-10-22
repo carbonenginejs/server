@@ -1,5 +1,3 @@
-import { meta } from "@carbonenginejs/runtime/schema";
-
 // Source: destiny/python/destiny/_util/timing.py:8-32.
 /**
  * Wraps a synchronous function in the native tasklet timer entry/return sequence.
@@ -27,7 +25,9 @@ export function TimedFunction(context, taskletTimer)
 }
 
 /** Native profiling context retaining the token returned by the host timer. */
-@meta.define({ className: "DestinyTimer", carbon: "destiny._util.timing.Timer" })
+/**
+ * Carbon: Timer (destiny/python/destiny/_util/timing.py:20-31)
+ */
 export class Timer
 {
     ctxt = null;
@@ -47,7 +47,6 @@ export class Timer
      * Adaptation: explicit invocation replaces Python with-statement entry.
      * @returns {void} Does not return the context manager or token.
      */
-    @meta.adapted
     __enter__() { this.ctxt = this._taskletTimer.EnterTasklet(this.ctxt); }
 
     /**
@@ -55,6 +54,5 @@ export class Timer
      * Adaptation: callers use finally; Python exception arguments are unused.
      * @returns {void} Keeps ctxt unchanged, including on a second entry.
      */
-    @meta.adapted
     __exit__() { this._taskletTimer.ReturnFromTasklet(this.ctxt); }
 }

@@ -1,9 +1,10 @@
-import { meta } from "@carbonenginejs/runtime/schema";
 import { CjsDestinyBall } from "../../CjsDestinyBall.js";
 
 // Source: destiny/src/Partition.h:66-102
 /** Carbon partition key with exact signed-int64 coordinates and native clamping. */
-@meta.define({ className: "CjsDestinyKey", modelledOn: "Key" })
+/**
+ * Modelled on: Key (destiny/src/Partition.h:66-102)
+ */
 export class CjsDestinyKey
 {
     ix = 0n;
@@ -38,7 +39,6 @@ export class CjsDestinyKey
      * @param {CjsDestinyKey} key Other key.
      * @returns {boolean} Whether all four members are equal.
      */
-    @meta.adapted
     Equals(key)
     {
         return this.ix === key.ix && this.iy === key.iy && this.iz === key.iz && this.n === key.n;
@@ -50,7 +50,6 @@ export class CjsDestinyKey
      * @param {CjsDestinyKey} key Other key.
      * @returns {boolean} Whether this key precedes the other key.
      */
-    @meta.adapted
     LessThan(key)
     {
         if (this.ix < key.ix) return true;
@@ -68,7 +67,6 @@ export class CjsDestinyKey
      *
      * @returns {void} Updates the three coordinates in place.
      */
-    @meta.adapted
     Clamp()
     {
         if (this.ix < 0n) this.ix = 0n;

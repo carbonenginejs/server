@@ -1,8 +1,8 @@
-import { meta } from "@carbonenginejs/runtime/schema";
-
 // Source: destiny/python/destiny/_util/signal.py:8-97.
 /** Weakly retains slots and snapshots their live callables before synchronous delivery. */
-@meta.define({ className: "DestinySignal", carbon: "destiny._util.signal.Signal" })
+/**
+ * Carbon: Signal (destiny/python/destiny/_util/signal.py:8-101)
+ */
 export class Signal
 {
     _signalName = null;
@@ -23,7 +23,6 @@ export class Signal
      * replaces it; callback string conversion supplies the connected-slot labels.
      * @returns {string} Diagnostic representation.
      */
-    @meta.adapted
     __repr__()
     {
         const name = this._signalName ? `${this._signalName} ` : "";
@@ -42,7 +41,6 @@ export class Signal
      * @param {Object} [kwargs={}] Named arguments translated to a trailing options object.
      * @returns {void} Executes synchronously; promises are not awaited and later rejections are not caught.
      */
-    @meta.adapted
     __call__(args = [], kwargs = {})
     {
         if (Signal._monitor_enabled && Signal._monitor_callback)
@@ -60,7 +58,6 @@ export class Signal
      * Adaptation: JS collection notification is nondeterministic; deref decides liveness.
      * @returns {number} Current connected-slot count.
      */
-    @meta.adapted
     __len__()
     {
         this._compact();
@@ -75,7 +72,6 @@ export class Signal
      * not promise that order. A strong snapshot retains slots through reentrant edits.
      * @returns {Iterator<Function>} Detached snapshot iterator.
      */
-    @meta.adapted
     __iter__()
     {
         this._compact();
@@ -99,7 +95,6 @@ export class Signal
      * @param {Object|null} [receiver=null] Explicit weak method receiver.
      * @returns {void} Duplicate connections do not add another delivery.
      */
-    @meta.adapted
     connect(slot, receiver = null)
     {
         if (typeof slot !== "function") throw new TypeError("Signal connect requires a callable slot");
@@ -121,7 +116,6 @@ export class Signal
      * @param {Object|null} [receiver=null] Receiver passed to connect.
      * @returns {void} An already captured emission snapshot remains unchanged.
      */
-    @meta.adapted
     disconnect(slot, receiver = null)
     {
         this._compact();
@@ -137,14 +131,12 @@ export class Signal
      * Drops all connections without invalidating existing snapshots.
      * @returns {void} Both native slot groups become empty.
      */
-    @meta.implemented
     clear() { this._functions = []; this._methods = []; }
 
     /**
      * Exposes the native signal label.
      * @returns {string|null} Constructor-supplied name.
      */
-    @meta.implemented
     get debugDisplayName() { return this._signalName; }
 
     /**
@@ -165,14 +157,12 @@ export class Signal
      * @param {Function} callback Receives signal name, positional tuple and keyword object.
      * @returns {void} Replaces the prior monitor for every Signal.
      */
-    @meta.implemented
     static StartSignalMonitoring(callback) { this._monitor_enabled = true; this._monitor_callback = callback; }
 
     /**
      * Disables monitoring and releases the shared callback.
      * @returns {void} Existing slot connections remain.
      */
-    @meta.implemented
     static StopSignalMonitoring() { this._monitor_enabled = false; this._monitor_callback = null; }
 
     static _monitor_enabled = false;
