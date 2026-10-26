@@ -137,7 +137,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
         {
             this.mLastYaw = this.mNewYaw;
             this.mLastPitch = this.mNewPitch;
-            quat.fromYawPitchRoll(this.mLastRot, Math.fround(this.mLastYaw),
+            quat.fromYawPitchRollCarbon(this.mLastRot, Math.fround(this.mLastYaw),
                 Math.fround(this.mLastPitch), Math.fround(this.mLastRoll));
         }
     }
@@ -441,7 +441,7 @@ export class CjsDestinyClientBall extends CjsDestinyBall
         this.mLastRoll = (this.mLastRoll + friction * dT * roll) * tmp;
         this.mYawSpeed = (this.mLastYaw - this.mYawSpeed) * (1 / dT);
         this.mPitchSpeed = (this.mLastPitch - this.mPitchSpeed) * (1 / dT);
-        quat.fromYawPitchRoll(this.mLastRot, Math.fround(this.mLastYaw), Math.fround(this.mLastPitch), Math.fround(this.mLastRoll));
+        quat.fromYawPitchRollCarbon(this.mLastRot, Math.fround(this.mLastYaw), Math.fround(this.mLastPitch), Math.fround(this.mLastRoll));
         if (this.mProcessingImpact) this.ProcessImpact(f32(dT));
         this.mRotUpdateTime = shiftedTime;
         return quat.copy(out, this.mLastRot);

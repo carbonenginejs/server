@@ -106,7 +106,7 @@ test("one ball supplies legacy position and quaternion overloads with untouched 
     const yaw = 0.9 * 0.1 * 0.6 / 1.09;
     const pitch = 1.3 * 0.9 * 0.1 * 1.2 / (1 + 1.3 * 0.9 * 0.1);
     const roll = 0.9 * 0.1 * 1.8 / 1.09;
-    quat.fromYawPitchRoll(expected, Math.fround(yaw), Math.fround(pitch), Math.fround(roll));
+    quat.fromYawPitchRollCarbon(expected, Math.fround(yaw), Math.fround(pitch), Math.fround(roll));
     for (let i = 0; i < 4; ++i) close(out[i], expected[i], 1e-7);
     quat.set(out, 1, 2, 3, 4);
     assert.equal(ball.GetValueDotAt__Ticks(37000000, out), out);

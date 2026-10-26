@@ -384,7 +384,7 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     {
         const { quat_0, mat4_0, vec3_0 } = CjsDestinyBall.scratch;
         if (g_useDynamicalOrientation) quat.copy(quat_0, this.mNewRot);
-        else quat.fromYawPitchRoll(quat_0, f32(this.mNewYaw), f32(this.mNewPitch), f32(this.mNewRoll));
+        else quat.fromYawPitchRollCarbon(quat_0, f32(this.mNewYaw), f32(this.mNewPitch), f32(this.mNewRoll));
         mat4.fromQuat(mat4_0, quat_0);
         CjsDestinyBall._transformCoord(vec3_0, value, mat4_0);
         vec3.copy(value, vec3_0);
