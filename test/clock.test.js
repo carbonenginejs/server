@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CjsBlueOS } from "@carbonenginejs/runtime/blue";
+import { BlueOS } from "@carbonenginejs/runtime/blue";
 import { CjsBallparkController } from "@carbonenginejs/server/destiny";
 import { Actions } from "@carbonenginejs/server/destiny/net/server";
 
@@ -49,7 +49,7 @@ test("donor lifecycle: initial state is paused", () =>
 
 test("donor lifecycle: can start", () =>
 {
-    const park = new CjsBallparkController(new CjsBlueOS());
+    const park = new CjsBallparkController(new BlueOS());
     park.Start();
     assert.equal(park.isRunning, true);
     park.Pause();
@@ -57,7 +57,7 @@ test("donor lifecycle: can start", () =>
 
 test("donor lifecycle: can pause", () =>
 {
-    const park = new CjsBallparkController(new CjsBlueOS());
+    const park = new CjsBallparkController(new BlueOS());
     park.Start();
     park.Pause();
     assert.equal(park.isRunning, false);
@@ -65,7 +65,7 @@ test("donor lifecycle: can pause", () =>
 
 test("Start/Pause are idempotent and runtime manual pumping needs no simulation schema calls", () =>
 {
-    const host = new CjsBlueOS();
+    const host = new BlueOS();
     let now = STEP;
     host.GetSmoothedTime = () => Number(now);
     const park = new CjsBallparkController(host);
@@ -265,7 +265,7 @@ test("removal during Evolve is deferred and skips integration", () =>
 
 test("ClearAll releases references without cleanup callbacks or clock/lifecycle reset", () =>
 {
-    const events = eventHost(), host = new CjsBlueOS();
+    const events = eventHost(), host = new BlueOS();
     const park = new CjsBallparkController(host, events);
     ball(park);
     park.RemoveBall(1, 100);
