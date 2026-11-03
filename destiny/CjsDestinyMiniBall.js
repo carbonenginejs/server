@@ -1,4 +1,4 @@
-import { blue } from "@carbonenginejs/runtime/schema";
+import { CjsSchema } from "@carbonenginejs/runtime/schema";
 import { vec3d } from "./math/vec3d.js";
 
 // Source: destiny/src/MiniBall.h
@@ -94,4 +94,4 @@ export class CjsDestinyMiniBall
 
 // Native self-interface admission for BlueList<MiniBall>; no simulation schema lookup.
 // BlueList admits items through the runtime exposure table, which has no non-schema registration API.
-blue.interface()(CjsDestinyMiniBall, { kind: "class" });
+CjsSchema.be.interface()(CjsDestinyMiniBall, { kind: "class" });

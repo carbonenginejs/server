@@ -1,4 +1,4 @@
-import { blue } from "@carbonenginejs/runtime/schema";
+import { CjsSchema } from "@carbonenginejs/runtime/schema";
 import { IBlueEvents } from "@carbonenginejs/runtime/blue";
 import { CjsDestinyBall } from "./CjsDestinyBall.js";
 import { CjsDestinyClientBall } from "./CjsDestinyClientBall.js";
@@ -6415,7 +6415,7 @@ export class CjsBallparkController
 }
 
 // CjsBlueOS.RegisterForTicks admits callbacks through the runtime exposure table (IBlueEvents), which has no non-schema registration API.
-blue.inherit(IBlueEvents)(CjsBallparkController);
+CjsSchema.be.inherit(IBlueEvents)(CjsBallparkController);
 
 /**
  * Applies the native missile-only exception to dynamical orientation.
