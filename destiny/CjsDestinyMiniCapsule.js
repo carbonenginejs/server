@@ -1,4 +1,5 @@
-import { CjsSchema } from "@carbonenginejs/runtime/schema";
+import { be } from "@carbonenginejs/runtime/schema";
+import { IRoot } from "@carbonenginejs/runtime/blue";
 import { vec3d } from "./math/vec3d.js";
 
 // Source: destiny/src/MiniCapsule.h
@@ -10,7 +11,7 @@ import { vec3d } from "./math/vec3d.js";
  * GC replaces IRoot locking. Native Python constructors remain outside this surface.
  * The parent ID stays undefined until assigned, matching native indeterminate storage.
  *
- * Modelled on: MiniCapsule (destiny/src/MiniCapsule.h:14-33)
+ * Carbon: MiniCapsule (destiny/src/MiniCapsule.h:14-33)
  */
 export class CjsDestinyMiniCapsule
 {
@@ -145,6 +146,20 @@ export class CjsDestinyMiniCapsule
     set bz(value) { this.mHemisphereB[2] = value; }
 }
 
-// Native self-interface admission for BlueList<MiniCapsule>; no simulation schema lookup.
-// BlueList admits items through the runtime exposure table, which has no non-schema registration API.
-CjsSchema.be.interface()(CjsDestinyMiniCapsule, { kind: "class" });
+// MiniCapsule_Blue.cpp:9-101, in Carbon's order; IRoot is the C++ base (MiniCapsule.h:14-15). The class's own MAP_INTERFACE entry lets
+// BlueList<MiniCapsule> admit it. MAP_METHOD_AS_METHOD __init__ (Py__init__) is Python's constructor and is not mapped.
+be.define({
+  name: "MiniCapsule",
+  inherit: [ IRoot ],
+  interfaces: [ IRoot, CjsDestinyMiniCapsule ],
+  members: [
+    [ be.ATTR, "id", be.READ, "mId" ],
+    [ be.ATTR, "radius", be.READWRITE | be.NOTIFY | be.PERSIST, "mRadius" ],
+    [ be.ATTR_INDEX, "ax", be.READWRITE | be.NOTIFY | be.PERSIST, 0, "mHemisphereA" ],
+    [ be.ATTR_INDEX, "ay", be.READWRITE | be.NOTIFY | be.PERSIST, 1, "mHemisphereA" ],
+    [ be.ATTR_INDEX, "az", be.READWRITE | be.NOTIFY | be.PERSIST, 2, "mHemisphereA" ],
+    [ be.ATTR_INDEX, "bx", be.READWRITE | be.NOTIFY | be.PERSIST, 0, "mHemisphereB" ],
+    [ be.ATTR_INDEX, "by", be.READWRITE | be.NOTIFY | be.PERSIST, 1, "mHemisphereB" ],
+    [ be.ATTR_INDEX, "bz", be.READWRITE | be.NOTIFY | be.PERSIST, 2, "mHemisphereB" ]
+  ]
+})(CjsDestinyMiniCapsule);

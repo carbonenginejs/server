@@ -1,4 +1,4 @@
-import { CjsSchema } from "@carbonenginejs/runtime/schema";
+import { be } from "@carbonenginejs/runtime/schema";
 import { IBlueEvents } from "@carbonenginejs/runtime/blue";
 import { CjsDestinyBall } from "./CjsDestinyBall.js";
 import { CjsDestinyClientBall } from "./CjsDestinyClientBall.js";
@@ -33,8 +33,11 @@ const ORBITAL_PRECESSION = 0.001;
  * legacy/new orbit. Spatial membership and bubble activity are maintained;
  * legacy/iterative collision response and dynamic orientation are available;
  * proximity scanning and native state streams are available; server batching remains pending.
+ * Known gap: IEveBallpark, Carbon's MAP_INTERFACE and first base (Ballpark.h:73), is not in the exposure bag. The runtime
+ * exports it only through its trinity/eve index, which would pull the Eve graph into the destiny worker, and inheriting it
+ * would install throwing Delta, DeltaVel, GetUnitBase and SetUnitBase, which this class does not implement.
  *
- * Modelled on: Ballpark (destiny/src/Ballpark.h:72-1228)
+ * Carbon: Ballpark (destiny/src/Ballpark.h:72-1228)
  */
 export class CjsBallparkController
 {
@@ -6414,8 +6417,38 @@ export class CjsBallparkController
     };
 }
 
-// CjsBlueOS.RegisterForTicks admits callbacks through the runtime exposure table (IBlueEvents), which has no non-schema registration API.
-CjsSchema.be.inherit(IBlueEvents)(CjsBallparkController);
+// Ballpark_Blue.cpp:9-290, the MAP_ATTRIBUTE rows in Carbon's order; the C++ bases are Ballpark.h:72-74. IBlueEvents lets
+// BlueOS.RegisterForTicks take the park. Not mapped: IEveBallpark (MAP_INTERFACE and first base), and the rows whose
+// members this class does not have: solarsystemID (mSolarsystemID), lagDamping (mLagDamping), para1, para2, int1, int2
+// (mPara1, mPara2, mInt1, mInt2). The MAP_METHOD_AS_METHOD rows from :292 are not mapped.
+be.define({
+  name: "Ballpark",
+  inherit: [ IBlueEvents ],
+  members: [
+    [ be.ATTR, "ego", be.READWRITE | be.PERSIST, "mEgo" ],
+    [ be.ATTR, "probe", be.READWRITE | be.PERSIST, "mProbe" ],
+    [ be.ATTR, "isMaster", be.READWRITE | be.PERSIST ],
+    [ be.ATTR, "time", be.READWRITE | be.PERSIST, "mTime" ],
+    [ be.ATTR, "currentTime", be.READWRITE ],
+    [ be.ATTR, "friction", be.READWRITE, "mFriction" ],
+    [ be.ATTR, "warpSpeed", be.READWRITE, "mWarpSpeed" ],
+    [ be.ATTR, "tickInterval", be.READWRITE ],
+    [ be.ATTR, "isRunning", be.READ, "mHaveTicks" ],
+    [ be.ATTR, "moribundBallRemovalCount", be.READWRITE, "mMoribundBallRemovalCount" ],
+    [ be.ATTR, "moribundBallRemovalBuffer", be.READWRITE, "mMoribundBallRemovalBuffer" ],
+    [ be.ATTR, "balls", be.READWRITE, "_balls" ],
+    [ be.ATTR, "globals", be.READWRITE, "mGlobals" ],
+    [ be.ATTR, "bubbles", be.READ ],
+    [ be.ATTR, "bubbleInteractives", be.READ ],
+    [ be.ATTR, "bubbleKeepAlives", be.READ ],
+    [ be.ATTR, "bubbleKeepAliveBalls", be.READ ],
+    [ be.ATTR, "bubbleSubs", be.READ, "mBubbleSubscriptions" ],
+    [ be.ATTR, "rollSpeedAcceleration", be.READWRITE, "mRollSpeedAcceleration" ],
+    [ be.ATTR, "rollSpeedDecay", be.READWRITE, "mRollSpeedDecay" ],
+    [ be.ATTR, "rollAcceleration", be.READWRITE, "mRollAcceleration" ],
+    [ be.ATTR, "rollDecay", be.READWRITE, "mRollDecay" ]
+  ]
+})(CjsBallparkController);
 
 /**
  * Applies the native missile-only exception to dynamical orientation.

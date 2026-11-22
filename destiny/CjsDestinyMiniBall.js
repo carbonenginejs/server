@@ -1,4 +1,5 @@
-import { CjsSchema } from "@carbonenginejs/runtime/schema";
+import { be } from "@carbonenginejs/runtime/schema";
+import { IRoot } from "@carbonenginejs/runtime/blue";
 import { vec3d } from "./math/vec3d.js";
 
 // Source: destiny/src/MiniBall.h
@@ -9,7 +10,7 @@ import { vec3d } from "./math/vec3d.js";
  * Adaptation: owned f64 views and JS accessors replace native value fields;
  * GC replaces IRoot locking. Native Python constructors remain outside this surface.
  *
- * Modelled on: MiniBall (destiny/src/MiniBall.h:14-31)
+ * Carbon: MiniBall (destiny/src/MiniBall.h:14-31)
  */
 export class CjsDestinyMiniBall
 {
@@ -92,6 +93,17 @@ export class CjsDestinyMiniBall
     set z(value) { this.mPos[2] = value; }
 }
 
-// Native self-interface admission for BlueList<MiniBall>; no simulation schema lookup.
-// BlueList admits items through the runtime exposure table, which has no non-schema registration API.
-CjsSchema.be.interface()(CjsDestinyMiniBall, { kind: "class" });
+// Miniball_Blue.cpp:9-71, in Carbon's order; IRoot is the C++ base (MiniBall.h:14-15). The class's own MAP_INTERFACE entry lets
+// BlueList<MiniBall> admit it. MAP_METHOD_AS_METHOD __init__ (Py__init__) is Python's constructor and is not mapped.
+be.define({
+  name: "MiniBall",
+  inherit: [ IRoot ],
+  interfaces: [ IRoot, CjsDestinyMiniBall ],
+  members: [
+    [ be.ATTR, "id", be.READ, "mId" ],
+    [ be.ATTR, "radius", be.READWRITE | be.NOTIFY | be.PERSIST, "mRadius" ],
+    [ be.ATTR_INDEX, "x", be.READWRITE | be.NOTIFY | be.PERSIST, 0, "mPos" ],
+    [ be.ATTR_INDEX, "y", be.READWRITE | be.NOTIFY | be.PERSIST, 1, "mPos" ],
+    [ be.ATTR_INDEX, "z", be.READWRITE | be.NOTIFY | be.PERSIST, 2, "mPos" ]
+  ]
+})(CjsDestinyMiniBall);
