@@ -1,5 +1,3 @@
-import { be } from "@carbonenginejs/runtime/schema";
-import { IBlueEvents } from "@carbonenginejs/runtime/blue";
 import { CjsDestinyBall } from "./CjsDestinyBall.js";
 import { CjsDestinyClientBall } from "./CjsDestinyClientBall.js";
 import { BallLocation, CollisionImpact, CollisionItem } from "./CollisionStructures.js";
@@ -2219,23 +2217,23 @@ export class CjsBallparkController
         this.StopAllFollowers(ball);
         ball.isMoribund = true;
         // Source: destiny/src/Ballpark.cpp:5496-5528. Fixed-parent children ignore its delay.
-        let size = ball.mMiniBalls.GetSize();
+        let size = ball.mMiniBalls.length;
         if (size > 0 && !ball.isFree)
         {
-            for (let i = size - 1; i >= 0; --i) CjsBallparkController.prototype.RemoveBall.call(this, ball.mMiniBalls.GetAt(i).mId);
-            ball.mMiniBalls.Remove(-1);
+            for (let i = size - 1; i >= 0; --i) CjsBallparkController.prototype.RemoveBall.call(this, ball.mMiniBalls[i].mId);
+            ball.mMiniBalls.length = 0;
         }
-        size = ball.mMiniCapsules.GetSize();
+        size = ball.mMiniCapsules.length;
         if (size > 0 && !ball.isFree)
         {
-            for (let i = size - 1; i >= 0; --i) this.RemoveCapsule(ball.mMiniCapsules.GetAt(i).mId);
-            ball.mMiniCapsules.Remove(-1);
+            for (let i = size - 1; i >= 0; --i) this.RemoveCapsule(ball.mMiniCapsules[i].mId);
+            ball.mMiniCapsules.length = 0;
         }
-        size = ball.mMiniBoxes.GetSize();
+        size = ball.mMiniBoxes.length;
         if (size > 0 && !ball.isFree)
         {
-            for (let i = size - 1; i >= 0; --i) this.RemoveOrientedBox(ball.mMiniBoxes.GetAt(i).mId);
-            ball.mMiniBoxes.Remove(-1);
+            for (let i = size - 1; i >= 0; --i) this.RemoveOrientedBox(ball.mMiniBoxes[i].mId);
+            ball.mMiniBoxes.length = 0;
         }
         if (this.inEvolve || delay > 0)
         {
@@ -4781,12 +4779,12 @@ export class CjsBallparkController
         ball.mFormationID = (stream.ReadUint8() << 24) >> 24;
         if (partial !== 1 && !free)
         {
-            for (let i = ball.mMiniBalls.GetSize() - 1; i >= 0; --i) CjsBallparkController.prototype.RemoveBall.call(this, ball.mMiniBalls.GetAt(i).mId);
-            ball.mMiniBalls.Remove(-1);
-            for (let i = ball.mMiniCapsules.GetSize() - 1; i >= 0; --i) this.RemoveCapsule(ball.mMiniCapsules.GetAt(i).mId);
-            ball.mMiniCapsules.Remove(-1);
-            for (let i = ball.mMiniBoxes.GetSize() - 1; i >= 0; --i) this.RemoveOrientedBox(ball.mMiniBoxes.GetAt(i).mId);
-            ball.mMiniBoxes.Remove(-1);
+            for (let i = ball.mMiniBalls.length - 1; i >= 0; --i) CjsBallparkController.prototype.RemoveBall.call(this, ball.mMiniBalls[i].mId);
+            ball.mMiniBalls.length = 0;
+            for (let i = ball.mMiniCapsules.length - 1; i >= 0; --i) this.RemoveCapsule(ball.mMiniCapsules[i].mId);
+            ball.mMiniCapsules.length = 0;
+            for (let i = ball.mMiniBoxes.length - 1; i >= 0; --i) this.RemoveOrientedBox(ball.mMiniBoxes[i].mId);
+            ball.mMiniBoxes.length = 0;
         }
         ball.mHarmonic = harmonic; ball.mCorporationID = corporation; ball.mAllianceID = alliance;
         ball.mMode = mode; ball.isCloaked = cloak;
@@ -4975,9 +4973,9 @@ export class CjsBallparkController
         if (ball.isMoribund) return;
         const id = ball.mId, mass = ball.mMass, radius = ball.mRadius, cloak = ball.isCloaked;
         const x = ball.mNewPos[0], y = ball.mNewPos[1], z = ball.mNewPos[2];
-        const miniBallCnt = ball.mMiniBalls.GetSize() & 0xffff;
-        const miniCapsuleCnt = ball.mMiniCapsules.GetSize() & 0xffff;
-        const miniBoxCnt = ball.mMiniBoxes.GetSize() & 0xffff;
+        const miniBallCnt = ball.mMiniBalls.length & 0xffff;
+        const miniCapsuleCnt = ball.mMiniCapsules.length & 0xffff;
+        const miniBoxCnt = ball.mMiniBoxes.length & 0xffff;
         const mode = ball.mMode & 0xff;
         const flags = (ball.isFree ? BALLFLAGS.DSTBALL_ISFREE : 0) |
             (ball.isGlobal ? BALLFLAGS.DSTBALL_ISGLOBAL : 0) |
@@ -5062,19 +5060,19 @@ export class CjsBallparkController
         if (miniBallCnt) stream.WriteUint16(miniBallCnt);
         for (let i = 0; i < miniBallCnt; ++i)
         {
-            const mini = ball.mMiniBalls.GetAt(i);
+            const mini = ball.mMiniBalls[i];
             stream.WriteVector3d(mini.mPos); stream.WriteFloat32(mini.mRadius);
         }
         if (miniCapsuleCnt) stream.WriteUint16(miniCapsuleCnt);
         for (let i = 0; i < miniCapsuleCnt; ++i)
         {
-            const mini = ball.mMiniCapsules.GetAt(i);
+            const mini = ball.mMiniCapsules[i];
             stream.WriteVector3d(mini.mHemisphereA); stream.WriteVector3d(mini.mHemisphereB); stream.WriteFloat32(mini.mRadius);
         }
         if (miniBoxCnt) stream.WriteUint16(miniBoxCnt);
         for (let i = 0; i < miniBoxCnt; ++i)
         {
-            const mini = ball.mMiniBoxes.GetAt(i);
+            const mini = ball.mMiniBoxes[i];
             stream.WriteVector3d(mini.mCorner); stream.WriteVector3d(mini.mLocalX);
             stream.WriteVector3d(mini.mLocalY); stream.WriteVector3d(mini.mLocalZ);
         }
@@ -6417,38 +6415,6 @@ export class CjsBallparkController
     };
 }
 
-// Ballpark_Blue.cpp:9-290, the MAP_ATTRIBUTE rows in Carbon's order; the C++ bases are Ballpark.h:72-74. IBlueEvents lets
-// BlueOS.RegisterForTicks take the park. Not mapped: IEveBallpark (MAP_INTERFACE and first base), and the rows whose
-// members this class does not have: solarsystemID (mSolarsystemID), lagDamping (mLagDamping), para1, para2, int1, int2
-// (mPara1, mPara2, mInt1, mInt2). The MAP_METHOD_AS_METHOD rows from :292 are not mapped.
-be.define({
-  name: "Ballpark",
-  inherit: [ IBlueEvents ],
-  members: [
-    [ be.ATTR, "ego", be.READWRITE | be.PERSIST, "mEgo" ],
-    [ be.ATTR, "probe", be.READWRITE | be.PERSIST, "mProbe" ],
-    [ be.ATTR, "isMaster", be.READWRITE | be.PERSIST ],
-    [ be.ATTR, "time", be.READWRITE | be.PERSIST, "mTime" ],
-    [ be.ATTR, "currentTime", be.READWRITE ],
-    [ be.ATTR, "friction", be.READWRITE, "mFriction" ],
-    [ be.ATTR, "warpSpeed", be.READWRITE, "mWarpSpeed" ],
-    [ be.ATTR, "tickInterval", be.READWRITE ],
-    [ be.ATTR, "isRunning", be.READ, "mHaveTicks" ],
-    [ be.ATTR, "moribundBallRemovalCount", be.READWRITE, "mMoribundBallRemovalCount" ],
-    [ be.ATTR, "moribundBallRemovalBuffer", be.READWRITE, "mMoribundBallRemovalBuffer" ],
-    [ be.ATTR, "balls", be.READWRITE, "_balls" ],
-    [ be.ATTR, "globals", be.READWRITE, "mGlobals" ],
-    [ be.ATTR, "bubbles", be.READ ],
-    [ be.ATTR, "bubbleInteractives", be.READ ],
-    [ be.ATTR, "bubbleKeepAlives", be.READ ],
-    [ be.ATTR, "bubbleKeepAliveBalls", be.READ ],
-    [ be.ATTR, "bubbleSubs", be.READ, "mBubbleSubscriptions" ],
-    [ be.ATTR, "rollSpeedAcceleration", be.READWRITE, "mRollSpeedAcceleration" ],
-    [ be.ATTR, "rollSpeedDecay", be.READWRITE, "mRollSpeedDecay" ],
-    [ be.ATTR, "rollAcceleration", be.READWRITE, "mRollAcceleration" ],
-    [ be.ATTR, "rollDecay", be.READWRITE, "mRollDecay" ]
-  ]
-})(CjsBallparkController);
 
 /**
  * Applies the native missile-only exception to dynamical orientation.

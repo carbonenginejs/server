@@ -1,5 +1,3 @@
-import { be } from "@carbonenginejs/runtime/schema";
-import { IRoot } from "@carbonenginejs/runtime/blue";
 import { vec3d } from "./math/vec3d.js";
 
 // Source: destiny/src/MiniBox.h
@@ -228,25 +226,3 @@ export class CjsDestinyMiniBox
     set z2(value) { this.mLocalZ[2] = value; }
 }
 
-// MiniBox_Blue.cpp:9-135, in Carbon's order; IRoot is the C++ base (MiniBox.h:14-15). The class's own MAP_INTERFACE entry lets
-// BlueList<MiniBox> admit it. MAP_METHOD_AS_METHOD __init__ (Py__init__) is Python's constructor and is not mapped.
-be.define({
-  name: "MiniBox",
-  inherit: [ IRoot ],
-  interfaces: [ IRoot, CjsDestinyMiniBox ],
-  members: [
-    [ be.ATTR, "id", be.READ, "mId" ],
-    [ be.ATTR_INDEX, "c0", be.READWRITE | be.NOTIFY | be.PERSIST, 0, "mCorner" ],
-    [ be.ATTR_INDEX, "c1", be.READWRITE | be.NOTIFY | be.PERSIST, 1, "mCorner" ],
-    [ be.ATTR_INDEX, "c2", be.READWRITE | be.NOTIFY | be.PERSIST, 2, "mCorner" ],
-    [ be.ATTR_INDEX, "x0", be.READWRITE | be.NOTIFY | be.PERSIST, 0, "mLocalX" ],
-    [ be.ATTR_INDEX, "x1", be.READWRITE | be.NOTIFY | be.PERSIST, 1, "mLocalX" ],
-    [ be.ATTR_INDEX, "x2", be.READWRITE | be.NOTIFY | be.PERSIST, 2, "mLocalX" ],
-    [ be.ATTR_INDEX, "y0", be.READWRITE | be.NOTIFY | be.PERSIST, 0, "mLocalY" ],
-    [ be.ATTR_INDEX, "y1", be.READWRITE | be.NOTIFY | be.PERSIST, 1, "mLocalY" ],
-    [ be.ATTR_INDEX, "y2", be.READWRITE | be.NOTIFY | be.PERSIST, 2, "mLocalY" ],
-    [ be.ATTR_INDEX, "z0", be.READWRITE | be.NOTIFY | be.PERSIST, 0, "mLocalZ" ],
-    [ be.ATTR_INDEX, "z1", be.READWRITE | be.NOTIFY | be.PERSIST, 1, "mLocalZ" ],
-    [ be.ATTR_INDEX, "z2", be.READWRITE | be.NOTIFY | be.PERSIST, 2, "mLocalZ" ]
-  ]
-})(CjsDestinyMiniBox);

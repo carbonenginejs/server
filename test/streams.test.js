@@ -122,9 +122,9 @@ test("mini sections use ball/capsule/box order and native double vectors", () =>
 test("mini counts narrow before flags and loops; unsupported modes emit only the common prefix", () =>
 {
     const value = ball(Mode.DSTBALL_STOP, true);
-    value.AddMiniBall(1, 2, 3, 4); const mini = value.mMiniBalls.GetAt(0);
+    value.AddMiniBall(1, 2, 3, 4); const mini = value.mMiniBalls[0];
     let count = 65536, accesses = 0;
-    value.mMiniBalls = { GetSize: () => count, GetAt: () => { accesses++; return mini; } };
+    value.mMiniBalls = new Proxy([], { get: (target, key) => key === "length" ? count : /^\d+$/.test(String(key)) ? (accesses++, mini) : target[key] });
     assert.equal(encoded(value).length, 100); assert.equal(accesses, 0);
     count++; const bytes = encoded(value); assert.equal(bytes.length, 130); assert.equal(bytes.readUInt16LE(100), 1);
     assert.equal(accesses, 1);

@@ -1,4 +1,3 @@
-import { BlueList } from "@carbonenginejs/runtime/blue";
 import { CjsDestinyMiniBall } from "./CjsDestinyMiniBall.js";
 import { CjsDestinyMiniCapsule } from "./CjsDestinyMiniCapsule.js";
 import { CjsDestinyMiniBox } from "./CjsDestinyMiniBox.js";
@@ -48,11 +47,11 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
 
     mWithinTrackingRange = false;
 
-    mMiniBalls = new BlueList(CjsDestinyMiniBall);
+    mMiniBalls = [];
 
-    mMiniCapsules = new BlueList(CjsDestinyMiniCapsule);
+    mMiniCapsules = [];
 
-    mMiniBoxes = new BlueList(CjsDestinyMiniBox);
+    mMiniBoxes = [];
 
     mFormationID = -1;
 
@@ -1480,25 +1479,25 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
 
     /**
      * Reads the owned native MiniBall descriptor list.
-     * Adaptation: runtime BlueList replaces RootParentLock ownership; the list remains mutable.
+     * Adaptation: a plain array replaces the RootParentLock-owned list; GC replaces the lock.
      * Source: destiny/src/Ball.h:170-175; destiny/src/Ball_Blue.cpp:444-452.
-     * @returns {BlueList<CjsDestinyMiniBall>} Descriptors, not materialized Ball objects.
+     * @returns {CjsDestinyMiniBall[]} Descriptors, not materialized Ball objects.
      */
     get miniBalls() { return this.mMiniBalls; }
 
     /**
      * Reads the owned native MiniCapsule descriptor list.
-     * Adaptation: runtime BlueList replaces RootParentLock ownership; the list remains mutable.
+     * Adaptation: a plain array replaces the RootParentLock-owned list; GC replaces the lock.
      * Source: destiny/src/Ball_Blue.cpp:453-460.
-     * @returns {BlueList<CjsDestinyMiniCapsule>} Local descriptors, independent of world copies.
+     * @returns {CjsDestinyMiniCapsule[]} Local descriptors, independent of world copies.
      */
     get miniCapsules() { return this.mMiniCapsules; }
 
     /**
      * Reads the owned native MiniBox descriptor list.
-     * Adaptation: runtime BlueList replaces RootParentLock ownership; the list remains mutable.
+     * Adaptation: a plain array replaces the RootParentLock-owned list; GC replaces the lock.
      * Source: destiny/src/Ball_Blue.cpp:461-468.
-     * @returns {BlueList<CjsDestinyMiniBox>} Local descriptors, independent of world copies.
+     * @returns {CjsDestinyMiniBox[]} Local descriptors, independent of world copies.
      */
     get miniBoxes() { return this.mMiniBoxes; }
 
@@ -1510,8 +1509,8 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     AddMiniBalls()
     {
         if (this.isFree) return;
-        const size = this.mMiniBalls.GetSize();
-        for (let i = 0; i < size; ++i) this.AddActualMiniball(this.mMiniBalls.GetAt(i));
+        const size = this.mMiniBalls.length;
+        for (let i = 0; i < size; ++i) this.AddActualMiniball(this.mMiniBalls[i]);
     }
 
     /**
@@ -1521,8 +1520,8 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      */
     RemoveMiniBalls()
     {
-        const size = this.mMiniBalls.GetSize();
-        for (let i = 0; i < size; ++i) this.mPark.RemoveBall(this.mMiniBalls.GetAt(i).mId);
+        const size = this.mMiniBalls.length;
+        for (let i = 0; i < size; ++i) this.mPark.RemoveBall(this.mMiniBalls[i].mId);
     }
 
     /**
@@ -1556,7 +1555,7 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
         const b = new CjsDestinyMiniBall();
         vec3.set(b.mPos, x, y, z);
         b.mRadius = f32(r);
-        this.mMiniBalls.Insert(-1, b);
+        this.mMiniBalls.push(b);
         if (!this.isFree) this.AddActualMiniball(b);
     }
 
@@ -1568,8 +1567,8 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     AddMiniCapsules()
     {
         if (this.isFree) return;
-        const size = this.mMiniCapsules.GetSize();
-        for (let i = 0; i < size; ++i) this.AddActualMinicapsule(this.mMiniCapsules.GetAt(i));
+        const size = this.mMiniCapsules.length;
+        for (let i = 0; i < size; ++i) this.AddActualMinicapsule(this.mMiniCapsules[i]);
     }
 
     /**
@@ -1579,8 +1578,8 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      */
     RemoveMiniCapsules()
     {
-        const size = this.mMiniCapsules.GetSize();
-        for (let i = 0; i < size; ++i) this.mPark.RemoveCapsule(this.mMiniCapsules.GetAt(i).mId);
+        const size = this.mMiniCapsules.length;
+        for (let i = 0; i < size; ++i) this.mPark.RemoveCapsule(this.mMiniCapsules[i].mId);
     }
 
     /**
@@ -1621,7 +1620,7 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
         vec3.set(c.mHemisphereA, ax, ay, az);
         vec3.set(c.mHemisphereB, bx, by, bz);
         c.mRadius = f32(r);
-        this.mMiniCapsules.Insert(-1, c);
+        this.mMiniCapsules.push(c);
         if (!this.isFree) this.AddActualMinicapsule(c);
     }
 
@@ -1644,7 +1643,7 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
         vec3.copy(b.mLocalX, localX);
         vec3.copy(b.mLocalY, localY);
         vec3.copy(b.mLocalZ, localZ);
-        this.mMiniBoxes.Insert(-1, b);
+        this.mMiniBoxes.push(b);
         if (!this.isFree) this.AddActualMiniBox(b);
     }
 
@@ -1656,8 +1655,8 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
     AddMiniBoxes()
     {
         if (this.isFree) return;
-        const size = this.mMiniBoxes.GetSize();
-        for (let i = 0; i < size; ++i) this.AddActualMiniBox(this.mMiniBoxes.GetAt(i));
+        const size = this.mMiniBoxes.length;
+        for (let i = 0; i < size; ++i) this.AddActualMiniBox(this.mMiniBoxes[i]);
     }
 
     /**
@@ -1667,8 +1666,8 @@ export class CjsDestinyBall extends CjsDestinyPartitionable
      */
     RemoveMiniBoxes()
     {
-        const size = this.mMiniBoxes.GetSize();
-        for (let i = 0; i < size; ++i) this.mPark.RemoveOrientedBox(this.mMiniBoxes.GetAt(i).mId);
+        const size = this.mMiniBoxes.length;
+        for (let i = 0; i < size; ++i) this.mPark.RemoveOrientedBox(this.mMiniBoxes[i].mId);
     }
 
     /**

@@ -3,7 +3,6 @@ import test, { afterEach } from "node:test";
 import { CjsBallparkController as Park, CjsDestinyBall as Ball, CjsDestinyClientBall as ClientBall,
     CjsDestinyMiniBall as MiniBall, CjsDestinyMiniCapsule as MiniCapsule,
     CjsDestinyMiniBox as MiniBox, settings } from "@carbonenginejs/server";
-import { BlueList } from "@carbonenginejs/runtime/blue";
 import { vec3d } from "../dist/destiny/math/vec3d.js";
 
 // Source: destiny/src/Ball.cpp:1634-1879,2129-2189.
@@ -57,21 +56,20 @@ test("mini descriptor defaults own independent float64 values and readonly ident
     assert.throws(() => { a.id = 42n; }, TypeError);
 });
 
-test("native BlueList owners admit exact mini interfaces without attaching externally inserted descriptors", () =>
+test("a ball's mini lists are its own arrays and do not attach externally added descriptors", () =>
 {
     const park = new Park(), ball = parent(park), other = parent(park, 100);
-    assert.equal(ball.miniBalls.constructor, BlueList);
+    assert.ok(Array.isArray(ball.miniBalls));
     assert.notEqual(ball.miniBalls, other.miniBalls);
-    assert.equal(ball.miniBalls.Insert(-1, new MiniCapsule()), false);
     const descriptor = new MiniBall();
     descriptor.radius = 2;
-    assert.equal(ball.miniBalls.Insert(-1, descriptor), true);
+    ball.miniBalls.push(descriptor);
     assert.equal(descriptor.id, 0n);
     assert.equal(park._balls.size, 2);
     assert.throws(() => { ball.miniBalls = []; }, TypeError);
     ball.AddMiniBalls();
     assert.notEqual(descriptor.id, 0n);
-    assert.equal(ball.miniBalls.Remove(-1), true);
+    ball.miniBalls.length = 0;
     assert.ok(park.GetBall(descriptor.id)); // Removing a list item does not own collider cleanup.
 });
 
@@ -319,7 +317,7 @@ test("bulk attachment captures initial list length across an insertion callback"
         if (value.mMode === Ball.DSTBALLMODE.DSTBALL_MINIBALL)
         {
             const descriptor = new MiniBall(); descriptor.radius = 3;
-            ball.miniBalls.Insert(-1, descriptor);
+            ball.miniBalls.push(descriptor);
         }
         insert(value);
     };

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BlueOS } from "@carbonenginejs/runtime/blue";
 import { CjsBallparkController } from "@carbonenginejs/server/destiny";
 import { Actions } from "@carbonenginejs/server/destiny/net/server";
 
@@ -8,6 +7,20 @@ import { Actions } from "@carbonenginejs/server/destiny/net/server";
 // Source: destiny/src/Ballpark.cpp:219-330,550-559,3013-3032,4415-4441,5471-5572,5699-5766
 // Donor: 114e89fa584f0e1a81eb0a679aabf41af8870072. No native binary is required.
 const STEP = 10000000n;
+
+/** A tick host as the ballpark uses one: register, unregister, and a pump that ticks every registrant at the host's time. */
+function tickHost()
+{
+    const tickers = [];
+    const host = {
+        GetSmoothedTime: () => 0,
+        RegisterForTicks(cb, cookie) { if (!tickers.some(e => e.cb === cb && e.cookie === cookie)) tickers.push({ cb, cookie }); },
+        UnregisterForTicks(cb, cookie) { const i = tickers.findIndex(e => e.cb === cb && e.cookie === cookie); if (i >= 0) tickers.splice(i, 1); },
+        IsRegisteredForTicks: cb => tickers.some(e => e.cb === cb),
+        PumpOS() { const time = host.GetSmoothedTime(); for (const e of tickers.slice()) e.cb.OnTick(time, time, e.cookie); }
+    };
+    return host;
+}
 
 function ball(park, id = 1, free = true)
 {
@@ -49,7 +62,7 @@ test("donor lifecycle: initial state is paused", () =>
 
 test("donor lifecycle: can start", () =>
 {
-    const park = new CjsBallparkController(new BlueOS());
+    const park = new CjsBallparkController(tickHost());
     park.Start();
     assert.equal(park.isRunning, true);
     park.Pause();
@@ -57,7 +70,7 @@ test("donor lifecycle: can start", () =>
 
 test("donor lifecycle: can pause", () =>
 {
-    const park = new CjsBallparkController(new BlueOS());
+    const park = new CjsBallparkController(tickHost());
     park.Start();
     park.Pause();
     assert.equal(park.isRunning, false);
@@ -65,7 +78,7 @@ test("donor lifecycle: can pause", () =>
 
 test("Start/Pause are idempotent and runtime manual pumping needs no simulation schema calls", () =>
 {
-    const host = new BlueOS();
+    const host = tickHost();
     let now = STEP;
     host.GetSmoothedTime = () => Number(now);
     const park = new CjsBallparkController(host);
@@ -265,7 +278,7 @@ test("removal during Evolve is deferred and skips integration", () =>
 
 test("ClearAll releases references without cleanup callbacks or clock/lifecycle reset", () =>
 {
-    const events = eventHost(), host = new BlueOS();
+    const events = eventHost(), host = tickHost();
     const park = new CjsBallparkController(host, events);
     ball(park);
     park.RemoveBall(1, 100);

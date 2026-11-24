@@ -125,16 +125,16 @@ test(`mini restoration incoming free=${free} partial=${partial} retains native o
     const source = add(new Park(), 1, free); minis(source, 100);
     const park = new Park(), existing = add(park); minis(existing);
     const lists = [existing.mMiniBalls, existing.mMiniCapsules, existing.mMiniBoxes];
-    const descriptors = lists.map(list => list.GetAt(0)), ids = descriptors.map(d => d.id);
+    const descriptors = lists.map(list => list[0]), ids = descriptors.map(d => d.id);
     const worlds = [park.GetBall(ids[0]), park.mCapsules.get(ids[1]), park.mOrientedBoxes.get(ids[2])];
     const stream = packet(source); park.ReadFullStateFromStream(stream, partial);
     assert.equal(stream.remaining, 0); assert.equal(park.GetBall(1), existing);
     assert.equal(existing.mMiniBalls, lists[0]); assert.equal(existing.mMiniCapsules, lists[1]); assert.equal(existing.mMiniBoxes, lists[2]);
     for (let i = 0; i < 3; i++)
     {
-        assert.equal(lists[i].GetSize(), partial === 1 || !free ? 1 : 2);
-        if (partial === 1 || free) assert.equal(lists[i].GetAt(0), descriptors[i]);
-        else assert.notEqual(lists[i].GetAt(0), descriptors[i]);
+        assert.equal(lists[i].length, partial === 1 || !free ? 1 : 2);
+        if (partial === 1 || free) assert.equal(lists[i][0], descriptors[i]);
+        else assert.notEqual(lists[i][0], descriptors[i]);
     }
     const retained = [park.GetBall(ids[0]), park.mCapsules.get(ids[1]), park.mOrientedBoxes.get(ids[2])];
     if (partial === 1 || free) assert.deepEqual(retained, worlds);
@@ -142,7 +142,7 @@ test(`mini restoration incoming free=${free} partial=${partial} retains native o
     if (partial !== 1)
     {
         const index = free ? 1 : 0;
-        const [mb, mc, mx] = lists.map(list => list.GetAt(index));
+        const [mb, mc, mx] = lists.map(list => list[index]);
         assert.deepEqual([mb.x, mb.y, mb.z, mb.radius], [101, 2, 3, 4]);
         assert.deepEqual([mc.ax, mc.ay, mc.az, mc.bx, mc.by, mc.bz, mc.radius], [105, 6, 7, 8, 9, 10, 11]);
         assert.deepEqual(Array.from(mx.mCorner), [112, 13, 14]);
@@ -158,7 +158,7 @@ test("fixed mini replacement removes in reverse per-kind order before adding new
     const expected = [], observed = [], originals = new Map();
     for (const [method, list] of [["RemoveBall", existing.mMiniBalls], ["RemoveCapsule", existing.mMiniCapsules], ["RemoveOrientedBox", existing.mMiniBoxes]])
     {
-        for (let i = list.GetSize() - 1; i >= 0; --i) expected.push([method, list.GetAt(i).id]);
+        for (let i = list.length - 1; i >= 0; --i) expected.push([method, list[i].id]);
         const original = Park.prototype[method]; originals.set(method, original);
         Park.prototype[method] = function(id) { observed.push([method, id]); return original.call(this, id); };
     }
